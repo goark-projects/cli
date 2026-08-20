@@ -37,6 +37,8 @@ func (c Command) Run(args []string) int {
 	case "version", "-v", "--version":
 		_, _ = fmt.Fprintf(c.Out, "goark %s\n", Version)
 		return 0
+	case "generate", "gen":
+		return c.runGenerate(args[1:])
 	default:
 		_, _ = fmt.Fprintf(c.Err, "未知命令: %s\n\n", args[0])
 		c.printHelp(c.Err)
@@ -51,13 +53,13 @@ Usage:
   goark <command> [arguments]
 
 Available commands:
-  help       Show command help.
-  version    Print the CLI version.
+  help              Show command help.
+  version           Print the CLI version.
+  generate, gen     Run code generators.
 
-Planned generators:
-  new        Create a Goark application skeleton.
-  aop        Generate AOP contracts and weaving metadata.
-  di         Generate dependency injection wiring code.
+Available generators:
+  configuration     Generate a goark.Configuration source file.
+  registry          Generate a Configuration registry source file.
 
 `)
 }
