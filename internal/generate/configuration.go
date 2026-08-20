@@ -101,7 +101,8 @@ func validateConfigurationSpec(spec *ConfigurationSpec) error {
 
 func validateImports(imports []ImportSpec) error {
 	seen := make(map[string]struct{}, len(imports))
-	for _, item := range imports {
+	for index := range imports {
+		item := &imports[index]
 		path := strings.TrimSpace(item.Path)
 		if path == "" {
 			return fmt.Errorf("import path is required")
@@ -117,6 +118,8 @@ func validateImports(imports []ImportSpec) error {
 		if _, exists := seen[key]; exists {
 			return fmt.Errorf("duplicate import %q", path)
 		}
+		item.Alias = alias
+		item.Path = path
 		seen[key] = struct{}{}
 	}
 	return nil

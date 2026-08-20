@@ -36,6 +36,8 @@ func (c Command) runGenerate(args []string) int {
 		return c.runGenerateConfiguration(args[1:])
 	case "registry":
 		return c.runGenerateRegistry(args[1:])
+	case "annotations":
+		return c.runGenerateAnnotations(args[1:])
 	default:
 		_, _ = fmt.Fprintf(c.Err, "未知生成器: %s\n\n", args[0])
 		c.printGenerateHelp(c.Err)
@@ -174,6 +176,49 @@ func (c Command) runGenerateRegistry(args []string) int {
 	return 0
 }
 
+func (c Command) runGenerateAnnotations(args []string) int {
+	var output string
+	spec := generate.AnnotationScanSpec{Dir: "."}
+	flags := flag.NewFlagSet("goark generate annotations", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&spec.Dir, "dir", ".", "待扫描 Go package 目录")
+	flags.StringVar(&spec.PackageName, "package", "", "待扫描 package 名称，默认自动推导")
+	flags.StringVar(&spec.ConfigurationName, "name", "", "无显式 configuration 时生成的配置名称")
+	flags.StringVar(&spec.TypeName, "type", "", "无显式 configuration 时生成的配置类型名")
+	flags.StringVar(&output, "output", "", "输出文件路径，留空时输出到 stdout")
+
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			c.printGenerateAnnotationsHelp(c.Out)
+			return 0
+		}
+		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
+		c.printGenerateAnnotationsHelp(c.Err)
+		return 2
+	}
+	if flags.NArg() > 0 {
+		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
+		c.printGenerateAnnotationsHelp(c.Err)
+		return 2
+	}
+
+	source, err := generate.GenerateAnnotations(spec)
+	if err != nil {
+		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
+		return 2
+	}
+	if output == "" {
+		_, _ = c.Out.Write(source)
+		return 0
+	}
+	if err := writeFile(output, source); err != nil {
+		_, _ = fmt.Fprintf(c.Err, "写入生成文件失败: %v\n", err)
+		return 1
+	}
+	_, _ = fmt.Fprintf(c.Err, "generated %s\n", output)
+	return 0
+}
+
 func parseImportSpec(raw string) (generate.ImportSpec, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -248,6 +293,7 @@ func (c Command) printGenerateHelp(w io.Writer) {
 Available generators:
   configuration     Generate a goark.Configuration source file.
   registry          Generate a Configuration registry source file.
+  annotations       Scan //goark annotations and generate registration code.
 
 `)
 }
@@ -288,6 +334,24 @@ Examples:
   goark generate registry --package generated --configuration UserConfiguration
   goark generate registry --package generated --configuration UserConfiguration --configuration HTTPConfiguration --output internal/generated/registry.go
   goark generate registry --package generated --import cfg=example.com/app/internal/config --configuration cfg.AdminConfiguration
+
+`)
+}
+
+func (c Command) printGenerateAnnotationsHelp(w io.Writer) {
+	_, _ = fmt.Fprint(w, `Usage:
+  goark generate annotations --dir <package-dir> [flags]
+
+Flags:
+  --dir path          Go package directory to scan. Defaults to current directory.
+  --package string    Package name to scan when directory contains multiple packages.
+  --name string       Generated configuration name when no //goark:configuration exists.
+  --type string       Generated configuration type when no //goark:configuration exists.
+  --output path       Output file path. Defaults to stdout.
+
+Examples:
+  goark generate annotations --dir .
+  goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
 
 `)
 }

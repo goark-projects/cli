@@ -69,6 +69,22 @@ func TestGenerateConfiguration_whenTypeNameMissing_shouldDeriveExportedTypeName(
 	}
 }
 
+func TestGenerateConfiguration_whenImportHasSpaces_shouldNormalizeImport(t *testing.T) {
+	source, err := generate.GenerateConfiguration(generate.ConfigurationSpec{
+		PackageName:       "generated",
+		ConfigurationName: "user",
+		Imports: []generate.ImportSpec{
+			{Alias: " svc ", Path: " example.com/app/internal/service "},
+		},
+	})
+	if err != nil {
+		t.Fatalf("generate configuration failed: %v", err)
+	}
+	if !strings.Contains(string(source), "svc \"example.com/app/internal/service\"") {
+		t.Fatalf("expected normalized import, got:\n%s", string(source))
+	}
+}
+
 func TestGenerateConfiguration_whenSpecInvalid_shouldReturnError(t *testing.T) {
 	cases := []generate.ConfigurationSpec{
 		{PackageName: "", ConfigurationName: "user"},

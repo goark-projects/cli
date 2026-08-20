@@ -67,6 +67,9 @@ func TestGenerateRegistry_whenSpecInvalid_shouldReturnError(t *testing.T) {
 		{PackageName: "generated"},
 		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: ""}}},
 		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: "bad type"}}},
+		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: "NewConfiguration()"}}},
+		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: "adminConfiguration"}}},
+		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: "cfg.adminConfiguration"}}},
 		{PackageName: "generated", Imports: []generate.ImportSpec{{Path: "github.com/goark-projects/goark"}}, Configurations: []generate.ConfigurationRegistrationSpec{{Type: "AdminConfiguration"}}},
 	}
 

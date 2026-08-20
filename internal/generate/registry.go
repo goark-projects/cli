@@ -3,6 +3,7 @@ package generate
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
 	"go/format"
 	"go/parser"
 	"sort"
@@ -91,10 +92,26 @@ func validateConfigurationRegistrationSpec(spec *ConfigurationRegistrationSpec) 
 	if strings.ContainsAny(spec.Type, "\n\r") {
 		return fmt.Errorf("invalid configuration type %q", spec.Type)
 	}
-	if _, err := parser.ParseExpr(spec.Type); err != nil {
+	expr, err := parser.ParseExpr(spec.Type)
+	if err != nil {
 		return fmt.Errorf("invalid configuration type %q: %w", spec.Type, err)
 	}
+	if !isConfigurationTypeExpression(expr) {
+		return fmt.Errorf("invalid configuration type %q", spec.Type)
+	}
 	return nil
+}
+
+func isConfigurationTypeExpression(expr ast.Expr) bool {
+	switch item := expr.(type) {
+	case *ast.Ident:
+		return isExportedIdentifier(item.Name)
+	case *ast.SelectorExpr:
+		packageName, ok := item.X.(*ast.Ident)
+		return ok && isIdentifier(packageName.Name) && isExportedIdentifier(item.Sel.Name)
+	default:
+		return false
+	}
 }
 
 func writeRegistryImports(builder *bytes.Buffer, imports []ImportSpec) {

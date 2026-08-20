@@ -2,9 +2,9 @@
 
 ![goark](assets/goark-readme-logo.png)
 
-`goark cli` is the command-line tooling repository for the Goark ecosystem. It is intended to provide project scaffolding and code generation for Goark applications, including future support for AOP contracts, dependency injection wiring, and application configuration templates.
+`goark cli` is the command-line tooling repository for the Goark ecosystem. It is intended to provide project scaffolding and code generation for Goark applications, including support for annotation-driven dependency injection wiring, future AOP contracts, and application configuration templates.
 
-The project is in its initial public bootstrap stage. The current implementation provides a minimal executable command boundary so the repository can compile, install, and evolve without pretending that the generators already exist.
+The project is in its early public stage. The current implementation provides explicit configuration generators plus a Goark annotation scanner for core DI metadata.
 
 ## Goals
 
@@ -27,6 +27,7 @@ go run ./cmd/goark help
 go run ./cmd/goark version
 go run ./cmd/goark generate configuration --name user --package generated
 go run ./cmd/goark generate registry --package generated --configuration UserConfiguration
+go run ./cmd/goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
 ```
 
 ## Current Commands
@@ -37,6 +38,7 @@ go run ./cmd/goark generate registry --package generated --configuration UserCon
 | `goark version` | Print the CLI version. |
 | `goark generate configuration` | Generate a `goark.Configuration` source file. |
 | `goark generate registry` | Generate a function that registers multiple `goark.Configuration` values. |
+| `goark generate annotations` | Scan `//goark:*` comments and generate core registration code. |
 
 ## Configuration Generation
 
@@ -95,13 +97,39 @@ Flags:
 | `--import` | Extra import in `path` or `alias=path` format. Repeatable. |
 | `--configuration` | Configuration type expression to instantiate and register. Repeatable. |
 
+## Annotation Scanning
+
+`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source.
+
+```bash
+goark generate annotations \
+  --dir internal/app \
+  --output internal/app/zz_goark_app_gen.go
+```
+
+Flags:
+
+| Flag | Description |
+| --- | --- |
+| `--dir` | Go package directory to scan. Defaults to the current directory. |
+| `--package` | Package name to scan when a directory contains multiple packages. |
+| `--name` | Generated configuration name when no `//goark:configuration` exists. |
+| `--type` | Generated configuration type when no `//goark:configuration` exists. |
+| `--output` | Output file path. Defaults to stdout. |
+
+Annotation handling is deliberately extension-based. The scanner only parses Go
+syntax, validates registered descriptors, and dispatches matching items. A new
+annotation family, such as future ORM/MyBatis metadata, should add its own
+`AnnotationDescriptor` values, an `AnnotationBinder`, and an
+`AnnotationGenerator`; it should not require scanner changes or modifications to
+the core DI generator.
+
 ## Planned Generators
 
 | Generator | Purpose |
 | --- | --- |
 | `goark new` | Create a Goark application skeleton. |
 | `goark aop` | Generate AOP contracts and weaving metadata. |
-| source scan | Discover providers and generate configuration specs automatically. |
 
 ## Repository Status
 
