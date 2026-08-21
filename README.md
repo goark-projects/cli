@@ -4,7 +4,7 @@
 
 `goark cli` is the command-line tooling repository for the Goark ecosystem. It is intended to provide project scaffolding and code generation for Goark applications, including support for annotation-driven dependency injection wiring, future AOP contracts, and application configuration templates.
 
-The project is in its early public stage. The current implementation provides explicit configuration generators plus a Goark annotation scanner for core DI metadata.
+The project is in its early public stage. The current implementation provides explicit configuration generators, a Goark annotation scanner for core DI metadata, and an optional Goark ORM generator wrapper.
 
 ## Goals
 
@@ -17,7 +17,7 @@ The project is in its early public stage. The current implementation provides ex
 ## Installation
 
 ```bash
-go install github.com/goark-projects/cli/cmd/goark@latest
+go install goark.dev/cli/cmd/goark@latest
 ```
 
 During local development:
@@ -28,6 +28,7 @@ go run ./cmd/goark version
 go run ./cmd/goark generate configuration --name user --package generated
 go run ./cmd/goark generate registry --package generated --configuration UserConfiguration
 go run ./cmd/goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
+go run ./cmd/goark generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
 ```
 
 ## Current Commands
@@ -39,6 +40,7 @@ go run ./cmd/goark generate annotations --dir internal/app --output internal/app
 | `goark generate configuration` | Generate a `goark.Configuration` source file. |
 | `goark generate registry` | Generate a function that registers multiple `goark.Configuration` values. |
 | `goark generate annotations` | Scan `//goark:*` comments and generate core registration code. |
+| `goark generate orm` | Optional wrapper for `goark-orm` generation. The ORM module remains independently usable through `goark-orm generate orm`. |
 
 ## Configuration Generation
 
@@ -119,10 +121,25 @@ Flags:
 
 Annotation handling is deliberately extension-based. The scanner only parses Go
 syntax, validates registered descriptors, and dispatches matching items. A new
-annotation family, such as future ORM/MyBatis metadata, should add its own
+annotation family should add its own
 `AnnotationDescriptor` values, an `AnnotationBinder`, and an
 `AnnotationGenerator`; it should not require scanner changes or modifications to
 the core DI generator.
+
+## ORM Generation
+
+`goark generate orm` is a thin ecosystem wrapper over `goark.dev/orm/ormgen`. ORM users can install and run the standalone CLI without this repository:
+
+```bash
+goark-orm generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
+```
+
+The Goark CLI wrapper keeps the same flags for applications that already use `goark`:
+
+```bash
+goark generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
+goark generate orm ./...
+```
 
 ## Planned Generators
 
@@ -164,9 +181,9 @@ go run ./cmd/goark help
 
 ## Related Repositories
 
-- [`goark-projects/goark`](https://github.com/goark-projects/goark): core framework contracts.
-- [`goark-projects/boot`](https://github.com/goark-projects/boot): application bootstrap and convention layer.
-- [`goark-projects/cli`](https://github.com/goark-projects/cli): scaffolding and code generation tooling.
+- [`goark.dev/goark`](https://goark.dev/goark): core framework contracts.
+- [`goark.dev/boot`](https://goark.dev/boot): application bootstrap and convention layer.
+- [`goark.dev/cli`](https://goark.dev/cli): scaffolding and code generation tooling.
 
 ## License
 

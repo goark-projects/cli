@@ -126,7 +126,7 @@ func TestCommand_whenGenerateRegistryToStdout_shouldPrintGeneratedSource(t *test
 	output := stdout.String()
 	expected := []string{
 		"package generated",
-		"\"github.com/goark-projects/goark\"",
+		"\"goark.dev/goark\"",
 		"func RegisterAdminConfigurations(app *goark.ApplicationContext) error",
 		"goark.RegisterConfiguration(app, HTTPConfiguration{})",
 		"goark.RegisterConfiguration(app, UserConfiguration{})",
@@ -295,6 +295,83 @@ func TestCommand_whenGenerateAnnotationsHelpRequested_shouldReturnSuccess(t *tes
 	}
 }
 
+func TestCommand_whenGenerateORMToStdout_shouldPrintGeneratedSource(t *testing.T) {
+	dir := writeORMFixture(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main([]string{
+		"generate", "orm",
+		"--dir", dir,
+	}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d, stderr=%s", code, stderr.String())
+	}
+	output := stdout.String()
+	expected := []string{
+		"package sample",
+		"func RegisterGoarkORMMetadata(registry *orm.Registry) error",
+		"Namespace: \"system.user.UserMapper\"",
+		"func NewUserMapper(session orm.Session) UserMapper",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("generated ORM output missing %q:\n%s", fragment, output)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr should be empty, got %q", stderr.String())
+	}
+}
+
+func TestCommand_whenGenerateORMToFile_shouldWriteFileAndReportToStderr(t *testing.T) {
+	dir := writeORMFixture(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	output := filepath.Join(dir, "zz_goark_orm_sample_gen.go")
+
+	code := Main([]string{
+		"gen", "orm",
+		"--dir", dir,
+		"--output", output,
+	}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d, stderr=%s", code, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout should be empty, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "generated "+output) {
+		t.Fatalf("expected generated path on stderr, got %q", stderr.String())
+	}
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read generated ORM file failed: %v", err)
+	}
+	if !strings.Contains(string(data), "type goarkORMUserMapper struct") {
+		t.Fatalf("unexpected generated ORM file:\n%s", string(data))
+	}
+}
+
+func TestCommand_whenGenerateORMHelpRequested_shouldReturnSuccess(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main([]string{"generate", "orm", "--help"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d", code)
+	}
+	if !strings.Contains(stdout.String(), "goark generate orm [pattern] [flags]") {
+		t.Fatalf("expected ORM help in stdout, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr should be empty, got %q", stderr.String())
+	}
+}
+
 func TestParseBeanSpec_whenSpecHasOptions_shouldParseBean(t *testing.T) {
 	bean, err := parseBeanSpec("userService=NewUserService;deps=userRepository, clock;scope=prototype;lazy;primary")
 	if err != nil {
@@ -309,6 +386,30 @@ func TestParseBeanSpec_whenSpecHasOptions_shouldParseBean(t *testing.T) {
 	if len(bean.Dependencies) != 2 || bean.Dependencies[0] != "userRepository" || bean.Dependencies[1] != "clock" {
 		t.Fatalf("unexpected dependencies: %#v", bean.Dependencies)
 	}
+}
+
+func writeORMFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "mapper.go"), []byte(`package sample
+
+import "context"
+
+//goark-orm:entity(table="sys_user")
+type User struct {
+	ID int64 `+"`"+`goark-orm:"column='id';primary-key=true;auto-increment=true"`+"`"+`
+	Name string `+"`"+`goark-orm:"column='name'"`+"`"+`
+}
+
+//goark-orm:mapper(namespace="system.user.UserMapper")
+type UserMapper interface {
+	//goark-orm:select(sql="select id, name from sys_user where id = #{id}")
+	FindByID(ctx context.Context, id int64) (*User, error)
+}
+`), 0o644); err != nil {
+		t.Fatalf("write ORM source failed: %v", err)
+	}
+	return dir
 }
 
 func TestParseBeanSpec_whenSpecInvalid_shouldReturnError(t *testing.T) {

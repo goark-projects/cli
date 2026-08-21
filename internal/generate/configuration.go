@@ -154,7 +154,7 @@ func writeImports(builder *bytes.Buffer, imports []ImportSpec) {
 	builder.WriteString("import (\n")
 	builder.WriteString(strconv.Quote("context"))
 	builder.WriteString("\n\n")
-	builder.WriteString(strconv.Quote("github.com/goark-projects/goark/container"))
+	builder.WriteString(strconv.Quote("goark.dev/goark/container"))
 	builder.WriteByte('\n')
 	for _, item := range imports {
 		if item.Alias != "" {

@@ -61,6 +61,7 @@ Available generators:
   configuration     Generate a goark.Configuration source file.
   registry          Generate a Configuration registry source file.
   annotations       Scan //goark annotations and generate registration code.
+  orm               Scan //goark-orm metadata and generate ORM code.
 
 `)
 }

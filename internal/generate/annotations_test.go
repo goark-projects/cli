@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goark-projects/cli/internal/generate"
+	"goark.dev/cli/internal/generate"
 )
 
 func TestGenerateAnnotations_whenPackageHasGoarkAnnotations_shouldGenerateConfiguration(t *testing.T) {
@@ -207,7 +207,7 @@ type UserService struct {
 	}
 	text := string(generated)
 	expected := []string{
-		"arkerrors \"github.com/goark-projects/goark/errors\"",
+		"arkerrors \"goark.dev/goark/errors\"",
 		"if !arkerrors.Is(err, arkerrors.CodeNotFound)",
 	}
 	for _, fragment := range expected {
@@ -671,9 +671,9 @@ func assertGeneratedPackageBuilds(t *testing.T, dir string, generated []byte) {
 
 go 1.25
 
-require github.com/goark-projects/goark v0.0.0
+require goark.dev/goark v0.0.0
 
-replace github.com/goark-projects/goark => %s
+replace goark.dev/goark => %s
 `, goarkRoot)
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatalf("write generated test module failed: %v", err)

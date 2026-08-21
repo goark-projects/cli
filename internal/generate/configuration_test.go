@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goark-projects/cli/internal/generate"
+	"goark.dev/cli/internal/generate"
 )
 
 func TestGenerateConfiguration_whenSpecHasBeans_shouldGenerateDeterministicConfiguration(t *testing.T) {

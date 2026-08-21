@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goark-projects/cli/internal/generate"
+	"goark.dev/cli/internal/generate"
 )
 
 func TestGenerateRegistry_whenSpecHasConfigurations_shouldGenerateDeterministicRegistry(t *testing.T) {
@@ -31,7 +31,7 @@ func TestGenerateRegistry_whenSpecHasConfigurations_shouldGenerateDeterministicR
 	text := string(source)
 	expectedFragments := []string{
 		"package generated",
-		"\"github.com/goark-projects/goark\"",
+		"\"goark.dev/goark\"",
 		"admincfg \"example.com/app/internal/admin/config\"",
 		"func RegisterAdminConfigurations(app *goark.ApplicationContext) error",
 		"goark.RegisterConfiguration(app, admincfg.AdminConfiguration{})",
@@ -70,7 +70,7 @@ func TestGenerateRegistry_whenSpecInvalid_shouldReturnError(t *testing.T) {
 		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: "NewConfiguration()"}}},
 		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: "adminConfiguration"}}},
 		{PackageName: "generated", Configurations: []generate.ConfigurationRegistrationSpec{{Type: "cfg.adminConfiguration"}}},
-		{PackageName: "generated", Imports: []generate.ImportSpec{{Path: "github.com/goark-projects/goark"}}, Configurations: []generate.ConfigurationRegistrationSpec{{Type: "AdminConfiguration"}}},
+		{PackageName: "generated", Imports: []generate.ImportSpec{{Path: "goark.dev/goark"}}, Configurations: []generate.ConfigurationRegistrationSpec{{Type: "AdminConfiguration"}}},
 	}
 
 	for _, item := range cases {

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const goarkImportPath = "github.com/goark-projects/goark"
+const goarkImportPath = "goark.dev/goark"
 
 // RegistrySpec 描述 Configuration 注册表生成输入。
 type RegistrySpec struct {

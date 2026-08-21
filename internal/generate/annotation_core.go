@@ -684,14 +684,14 @@ func (coreAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationConte
 		return fmt.Errorf("invalid core annotation model")
 	}
 	ctx.AddImport("", "context")
-	ctx.AddImport("", "github.com/goark-projects/goark")
-	ctx.AddImport("", "github.com/goark-projects/goark/container")
+	ctx.AddImport("", "goark.dev/goark")
+	ctx.AddImport("", "goark.dev/goark/container")
 	if modelUsesOptionalInjection(model) {
-		ctx.AddImport("arkerrors", "github.com/goark-projects/goark/errors")
+		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
 	}
 	if model.UsesProperties {
-		ctx.AddImport("coreenv", "github.com/goark-projects/goark/core/env")
-		ctx.AddImport("", "github.com/goark-projects/goark/core/resource")
+		ctx.AddImport("coreenv", "goark.dev/goark/core/env")
+		ctx.AddImport("", "goark.dev/goark/core/resource")
 	}
 	for _, configuration := range model.Configurations {
 		writeGeneratedConfiguration(ctx.buffer(), configuration)

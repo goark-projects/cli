@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/goark-projects/cli/internal/cli"
+	"goark.dev/cli/internal/cli"
 )
 
 func main() {
