@@ -17,6 +17,7 @@ type Annotation struct {
 	Name     string
 	Selector string
 	Args     map[string]AnnotationArg
+	Values   []AnnotationArg
 }
 
 // AnnotationArg 表示注解参数。
@@ -74,11 +75,12 @@ func parseAnnotation(raw string) (Annotation, error) {
 		if !strings.HasSuffix(rest, ")") {
 			return Annotation{}, fmt.Errorf("annotation %q arguments are not closed", annotation.Name)
 		}
-		args, err := parseAnnotationArgs(rest[1 : len(rest)-1])
+		args, values, err := parseAnnotationArgs(rest[1 : len(rest)-1])
 		if err != nil {
 			return Annotation{}, err
 		}
 		annotation.Args = args
+		annotation.Values = values
 		rest = ""
 	}
 	if rest != "" {
@@ -87,37 +89,55 @@ func parseAnnotation(raw string) (Annotation, error) {
 	return annotation, nil
 }
 
-func parseAnnotationArgs(raw string) (map[string]AnnotationArg, error) {
+func parseAnnotationArgs(raw string) (map[string]AnnotationArg, []AnnotationArg, error) {
 	args := map[string]AnnotationArg{}
+	values := make([]AnnotationArg, 0)
+	valueFromNamed := false
 	if strings.TrimSpace(raw) == "" {
-		return args, nil
+		return args, values, nil
 	}
 	for _, part := range splitAnnotationArgs(raw) {
 		key := "value"
 		value := strings.TrimSpace(part)
 		if value == "" {
-			return nil, fmt.Errorf("annotation argument is empty")
+			return nil, nil, fmt.Errorf("annotation argument is empty")
 		}
+		named := false
 		if left, right, ok := cutAnnotationArg(value); ok {
 			key = strings.TrimSpace(left)
 			value = strings.TrimSpace(right)
+			named = true
 		}
 		if key == "" {
-			return nil, fmt.Errorf("annotation argument key is empty")
-		}
-		if _, exists := args[key]; exists {
-			return nil, fmt.Errorf("duplicate annotation argument %q", key)
+			return nil, nil, fmt.Errorf("annotation argument key is empty")
 		}
 		if strings.HasPrefix(value, "\"") {
 			unquoted, err := strconv.Unquote(value)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			value = unquoted
 		}
-		args[key] = AnnotationArg{text: value}
+		arg := AnnotationArg{text: value}
+		if !named {
+			if valueFromNamed {
+				return nil, nil, fmt.Errorf("duplicate annotation argument %q", "value")
+			}
+			if _, exists := args["value"]; !exists {
+				args["value"] = arg
+			}
+			values = append(values, arg)
+			continue
+		}
+		if _, exists := args[key]; exists {
+			return nil, nil, fmt.Errorf("duplicate annotation argument %q", key)
+		}
+		args[key] = arg
+		if key == "value" {
+			valueFromNamed = true
+		}
 	}
-	return args, nil
+	return args, values, nil
 }
 
 func cutAnnotationArg(raw string) (string, string, bool) {
@@ -211,11 +231,27 @@ func annotationStrings(annotations []Annotation, name string) []string {
 		if annotation.Name != name {
 			continue
 		}
-		if value, ok := annotation.Args["value"]; ok && value.text != "" {
-			values = append(values, value.text)
+		for _, value := range annotationValueTexts(annotation) {
+			if value != "" {
+				values = append(values, value)
+			}
 		}
 	}
 	return values
+}
+
+func annotationValueTexts(annotation Annotation) []string {
+	if len(annotation.Values) > 0 {
+		values := make([]string, 0, len(annotation.Values))
+		for _, value := range annotation.Values {
+			values = append(values, value.text)
+		}
+		return values
+	}
+	if value, ok := annotation.Args["value"]; ok {
+		return []string{value.text}
+	}
+	return nil
 }
 
 func annotationInt(annotations []Annotation, name string, fallback int) int {

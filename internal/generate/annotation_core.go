@@ -78,12 +78,26 @@ type injectionSpec struct {
 }
 
 type annotationBeanOptions struct {
-	Primary   bool
-	Lazy      bool
-	Scope     string
-	DependsOn []string
-	Order     *int
-	Priority  *int
+	Primary                       bool
+	Lazy                          bool
+	Scope                         string
+	DependsOn                     []string
+	FactoryDependencies           []string
+	InjectionDependencies         []string
+	OptionalInjectionDependencies []string
+	Order                         *int
+	Priority                      *int
+}
+
+type annotationDependencyCandidate struct {
+	Name     string
+	Type     string
+	Primary  bool
+	Priority *int
+}
+
+type annotationDependencyResolver struct {
+	byType map[string][]annotationDependencyCandidate
 }
 
 type coreAnnotationBinder struct{}
@@ -102,10 +116,10 @@ func defaultAnnotationExtensions() []AnnotationExtension {
 
 func coreAnnotationDescriptors() []AnnotationDescriptor {
 	return []AnnotationDescriptor{
-		{Name: "configuration", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreStructTypeAnnotation},
-		{Name: "component", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreStructTypeAnnotation},
-		{Name: "service", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreStructTypeAnnotation},
-		{Name: "repository", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreStructTypeAnnotation},
+		{Name: "configuration", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
+		{Name: "component", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
+		{Name: "service", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
+		{Name: "repository", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
 		{Name: "bean", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateCoreBeanAnnotation},
 		{Name: "autowired", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
 		{Name: "inject", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
@@ -137,6 +151,13 @@ func validateCoreStructTypeAnnotation(ctx AnnotationValidationContext) error {
 	return nil
 }
 
+func validateCoreNamedStructTypeAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateCoreStructTypeAnnotation(ctx); err != nil {
+		return err
+	}
+	return validateCoreNameAnnotation(ctx.Annotation)
+}
+
 func validateCoreBeanAnnotation(ctx AnnotationValidationContext) error {
 	if ctx.Item.FuncDecl() == nil || ctx.Item.FuncDecl().Recv == nil {
 		return fmt.Errorf("annotation %q requires concrete method with receiver", ctx.Annotation.Name)
@@ -144,7 +165,7 @@ func validateCoreBeanAnnotation(ctx AnnotationValidationContext) error {
 	if ctx.Item.ReceiverTypeName() == "" {
 		return fmt.Errorf("annotation %q receiver is not supported", ctx.Annotation.Name)
 	}
-	return nil
+	return validateCoreNameAnnotation(ctx.Annotation)
 }
 
 func validateCoreInjectionAnnotation(ctx AnnotationValidationContext) error {
@@ -183,6 +204,9 @@ func validateCoreLazyAnnotation(ctx AnnotationValidationContext) error {
 	if err := validateCoreComponentOrBeanOwner(ctx); err != nil {
 		return err
 	}
+	if err := validateAtMostOneAnnotationValue(ctx.Annotation); err != nil {
+		return err
+	}
 	return validateBoolArg(ctx.Annotation, "value")
 }
 
@@ -206,13 +230,15 @@ func validateCoreDependsOnAnnotation(ctx AnnotationValidationContext) error {
 	if err := validateCoreComponentOrBeanOwner(ctx); err != nil {
 		return err
 	}
-	value, err := requireAnnotationValueText(ctx.Annotation)
+	values, err := requireAnnotationValueTexts(ctx.Annotation)
 	if err != nil {
 		return err
 	}
-	for _, dependency := range strings.Split(value, ",") {
-		if strings.TrimSpace(dependency) == "" {
-			return fmt.Errorf("annotation %q has empty dependency name", ctx.Annotation.Name)
+	for _, value := range values {
+		for _, dependency := range strings.Split(value, ",") {
+			if strings.TrimSpace(dependency) == "" {
+				return fmt.Errorf("annotation %q has empty dependency name", ctx.Annotation.Name)
+			}
 		}
 	}
 	return nil
@@ -294,11 +320,49 @@ func requireAnnotationValue(annotation Annotation) error {
 }
 
 func requireAnnotationValueText(annotation Annotation) (string, error) {
-	value, ok := annotation.Args["value"]
-	if !ok || strings.TrimSpace(value.text) == "" {
-		return "", fmt.Errorf("annotation %q requires value argument", annotation.Name)
+	values, err := requireAnnotationValueTexts(annotation)
+	if err != nil {
+		return "", err
 	}
-	return strings.TrimSpace(value.text), nil
+	if len(values) > 1 {
+		return "", fmt.Errorf("annotation %q accepts exactly one value argument", annotation.Name)
+	}
+	return values[0], nil
+}
+
+func requireAnnotationValueTexts(annotation Annotation) ([]string, error) {
+	values := annotationValueTexts(annotation)
+	if len(values) == 0 {
+		return nil, fmt.Errorf("annotation %q requires value argument", annotation.Name)
+	}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, fmt.Errorf("annotation %q requires value argument", annotation.Name)
+		}
+		normalized = append(normalized, value)
+	}
+	return normalized, nil
+}
+
+func validateAtMostOneAnnotationValue(annotation Annotation) error {
+	if len(annotation.Values) > 1 {
+		return fmt.Errorf("annotation %q accepts at most one value argument", annotation.Name)
+	}
+	return nil
+}
+
+func validateCoreNameAnnotation(annotation Annotation) error {
+	if err := validateAtMostOneAnnotationValue(annotation); err != nil {
+		return err
+	}
+	if _, hasName := annotation.Args["name"]; hasName {
+		if _, hasValue := annotation.Args["value"]; hasValue {
+			return fmt.Errorf("annotation %q accepts either name or value argument", annotation.Name)
+		}
+	}
+	return nil
 }
 
 func validateIntValue(annotation Annotation) error {
@@ -395,7 +459,153 @@ func (coreAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingCont
 			model.UsesProperties = true
 		}
 	}
+	inferCoreDependencyMetadata(model)
 	return nil
+}
+
+func inferCoreDependencyMetadata(model *coreAnnotationModel) {
+	resolver := newAnnotationDependencyResolver(model)
+	for _, configuration := range model.Configurations {
+		for index := range configuration.Components {
+			inferComponentDependencyMetadata(&configuration.Components[index], resolver)
+		}
+		for index := range configuration.Beans {
+			inferBeanDependencyMetadata(&configuration.Beans[index], resolver)
+		}
+	}
+}
+
+func newAnnotationDependencyResolver(model *coreAnnotationModel) annotationDependencyResolver {
+	resolver := annotationDependencyResolver{
+		byType: make(map[string][]annotationDependencyCandidate),
+	}
+	for _, configuration := range model.Configurations {
+		for _, component := range configuration.Components {
+			resolver.addCandidate(annotationDependencyCandidate{
+				Name:     component.Name,
+				Type:     "*" + component.TypeName,
+				Primary:  component.Options.Primary,
+				Priority: component.Options.Priority,
+			})
+		}
+		for _, bean := range configuration.Beans {
+			resolver.addCandidate(annotationDependencyCandidate{
+				Name:     bean.Name,
+				Type:     bean.ReturnType,
+				Primary:  bean.Options.Primary,
+				Priority: bean.Options.Priority,
+			})
+		}
+	}
+	return resolver
+}
+
+func (r annotationDependencyResolver) addCandidate(candidate annotationDependencyCandidate) {
+	candidate.Name = strings.TrimSpace(candidate.Name)
+	candidate.Type = strings.TrimSpace(candidate.Type)
+	if candidate.Name == "" || candidate.Type == "" {
+		return
+	}
+	r.byType[candidate.Type] = append(r.byType[candidate.Type], candidate)
+}
+
+func inferComponentDependencyMetadata(component *annotationComponent, resolver annotationDependencyResolver) {
+	for _, field := range component.Fields {
+		name := resolver.dependencyName(field.Type, field.Injection)
+		if name == "" {
+			continue
+		}
+		if field.Injection.Required {
+			component.Options.InjectionDependencies = appendUniqueDependency(component.Options.InjectionDependencies, name)
+			continue
+		}
+		component.Options.OptionalInjectionDependencies = appendUniqueDependency(component.Options.OptionalInjectionDependencies, name)
+	}
+}
+
+func inferBeanDependencyMetadata(bean *annotationBean, resolver annotationDependencyResolver) {
+	for _, param := range bean.Params {
+		name := resolver.dependencyName(param.Type, param.Injection)
+		if name == "" {
+			continue
+		}
+		bean.Options.FactoryDependencies = appendUniqueDependency(bean.Options.FactoryDependencies, name)
+	}
+}
+
+func (r annotationDependencyResolver) dependencyName(typ string, injection injectionSpec) string {
+	if injection.Kind != "bean" {
+		return ""
+	}
+	if injection.Qualifier != "" {
+		return injection.Qualifier
+	}
+	candidate, ok := r.resolveByType(typ)
+	if !ok {
+		return ""
+	}
+	return candidate.Name
+}
+
+func (r annotationDependencyResolver) resolveByType(typ string) (annotationDependencyCandidate, bool) {
+	candidates := append([]annotationDependencyCandidate(nil), r.byType[strings.TrimSpace(typ)]...)
+	switch len(candidates) {
+	case 0:
+		return annotationDependencyCandidate{}, false
+	case 1:
+		return candidates[0], true
+	}
+	if candidate, ok := uniquePrimaryCandidate(candidates); ok {
+		return candidate, true
+	}
+	return uniqueHighestPriorityCandidate(candidates)
+}
+
+func uniquePrimaryCandidate(candidates []annotationDependencyCandidate) (annotationDependencyCandidate, bool) {
+	var selected annotationDependencyCandidate
+	count := 0
+	for _, candidate := range candidates {
+		if !candidate.Primary {
+			continue
+		}
+		selected = candidate
+		count++
+	}
+	return selected, count == 1
+}
+
+func uniqueHighestPriorityCandidate(candidates []annotationDependencyCandidate) (annotationDependencyCandidate, bool) {
+	var selected annotationDependencyCandidate
+	selectedSet := false
+	ambiguous := false
+	for _, candidate := range candidates {
+		if candidate.Priority == nil {
+			continue
+		}
+		if !selectedSet || *candidate.Priority < *selected.Priority {
+			selected = candidate
+			selectedSet = true
+			ambiguous = false
+			continue
+		}
+		if *candidate.Priority == *selected.Priority {
+			ambiguous = true
+		}
+	}
+	return selected, selectedSet && !ambiguous
+}
+
+func appendUniqueDependency(names []string, name string) []string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return names
+	}
+	for _, existing := range names {
+		if existing == name {
+			return names
+		}
+	}
+	return append(names, name)
 }
 
 func bindCoreTypeAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) error {
@@ -582,6 +792,9 @@ func buildBean(fset *token.FileSet, fn *ast.FuncDecl, annotations []Annotation) 
 			}
 			for _, name := range names {
 				injection := buildInjection(paramAnnotations[name.Name], name.Name)
+				if injection.Kind == "" {
+					injection = injectionSpec{Kind: "bean", Required: true}
+				}
 				bean.Params = append(bean.Params, annotationParam{
 					Name:      name.Name,
 					Type:      exprString(fset, field.Type),
@@ -685,12 +898,9 @@ func writeComponentRegistration(builder *bytes.Buffer, component annotationCompo
 	builder.WriteString(component.TypeName)
 	builder.WriteString(", err error) {\nout = &")
 	builder.WriteString(component.TypeName)
-	builder.WriteString("{}\n")
-	for _, field := range component.Fields {
-		writeInjectionAssignment(builder, "out."+field.Name, field.Type, field.Injection)
-	}
-	builder.WriteString("return out, nil\n}")
+	builder.WriteString("{}\nreturn out, nil\n}")
 	writeContainerOptions(builder, component.Options)
+	writeComponentDependencyInjector(builder, component)
 	builder.WriteString("); err != nil {\nreturn err\n}\n")
 	writeConditionalEnd(builder, component.Profiles, component.Condition)
 }
@@ -732,10 +942,24 @@ func writeParamResolution(builder *bytes.Buffer, param annotationParam) {
 	builder.WriteByte(' ')
 	builder.WriteString(param.Type)
 	builder.WriteByte('\n')
-	writeInjectionAssignment(builder, param.Name, param.Type, param.Injection)
+	writeInjectionAssignment(builder, param.Name, param.Type, param.Injection, "return out, err")
 }
 
-func writeInjectionAssignment(builder *bytes.Buffer, target string, typ string, injection injectionSpec) {
+func writeComponentDependencyInjector(builder *bytes.Buffer, component annotationComponent) {
+	if len(component.Fields) == 0 {
+		return
+	}
+	builder.WriteString(", container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *")
+	builder.WriteString(component.TypeName)
+	builder.WriteString(") error {\n")
+	builder.WriteString("var err error\n")
+	for _, field := range component.Fields {
+		writeInjectionAssignment(builder, "out."+field.Name, field.Type, field.Injection, "return err")
+	}
+	builder.WriteString("return nil\n})")
+}
+
+func writeInjectionAssignment(builder *bytes.Buffer, target string, typ string, injection injectionSpec, errorReturn string) {
 	if injection.Kind == "value" {
 		builder.WriteString(target)
 		builder.WriteString(", err = goark.ResolveValueAs[")
@@ -743,7 +967,7 @@ func writeInjectionAssignment(builder *bytes.Buffer, target string, typ string, 
 		builder.WriteString("](config.Environment(), ")
 		builder.WriteString(strconv.Quote(injection.Value))
 		builder.WriteString(")\n")
-		writeInjectionErrorCheck(builder, true)
+		writeInjectionErrorCheck(builder, true, errorReturn)
 		return
 	}
 	if injection.Qualifier != "" {
@@ -753,22 +977,25 @@ func writeInjectionAssignment(builder *bytes.Buffer, target string, typ string, 
 		builder.WriteString("](ctx, resolver, container.WithQualifier(")
 		builder.WriteString(strconv.Quote(injection.Qualifier))
 		builder.WriteString("))\n")
-		writeInjectionErrorCheck(builder, injection.Required)
+		writeInjectionErrorCheck(builder, injection.Required, errorReturn)
 		return
 	}
 	builder.WriteString(target)
 	builder.WriteString(", err = container.GetByType[")
 	builder.WriteString(typ)
 	builder.WriteString("](ctx, resolver)\n")
-	writeInjectionErrorCheck(builder, injection.Required)
+	writeInjectionErrorCheck(builder, injection.Required, errorReturn)
 }
 
-func writeInjectionErrorCheck(builder *bytes.Buffer, required bool) {
+func writeInjectionErrorCheck(builder *bytes.Buffer, required bool, errorReturn string) {
 	builder.WriteString("if err != nil {\n")
 	if required {
-		builder.WriteString("return out, err\n")
+		builder.WriteString(errorReturn)
+		builder.WriteByte('\n')
 	} else {
-		builder.WriteString("if !arkerrors.Is(err, arkerrors.CodeNotFound) {\nreturn out, err\n}\n")
+		builder.WriteString("if !arkerrors.Is(err, arkerrors.CodeNotFound) {\n")
+		builder.WriteString(errorReturn)
+		builder.WriteString("\n}\n")
 	}
 	builder.WriteString("}\n")
 }
@@ -819,7 +1046,7 @@ func writeContainerOptions(builder *bytes.Buffer, options annotationBeanOptions)
 }
 
 func containerOptions(options annotationBeanOptions) []string {
-	out := make([]string, 0, 6)
+	out := make([]string, 0, 9)
 	if options.Primary {
 		out = append(out, "container.WithPrimary()")
 	}
@@ -837,11 +1064,7 @@ func containerOptions(options annotationBeanOptions) []string {
 		}
 	}
 	if len(options.DependsOn) > 0 {
-		quoted := make([]string, 0, len(options.DependsOn))
-		for _, name := range options.DependsOn {
-			quoted = append(quoted, strconv.Quote(name))
-		}
-		out = append(out, "container.WithDependsOn("+strings.Join(quoted, ", ")+")")
+		out = append(out, dependencyOption("container.WithDependsOn", options.DependsOn))
 	}
 	if options.Order != nil {
 		out = append(out, "container.WithOrder("+strconv.Itoa(*options.Order)+")")
@@ -849,7 +1072,24 @@ func containerOptions(options annotationBeanOptions) []string {
 	if options.Priority != nil {
 		out = append(out, "container.WithPriority("+strconv.Itoa(*options.Priority)+")")
 	}
+	if len(options.FactoryDependencies) > 0 {
+		out = append(out, dependencyOption("container.WithFactoryDependencies", options.FactoryDependencies))
+	}
+	if len(options.InjectionDependencies) > 0 {
+		out = append(out, dependencyOption("container.WithInjectionDependencies", options.InjectionDependencies))
+	}
+	if len(options.OptionalInjectionDependencies) > 0 {
+		out = append(out, dependencyOption("container.WithOptionalInjectionDependencies", options.OptionalInjectionDependencies))
+	}
 	return out
+}
+
+func dependencyOption(function string, names []string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, strconv.Quote(name))
+	}
+	return function + "(" + strings.Join(quoted, ", ") + ")"
 }
 
 func componentKind(annotations []Annotation) string {
@@ -897,7 +1137,7 @@ func propertySourceAnnotations(annotations []Annotation) []annotationPropertySou
 		switch annotation.Name {
 		case "property-source":
 			source := annotationPropertySource{
-				Location:               annotationString([]Annotation{annotation}, "property-source", ""),
+				Location:               argString(annotation, "value", ""),
 				Name:                   argString(annotation, "name", ""),
 				Encoding:               argString(annotation, "encoding", ""),
 				IgnoreResourceNotFound: annotationBool(annotation, "ignoreResourceNotFound", false),
@@ -906,7 +1146,7 @@ func propertySourceAnnotations(annotations []Annotation) []annotationPropertySou
 				sources = append(sources, source)
 			}
 		case "property-sources":
-			for _, location := range strings.Split(annotationString([]Annotation{annotation}, "property-sources", ""), ";") {
+			for _, location := range strings.Split(argString(annotation, "value", ""), ";") {
 				location = strings.TrimSpace(location)
 				if location != "" {
 					sources = append(sources, annotationPropertySource{Location: location})

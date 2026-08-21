@@ -1,10 +1,13 @@
 package generate_test
 
 import (
+	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -66,6 +69,7 @@ func (AppConfiguration) Repository(database *Database) *Repository {
 	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
 		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
 	}
+	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
 		"package app",
@@ -77,11 +81,99 @@ func (AppConfiguration) Repository(database *Database) *Repository {
 		"container.WithPrimary(), container.WithPriority(10)",
 		"container.Register(registry, \"userService\"",
 		"container.WithQualifier(\"repo\")",
+		"container.WithInjectionDependencies(\"repo\")",
+		"container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *UserService) error",
+		"var err error",
 		"goark.ResolveValueAs[bool](config.Environment(), \"${feature.enabled:false}\")",
 		"container.WithLazy(), container.WithDependsOn(\"database\"), container.WithOrder(5)",
 		"container.Register(registry, \"database\"",
 		"container.Register(registry, \"repository\"",
 		"container.GetByType[*Database](ctx, resolver, container.WithQualifier(\"database\"))",
+		"container.WithFactoryDependencies(\"database\")",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
+func TestGenerateAnnotations_whenDependsOnHasMultipleValues_shouldGenerateAllManualDependencies(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+type Repository struct{}
+
+//goark:repository("repository")
+type UserRepository struct{}
+
+//goark:service("userService")
+//goark:depends-on("database, cache")
+//goark:depends-on("schemaMigrator", "redisClient")
+type UserService struct {
+	//goark:autowired
+	repository *UserRepository
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
+		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
+	}
+	text := string(generated)
+	expected := []string{
+		"container.WithDependsOn(\"database\", \"cache\", \"schemaMigrator\", \"redisClient\")",
+		"container.WithInjectionDependencies(\"repository\")",
+		"container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *UserService) error",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
+func TestGenerateAnnotations_whenBeanParameterUnannotated_shouldInferFactoryDependency(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+type Database struct{}
+type Repository struct{}
+
+//goark:configuration("app")
+type AppConfiguration struct{}
+
+//goark:bean("database")
+func (AppConfiguration) Database() *Database {
+	return &Database{}
+}
+
+//goark:bean("repository")
+func (AppConfiguration) Repository(database *Database) *Repository {
+	return &Repository{}
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
+		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
+	}
+	text := string(generated)
+	expected := []string{
+		"database, err = container.GetByType[*Database](ctx, resolver)",
+		"container.WithFactoryDependencies(\"database\")",
 	}
 	for _, fragment := range expected {
 		if !strings.Contains(text, fragment) {
@@ -150,6 +242,32 @@ func (AppConfiguration) Port(int) int {
 	}
 	if !strings.Contains(string(generated), "arg0, err = goark.ResolveValueAs[int](config.Environment(), \"8080\")") {
 		t.Fatalf("generated source should resolve synthetic arg0:\n%s", string(generated))
+	}
+}
+
+func TestGenerateAnnotations_whenPropertySourceHasName_shouldKeepLocationValue(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+//goark:configuration("admin")
+//goark:property-source("config/app.properties", name="admin-config", ignoreResourceNotFound=true)
+type AdminConfiguration struct{}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
+		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
+	}
+	text := string(generated)
+	expected := `coreenv.LoadPropertiesPropertySource(ctx, loader, "config/app.properties", coreenv.WithPropertySourceName("admin-config"), coreenv.WithIgnoreResourceNotFound(true))`
+	if !strings.Contains(text, expected) {
+		t.Fatalf("generated property source should use location value and source name separately:\n%s", text)
 	}
 }
 
@@ -253,6 +371,44 @@ func TestGenerateAnnotations_whenCoreAnnotationArgumentInvalid_shouldReturnValid
 type UserService struct{}
 `,
 			errorFragment: `annotation argument is empty`,
+		},
+		{
+			name: "named type annotation with multiple values",
+			source: `package app
+
+//goark:service("userService", "ignored")
+type UserService struct{}
+`,
+			errorFragment: `annotation "service" accepts at most one value argument`,
+		},
+		{
+			name: "named type annotation with name and value",
+			source: `package app
+
+//goark:service(name="userService", "ignored")
+type UserService struct{}
+`,
+			errorFragment: `annotation "service" accepts either name or value argument`,
+		},
+		{
+			name: "single value annotation with multiple values",
+			source: `package app
+
+//goark:service
+//goark:scope("singleton", "prototype")
+type UserService struct{}
+`,
+			errorFragment: `annotation "scope" accepts exactly one value argument`,
+		},
+		{
+			name: "named and positional value arguments",
+			source: `package app
+
+//goark:service
+//goark:scope(value="singleton", "prototype")
+type UserService struct{}
+`,
+			errorFragment: `duplicate annotation argument "value"`,
 		},
 		{
 			name: "invalid order",
@@ -503,6 +659,41 @@ func NewMapper() {}
 	if err == nil || !strings.Contains(err.Error(), `annotation "mapper" does not support method target`) {
 		t.Fatalf("expected descriptor target error, got %v", err)
 	}
+}
+
+func assertGeneratedPackageBuilds(t *testing.T, dir string, generated []byte) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "zz_goark_app_gen.go"), generated, 0o644); err != nil {
+		t.Fatalf("write generated source failed: %v", err)
+	}
+	goarkRoot := filepath.ToSlash(filepath.Clean(filepath.Join(projectRoot(t), "..", "goark")))
+	mod := fmt.Sprintf(`module example.com/goark-generated-test
+
+go 1.25
+
+require github.com/goark-projects/goark v0.0.0
+
+replace github.com/goark-projects/goark => %s
+`, goarkRoot)
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
+		t.Fatalf("write generated test module failed: %v", err)
+	}
+	cmd := exec.Command("go", "test", "-mod=mod", ".")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated package should compile: %v\n%s", err, string(output))
+	}
+}
+
+func projectRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test file path failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
 
 type mapperTestBinder struct{}
