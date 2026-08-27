@@ -111,6 +111,7 @@ func defaultAnnotationExtensions() []AnnotationExtension {
 			Binder:      coreAnnotationBinder{},
 			Generator:   coreAnnotationGenerator{},
 		},
+		mvcAnnotationExtension(),
 	}
 }
 
@@ -880,7 +881,9 @@ func writeRegisterWithContext(builder *bytes.Buffer, configuration *annotationCo
 	if len(configuration.Profiles) > 0 {
 		writeProfileGuard(builder, strings.Join(wrapExpressions(configuration.Profiles), " | "), configuration.Name, "return nil")
 	}
-	builder.WriteString("registry := config.Registry()\n")
+	if len(configuration.Components) > 0 || len(configuration.Beans) > 0 {
+		builder.WriteString("registry := config.Registry()\n")
+	}
 	for _, component := range configuration.Components {
 		writeComponentRegistration(builder, component)
 	}

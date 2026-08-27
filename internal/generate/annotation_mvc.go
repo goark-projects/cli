@@ -1,0 +1,723 @@
+package generate
+
+import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/token"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+const (
+	mvcAnnotationModelKey = "goark.mvc.annotations"
+	arkartaWebImportPath  = "goark.dev/arkarta/web"
+)
+
+type mvcAnnotationModel struct {
+	Controllers []*mvcController
+	byType      map[string]*mvcController
+	pending     []mvcRoute
+}
+
+type mvcController struct {
+	Component annotationComponent
+	BasePath  string
+	Routes    []mvcRoute
+}
+
+type mvcRoute struct {
+	ControllerType string
+	MethodName     string
+	HTTPMethod     string
+	Path           string
+	Status         int
+	Handler        mvcHandler
+}
+
+type mvcHandler struct {
+	AcceptsContext bool
+	ReturnKind     mvcReturnKind
+}
+
+type mvcReturnKind uint8
+
+const (
+	mvcReturnNone mvcReturnKind = iota
+	mvcReturnError
+	mvcReturnResult
+	mvcReturnResultError
+	mvcReturnValue
+	mvcReturnValueError
+)
+
+type mvcAnnotationBinder struct{}
+
+type mvcAnnotationGenerator struct{}
+
+func mvcAnnotationExtension() AnnotationExtension {
+	return AnnotationExtension{
+		Descriptors: mvcAnnotationDescriptors(),
+		Binder:      mvcAnnotationBinder{},
+		Generator:   mvcAnnotationGenerator{},
+	}
+}
+
+func mvcAnnotationDescriptors() []AnnotationDescriptor {
+	return []AnnotationDescriptor{
+		{Name: "controller", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAnnotation},
+		{Name: "rest-controller", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAnnotation},
+		{Name: "mvc-controller", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAnnotation},
+		{Name: "request-mapping", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateMVCRequestMappingAnnotation},
+		{Name: "get", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "post", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "put", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "patch", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "delete", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+	}
+}
+
+func validateMVCControllerAnnotation(ctx AnnotationValidationContext) error {
+	typeSpec := ctx.Item.TypeSpec()
+	if typeSpec == nil {
+		return fmt.Errorf("annotation %q requires type target", ctx.Annotation.Name)
+	}
+	if _, ok := typeSpec.Type.(*ast.StructType); !ok {
+		return fmt.Errorf("annotation %q requires struct type target", ctx.Annotation.Name)
+	}
+	return validateCoreNameAnnotation(ctx.Annotation)
+}
+
+func validateMVCRequestMappingAnnotation(ctx AnnotationValidationContext) error {
+	if ctx.Target == AnnotationTargetType {
+		if !hasMVCControllerAnnotation(ctx.Item.Annotations()) {
+			return fmt.Errorf("annotation %q on type requires mvc controller target", ctx.Annotation.Name)
+		}
+		return requireMVCPath(ctx.Annotation)
+	}
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	if _, err := mvcRouteMapping(ctx.Annotation); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateMVCHTTPMappingAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	return requireMVCPath(ctx.Annotation)
+}
+
+func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
+	fn := ctx.Item.FuncDecl()
+	if fn == nil || fn.Recv == nil {
+		return fmt.Errorf("annotation %q requires concrete method with receiver", ctx.Annotation.Name)
+	}
+	if ctx.Item.ReceiverTypeName() == "" {
+		return fmt.Errorf("annotation %q receiver is not supported", ctx.Annotation.Name)
+	}
+	return nil
+}
+
+func (mvcAnnotationBinder) BindAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) error {
+	switch item.Target() {
+	case AnnotationTargetType:
+		return bindMVCController(ctx, item)
+	case AnnotationTargetMethod:
+		return bindMVCRoute(ctx, item)
+	default:
+		return nil
+	}
+}
+
+func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingContext) error {
+	value, ok := ctx.Value(mvcAnnotationModelKey)
+	if !ok {
+		return nil
+	}
+	model, ok := value.(*mvcAnnotationModel)
+	if !ok {
+		return fmt.Errorf("invalid mvc annotation model")
+	}
+	for _, route := range model.pending {
+		controller := model.byType[route.ControllerType]
+		if controller == nil {
+			return fmt.Errorf("mvc route method %s.%s requires mvc controller receiver type", route.ControllerType, route.MethodName)
+		}
+		route.Path = joinMVCPaths(controller.BasePath, route.Path)
+		controller.Routes = append(controller.Routes, route)
+	}
+	coreModel := ensureCoreAnnotationModel(ctx)
+	resolver := newAnnotationDependencyResolver(coreModel)
+	for _, controller := range model.Controllers {
+		resolver.addCandidate(annotationDependencyCandidate{
+			Name: controller.Component.Name,
+			Type: "*" + controller.Component.TypeName,
+		})
+	}
+	for _, controller := range model.Controllers {
+		inferComponentDependencyMetadata(&controller.Component, resolver)
+		sort.SliceStable(controller.Routes, func(i, j int) bool {
+			left := controller.Routes[i]
+			right := controller.Routes[j]
+			if left.Path == right.Path {
+				if left.HTTPMethod == right.HTTPMethod {
+					return left.MethodName < right.MethodName
+				}
+				return left.HTTPMethod < right.HTTPMethod
+			}
+			return left.Path < right.Path
+		})
+	}
+	sort.SliceStable(model.Controllers, func(i, j int) bool {
+		return model.Controllers[i].Component.Name < model.Controllers[j].Component.Name
+	})
+	return nil
+}
+
+func bindMVCController(ctx *AnnotationBindingContext, item AnnotationItem) error {
+	if !hasMVCControllerAnnotation(item.Annotations()) {
+		return nil
+	}
+	typeSpec := item.TypeSpec()
+	if typeSpec == nil {
+		return nil
+	}
+	controller, err := buildMVCController(item.FileSet(), typeSpec, item.Annotations())
+	if err != nil {
+		return err
+	}
+	model := ensureMVCAnnotationModel(ctx)
+	if _, exists := model.byType[controller.Component.TypeName]; exists {
+		return fmt.Errorf("duplicate mvc controller type %q", controller.Component.TypeName)
+	}
+	model.Controllers = append(model.Controllers, controller)
+	model.byType[controller.Component.TypeName] = controller
+	return nil
+}
+
+func bindMVCRoute(ctx *AnnotationBindingContext, item AnnotationItem) error {
+	if !hasMVCRouteAnnotation(item.Annotations()) {
+		return nil
+	}
+	route, err := buildMVCRoute(item.File(), item.FuncDecl(), item.Annotations())
+	if err != nil {
+		return err
+	}
+	route.ControllerType = item.ReceiverTypeName()
+	route.MethodName = item.FuncName()
+	model := ensureMVCAnnotationModel(ctx)
+	model.pending = append(model.pending, route)
+	return nil
+}
+
+func ensureMVCAnnotationModel(ctx *AnnotationBindingContext) *mvcAnnotationModel {
+	if value, ok := ctx.Value(mvcAnnotationModelKey); ok {
+		if model, ok := value.(*mvcAnnotationModel); ok {
+			return model
+		}
+	}
+	model := &mvcAnnotationModel{byType: make(map[string]*mvcController)}
+	ctx.SetValue(mvcAnnotationModelKey, model)
+	return model
+}
+
+func (mvcAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContext) error {
+	value, ok := ctx.Value(mvcAnnotationModelKey)
+	if !ok {
+		return nil
+	}
+	model, ok := value.(*mvcAnnotationModel)
+	if !ok {
+		return fmt.Errorf("invalid mvc annotation model")
+	}
+	if len(model.Controllers) == 0 {
+		return nil
+	}
+	ctx.AddImport("arkweb", arkartaWebImportPath)
+	ctx.AddImport("goweb", "goark.dev/goark/web")
+	ctx.AddImport("", "goark.dev/goark/web/mvc")
+	if mvcModelUsesOptionalInjection(model) {
+		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
+	}
+	writeMVCConfiguration(ctx.buffer(), model)
+	return nil
+}
+
+func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation) (*mvcController, error) {
+	typeName := typeSpec.Name.Name
+	component := annotationComponent{
+		TypeName: typeName,
+		Name:     annotationName(annotations, mvcControllerKind(annotations), lowerCamel(typeName)),
+	}
+	structType, _ := typeSpec.Type.(*ast.StructType)
+	if structType != nil {
+		for _, field := range structType.Fields.List {
+			fieldAnnotations, err := parseAnnotations(field.Doc)
+			if err != nil {
+				return nil, err
+			}
+			if len(field.Names) == 0 {
+				continue
+			}
+			for _, name := range field.Names {
+				injection := buildInjection(fieldAnnotations, name.Name)
+				if injection.Kind == "" {
+					continue
+				}
+				component.Fields = append(component.Fields, annotationField{
+					Name:      name.Name,
+					Type:      exprString(fset, field.Type),
+					Injection: injection,
+				})
+			}
+		}
+	}
+	return &mvcController{
+		Component: component,
+		BasePath:  mvcTypeBasePath(annotations),
+	}, nil
+}
+
+func buildMVCRoute(file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcRoute, error) {
+	mapping, err := mvcRouteFromAnnotations(annotations)
+	if err != nil {
+		return mvcRoute{}, err
+	}
+	handler, err := analyzeMVCHandler(file, fn)
+	if err != nil {
+		return mvcRoute{}, err
+	}
+	return mvcRoute{
+		HTTPMethod: mapping.method,
+		Path:       mapping.path,
+		Status:     mapping.status,
+		Handler:    handler,
+	}, nil
+}
+
+type mvcRouteMappingSpec struct {
+	method string
+	path   string
+	status int
+}
+
+func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, error) {
+	var out mvcRouteMappingSpec
+	for _, annotation := range annotations {
+		if !isMVCRouteAnnotation(annotation.Name) {
+			continue
+		}
+		if out.method != "" {
+			return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple mapping annotations")
+		}
+		mapping, err := mvcRouteMapping(annotation)
+		if err != nil {
+			return mvcRouteMappingSpec{}, err
+		}
+		out = mapping
+	}
+	if out.method == "" {
+		return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method requires mapping annotation")
+	}
+	return out, nil
+}
+
+func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
+	path, err := requireMVCPathText(annotation)
+	if err != nil {
+		return mvcRouteMappingSpec{}, err
+	}
+	method := mvcHTTPMethod(annotation)
+	if method == "" {
+		return mvcRouteMappingSpec{}, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+	}
+	status, err := mvcStatus(annotation, defaultMVCStatus(method))
+	if err != nil {
+		return mvcRouteMappingSpec{}, err
+	}
+	return mvcRouteMappingSpec{
+		method: method,
+		path:   normalizeMVCPath(path),
+		status: status,
+	}, nil
+}
+
+func analyzeMVCHandler(file *ast.File, fn *ast.FuncDecl) (mvcHandler, error) {
+	if fn == nil {
+		return mvcHandler{}, fmt.Errorf("mvc handler method is nil")
+	}
+	acceptsContext, err := mvcMethodAcceptsContext(file, fn)
+	if err != nil {
+		return mvcHandler{}, err
+	}
+	returnKind, err := mvcMethodReturnKind(file, fn)
+	if err != nil {
+		return mvcHandler{}, err
+	}
+	return mvcHandler{AcceptsContext: acceptsContext, ReturnKind: returnKind}, nil
+}
+
+func mvcMethodAcceptsContext(file *ast.File, fn *ast.FuncDecl) (bool, error) {
+	if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
+		return false, nil
+	}
+	if len(fn.Type.Params.List) != 1 || len(fn.Type.Params.List[0].Names) > 1 {
+		return false, fmt.Errorf("mvc handler method %s must accept zero parameters or one *arkarta/web.Context parameter", fn.Name.Name)
+	}
+	if !isArkWebContextExpr(file, fn.Type.Params.List[0].Type) {
+		return false, fmt.Errorf("mvc handler method %s parameter must be *arkarta/web.Context", fn.Name.Name)
+	}
+	return true, nil
+}
+
+func mvcMethodReturnKind(file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, error) {
+	results := fn.Type.Results
+	if results == nil || len(results.List) == 0 {
+		return mvcReturnNone, nil
+	}
+	if len(results.List) == 1 {
+		result := results.List[0].Type
+		switch {
+		case isErrorExpr(result):
+			return mvcReturnError, nil
+		case isArkWebResultExpr(file, result):
+			return mvcReturnResult, nil
+		default:
+			return mvcReturnValue, nil
+		}
+	}
+	if len(results.List) == 2 && isErrorExpr(results.List[1].Type) {
+		if isArkWebResultExpr(file, results.List[0].Type) {
+			return mvcReturnResultError, nil
+		}
+		return mvcReturnValueError, nil
+	}
+	return 0, fmt.Errorf("mvc handler method %s must return void, error, T, T,error, web.Result, or web.Result,error", fn.Name.Name)
+}
+
+func writeMVCConfiguration(builder *bytes.Buffer, model *mvcAnnotationModel) {
+	builder.WriteString("type GoarkWebMVCConfiguration struct{}\n\n")
+	builder.WriteString("func (GoarkWebMVCConfiguration) Name() string {\nreturn \"goark.web.mvc\"\n}\n\n")
+	builder.WriteString("func (GoarkWebMVCConfiguration) Order() int {\nreturn 0\n}\n\n")
+	builder.WriteString("func (c GoarkWebMVCConfiguration) Register(ctx context.Context, registry *container.Registry) error {\n")
+	builder.WriteString("return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))\n")
+	builder.WriteString("}\n\n")
+	builder.WriteString("func (c GoarkWebMVCConfiguration) RegisterWithContext(ctx context.Context, config goark.ConfigurationContext) error {\n")
+	builder.WriteString("registry := config.Registry()\n")
+	for _, controller := range model.Controllers {
+		writeComponentRegistration(builder, controller.Component)
+		writeMVCConfigurerRegistration(builder, controller)
+	}
+	builder.WriteString("return nil\n}\n\n")
+}
+
+func writeMVCConfigurerRegistration(builder *bytes.Buffer, controller *mvcController) {
+	configurerName := controller.Component.Name + ".mvcConfigurer"
+	builder.WriteString("if err := container.Register[goweb.Configurer](registry, ")
+	builder.WriteString(strconv.Quote(configurerName))
+	builder.WriteString(", func(ctx context.Context, resolver container.Resolver) (out goweb.Configurer, err error) {\n")
+	builder.WriteString("controller, err := container.GetByType[*")
+	builder.WriteString(controller.Component.TypeName)
+	builder.WriteString("](ctx, resolver, container.WithQualifier(")
+	builder.WriteString(strconv.Quote(controller.Component.Name))
+	builder.WriteString("))\nif err != nil {\nreturn nil, err\n}\n")
+	builder.WriteString("out = mvc.NewConfigurer(mvc.NewController(")
+	builder.WriteString(strconv.Quote(controller.Component.Name))
+	for _, route := range controller.Routes {
+		builder.WriteString(",\n")
+		writeMVCRoute(builder, route)
+	}
+	builder.WriteString("))\nreturn out, nil\n}, container.WithFactoryDependencies(")
+	builder.WriteString(strconv.Quote(controller.Component.Name))
+	builder.WriteString(")); err != nil {\nreturn err\n}\n")
+}
+
+func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
+	builder.WriteString("mvc.")
+	builder.WriteString(routeConstructor(route.HTTPMethod))
+	builder.WriteByte('(')
+	builder.WriteString(strconv.Quote(route.Path))
+	builder.WriteString(", ")
+	writeMVCHandler(builder, route)
+	builder.WriteByte(')')
+}
+
+func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
+	call := "controller." + route.MethodName + "()"
+	if route.Handler.AcceptsContext {
+		call = "controller." + route.MethodName + "(ctx)"
+	}
+	switch route.Handler.ReturnKind {
+	case mvcReturnResultError:
+		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\nreturn ")
+		builder.WriteString(call)
+		builder.WriteString("\n})")
+	case mvcReturnResult:
+		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\nreturn ")
+		builder.WriteString(call)
+		builder.WriteString(", nil\n})")
+	case mvcReturnValueError:
+		builder.WriteString("mvc.JSON[any](")
+		builder.WriteString(strconv.Itoa(route.Status))
+		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\nreturn ")
+		builder.WriteString(call)
+		builder.WriteString("\n})")
+	case mvcReturnValue:
+		builder.WriteString("mvc.JSON[any](")
+		builder.WriteString(strconv.Itoa(route.Status))
+		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\nreturn ")
+		builder.WriteString(call)
+		builder.WriteString(", nil\n})")
+	case mvcReturnError:
+		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\nreturn ")
+		builder.WriteString(call)
+		builder.WriteString("\n})")
+	default:
+		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\n")
+		builder.WriteString(call)
+		builder.WriteString("\nreturn nil\n})")
+	}
+}
+
+func hasMVCControllerAnnotation(annotations []Annotation) bool {
+	return mvcControllerKind(annotations) != ""
+}
+
+func mvcControllerKind(annotations []Annotation) string {
+	for _, name := range []string{"controller", "rest-controller", "mvc-controller"} {
+		if hasAnnotation(annotations, name) {
+			return name
+		}
+	}
+	return ""
+}
+
+func hasMVCRouteAnnotation(annotations []Annotation) bool {
+	for _, annotation := range annotations {
+		if isMVCRouteAnnotation(annotation.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMVCRouteAnnotation(name string) bool {
+	switch name {
+	case "request-mapping", "get", "post", "put", "patch", "delete":
+		return true
+	default:
+		return false
+	}
+}
+
+func mvcTypeBasePath(annotations []Annotation) string {
+	for _, annotation := range annotations {
+		if annotation.Name != "request-mapping" {
+			continue
+		}
+		path, err := requireMVCPathText(annotation)
+		if err == nil {
+			return normalizeMVCPath(path)
+		}
+	}
+	return ""
+}
+
+func requireMVCPath(annotation Annotation) error {
+	_, err := requireMVCPathText(annotation)
+	return err
+}
+
+func requireMVCPathText(annotation Annotation) (string, error) {
+	values := annotationValueTexts(annotation)
+	if len(values) == 0 {
+		if value := argString(annotation, "path", ""); value != "" {
+			values = []string{value}
+		}
+	}
+	if len(values) == 0 {
+		return "", fmt.Errorf("annotation %q requires path value", annotation.Name)
+	}
+	if len(values) > 1 {
+		return "", fmt.Errorf("annotation %q accepts exactly one path value", annotation.Name)
+	}
+	value := strings.TrimSpace(values[0])
+	if value == "" {
+		return "", fmt.Errorf("annotation %q requires path value", annotation.Name)
+	}
+	return value, nil
+}
+
+func mvcHTTPMethod(annotation Annotation) string {
+	switch annotation.Name {
+	case "get":
+		return http.MethodGet
+	case "post":
+		return http.MethodPost
+	case "put":
+		return http.MethodPut
+	case "patch":
+		return http.MethodPatch
+	case "delete":
+		return http.MethodDelete
+	case "request-mapping":
+		method := strings.ToUpper(strings.TrimSpace(argString(annotation, "method", "")))
+		switch method {
+		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			return method
+		default:
+			return ""
+		}
+	default:
+		return ""
+	}
+}
+
+func mvcStatus(annotation Annotation, fallback int) (int, error) {
+	value := firstNonEmpty(argString(annotation, "status", ""), argString(annotation, "statusCode", ""))
+	if strings.TrimSpace(value) == "" {
+		return fallback, nil
+	}
+	status, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0, fmt.Errorf("annotation %q status requires integer value: %w", annotation.Name, err)
+	}
+	if status < 100 || status > 999 {
+		return 0, fmt.Errorf("annotation %q status %d is out of range", annotation.Name, status)
+	}
+	return status, nil
+}
+
+func defaultMVCStatus(method string) int {
+	if method == http.MethodPost {
+		return http.StatusCreated
+	}
+	return http.StatusOK
+}
+
+func routeConstructor(method string) string {
+	switch method {
+	case http.MethodGet:
+		return "GET"
+	case http.MethodPost:
+		return "POST"
+	case http.MethodPut:
+		return "PUT"
+	case http.MethodPatch:
+		return "PATCH"
+	case http.MethodDelete:
+		return "DELETE"
+	default:
+		return "Handle"
+	}
+}
+
+func normalizeMVCPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || path == "/" {
+		return "/"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return strings.TrimRight(path, "/")
+}
+
+func joinMVCPaths(base string, path string) string {
+	base = normalizeMVCPath(base)
+	path = normalizeMVCPath(path)
+	if base == "/" {
+		return path
+	}
+	if path == "/" {
+		return base
+	}
+	return base + path
+}
+
+func isArkWebContextExpr(file *ast.File, expr ast.Expr) bool {
+	star, ok := expr.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	return isImportedSelectorExpr(file, star.X, arkartaWebImportPath, "Context")
+}
+
+func isErrorExpr(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "error"
+}
+
+func isArkWebResultExpr(file *ast.File, expr ast.Expr) bool {
+	return isImportedSelectorExpr(file, expr, arkartaWebImportPath, "Result")
+}
+
+func isImportedSelectorExpr(file *ast.File, expr ast.Expr, importPath string, selectorName string) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != selectorName {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	aliases := importAliases(file, importPath)
+	_, ok = aliases[ident.Name]
+	return ok
+}
+
+func importAliases(file *ast.File, importPath string) map[string]struct{} {
+	aliases := make(map[string]struct{}, 1)
+	if file == nil {
+		return aliases
+	}
+	for _, spec := range file.Imports {
+		if spec.Path == nil {
+			continue
+		}
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || path != importPath {
+			continue
+		}
+		if spec.Name == nil {
+			aliases[defaultImportName(importPath)] = struct{}{}
+			continue
+		}
+		switch spec.Name.Name {
+		case "", "_", ".":
+			continue
+		default:
+			aliases[spec.Name.Name] = struct{}{}
+		}
+	}
+	return aliases
+}
+
+func defaultImportName(importPath string) string {
+	importPath = strings.Trim(importPath, "/")
+	if importPath == "" {
+		return ""
+	}
+	index := strings.LastIndex(importPath, "/")
+	if index < 0 {
+		return importPath
+	}
+	return importPath[index+1:]
+}
+
+func mvcModelUsesOptionalInjection(model *mvcAnnotationModel) bool {
+	for _, controller := range model.Controllers {
+		for _, field := range controller.Component.Fields {
+			if !field.Injection.Required && field.Injection.Kind != "value" {
+				return true
+			}
+		}
+	}
+	return false
+}

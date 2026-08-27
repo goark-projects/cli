@@ -245,6 +245,71 @@ func (AppConfiguration) Port(int) int {
 	}
 }
 
+func TestGenerateAnnotations_whenMVCControllerExists_shouldGenerateMVCConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import arkweb "goark.dev/arkarta/web"
+
+type User struct {
+	ID int64
+	Name string
+}
+
+//goark:service("userService")
+type UserService struct{}
+
+//goark:controller("adminController")
+//goark:request-mapping("/admin")
+type AdminController struct {
+	//goark:autowired
+	service *UserService
+}
+
+//goark:get("/users")
+func (c *AdminController) Users(ctx *arkweb.Context) ([]User, error) {
+	return []User{{ID: 1, Name: "root"}}, nil
+}
+
+//goark:delete("/users")
+func (c *AdminController) Clear() {}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
+		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	expected := []string{
+		"arkweb \"goark.dev/arkarta/web\"",
+		"goweb \"goark.dev/goark/web\"",
+		"\"goark.dev/goark/web/mvc\"",
+		"type GoarkWebMVCConfiguration struct{}",
+		"container.Register(registry, \"adminController\"",
+		"container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *AdminController) error",
+		"container.WithInjectionDependencies(\"userService\")",
+		"container.Register[goweb.Configurer](registry, \"adminController.mvcConfigurer\"",
+		"container.GetByType[*AdminController](ctx, resolver, container.WithQualifier(\"adminController\"))",
+		"mvc.NewController(\"adminController\"",
+		"mvc.GET(\"/admin/users\", mvc.JSON[any](200",
+		"return controller.Users(ctx)",
+		"mvc.DELETE(\"/admin/users\", mvc.NoContent",
+		"container.WithFactoryDependencies(\"adminController\")",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated mvc source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
 func TestGenerateAnnotations_whenPropertySourceHasName_shouldKeepLocationValue(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app
@@ -268,6 +333,95 @@ type AdminConfiguration struct{}
 	expected := `coreenv.LoadPropertiesPropertySource(ctx, loader, "config/app.properties", coreenv.WithPropertySourceName("admin-config"), coreenv.WithIgnoreResourceNotFound(true))`
 	if !strings.Contains(text, expected) {
 		t.Fatalf("generated property source should use location value and source name separately:\n%s", text)
+	}
+}
+
+func TestGenerateAnnotations_whenMVCRouteReceiverIsNotController_shouldReturnValidationError(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+type AdminController struct{}
+
+//goark:get("/admin/users")
+func (c *AdminController) Users() []string {
+	return nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "requires mvc controller receiver type") {
+		t.Fatalf("expected mvc receiver validation error, got %v", err)
+	}
+}
+
+func TestGenerateAnnotations_whenMVCContextUsesDifferentPackage_shouldReturnValidationError(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import other "example.com/notark/web"
+
+//goark:controller
+type AdminController struct{}
+
+//goark:get("/admin/users")
+func (c *AdminController) Users(ctx *other.Context) []string {
+	return nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "parameter must be *arkarta/web.Context") {
+		t.Fatalf("expected mvc context validation error, got %v", err)
+	}
+}
+
+func TestGenerateAnnotations_whenMVCReturnUsesDifferentResultType_shouldGenerateJSONValueHandler(t *testing.T) {
+	dir := t.TempDir()
+	notarkDir := filepath.Join(dir, "notark")
+	if err := os.MkdirAll(notarkDir, 0o755); err != nil {
+		t.Fatalf("create notark package failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(notarkDir, "result.go"), []byte(`package notark
+
+type Result struct {
+	Code int
+}
+`), 0o644); err != nil {
+		t.Fatalf("write notark source failed: %v", err)
+	}
+	source := `package app
+
+import "example.com/goark-generated-test/notark"
+
+//goark:controller
+type AdminController struct{}
+
+//goark:get("/admin/users")
+func (c *AdminController) Users() (notark.Result, error) {
+	return notark.Result{Code: 1}, nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	if !strings.Contains(text, "mvc.JSON[any](200") {
+		t.Fatalf("expected non-arkarta Result to use JSON value handler:\n%s", text)
+	}
+	if strings.Contains(text, "(arkweb.Result, error)") {
+		t.Fatalf("non-arkarta Result must not generate arkweb result handler:\n%s", text)
 	}
 }
 
