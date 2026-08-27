@@ -4,7 +4,7 @@
 
 `goark cli` is the command-line tooling repository for the Goark ecosystem. It is intended to provide project scaffolding and code generation for Goark applications, including support for annotation-driven dependency injection wiring, future AOP contracts, and application configuration templates.
 
-The project is in its early public stage. The current implementation provides explicit configuration generators, a Goark annotation scanner for core DI metadata, and an optional Goark ORM generator wrapper.
+The project is in its early public stage. The current implementation provides explicit configuration generators and a Goark annotation scanner for core DI metadata. This module intentionally does not depend on any other Goark module; module-specific tools such as Goark ORM generation live in their own repositories.
 
 ## Goals
 
@@ -28,7 +28,6 @@ go run ./cmd/goark version
 go run ./cmd/goark generate configuration --name user --package generated
 go run ./cmd/goark generate registry --package generated --configuration UserConfiguration
 go run ./cmd/goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
-go run ./cmd/goark generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
 ```
 
 ## Current Commands
@@ -40,7 +39,6 @@ go run ./cmd/goark generate orm --dir internal/user --output internal/user/zz_go
 | `goark generate configuration` | Generate a `goark.Configuration` source file. |
 | `goark generate registry` | Generate a function that registers multiple `goark.Configuration` values. |
 | `goark generate annotations` | Scan `//goark:*` comments and generate core registration code. |
-| `goark generate orm` | Optional wrapper for `goark-orm` generation. The ORM module remains independently usable through `goark-orm generate orm`. |
 
 ## Configuration Generation
 
@@ -128,17 +126,10 @@ the core DI generator.
 
 ## ORM Generation
 
-`goark generate orm` is a thin ecosystem wrapper over `goark.dev/orm/ormgen`. ORM users can install and run the standalone CLI without this repository:
+ORM generation is provided by the standalone `goark-orm` command from the `goark.dev/orm` module. The main `goark` CLI does not wrap ORM generation because it must remain dependency-free from other Goark modules:
 
 ```bash
 goark-orm generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
-```
-
-The Goark CLI wrapper keeps the same flags for applications that already use `goark`:
-
-```bash
-goark generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
-goark generate orm ./...
 ```
 
 ## Planned Generators
@@ -166,6 +157,8 @@ go fmt ./...
 go list ./...
 go run ./cmd/goark help
 ```
+
+The dependency check should show no compile-time module dependency on `goark.dev/goark`, `goark.dev/boot`, `goark.dev/orm`, or any other Goark sibling module.
 
 ## Repository Layout
 

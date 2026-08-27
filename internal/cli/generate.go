@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/generate"
-	"goark.dev/orm/ormgen"
 )
 
 type stringList []string
@@ -39,8 +38,6 @@ func (c Command) runGenerate(args []string) int {
 		return c.runGenerateRegistry(args[1:])
 	case "annotations":
 		return c.runGenerateAnnotations(args[1:])
-	case "orm":
-		return c.runGenerateORM(args[1:])
 	default:
 		_, _ = fmt.Fprintf(c.Err, "未知生成器: %s\n\n", args[0])
 		c.printGenerateHelp(c.Err)
@@ -222,104 +219,6 @@ func (c Command) runGenerateAnnotations(args []string) int {
 	return 0
 }
 
-func (c Command) runGenerateORM(args []string) int {
-	var output string
-	var typeHandlers stringList
-	spec := ormgen.GenerateSpec{Dir: "."}
-	flags := flag.NewFlagSet("goark generate orm", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	flags.StringVar(&spec.Dir, "dir", ".", "待扫描 Go package 目录")
-	flags.StringVar(&spec.PackageName, "package", "", "待扫描 package 名称，默认自动推导")
-	flags.StringVar(&output, "output", "", "输出文件路径，留空时输出到 stdout；扫描 ./... 时不允许指定")
-	flags.Var(&typeHandlers, "type-handler", "额外已注册 TypeHandler 名称，可重复")
-
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			c.printGenerateORMHelp(c.Out)
-			return 0
-		}
-		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printGenerateORMHelp(c.Err)
-		return 2
-	}
-	spec.TypeHandlers = append(spec.TypeHandlers, typeHandlers...)
-	switch flags.NArg() {
-	case 0:
-		return c.runGenerateORMSingle(spec, output)
-	case 1:
-		pattern := flags.Arg(0)
-		if strings.HasSuffix(pattern, "...") {
-			if output != "" {
-				_, _ = fmt.Fprint(c.Err, "扫描 ./... 时不能指定 --output\n")
-				return 2
-			}
-			return c.runGenerateORMPattern(pattern, spec)
-		}
-		spec.Dir = pattern
-		return c.runGenerateORMSingle(spec, output)
-	default:
-		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printGenerateORMHelp(c.Err)
-		return 2
-	}
-}
-
-func (c Command) runGenerateORMSingle(spec ormgen.GenerateSpec, output string) int {
-	source, err := ormgen.Generate(spec)
-	if err != nil {
-		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
-		return 2
-	}
-	if output == "" {
-		_, _ = c.Out.Write(source)
-		return 0
-	}
-	if err := writeFile(output, source); err != nil {
-		_, _ = fmt.Fprintf(c.Err, "写入生成文件失败: %v\n", err)
-		return 1
-	}
-	_, _ = fmt.Fprintf(c.Err, "generated %s\n", output)
-	return 0
-}
-
-func (c Command) runGenerateORMPattern(pattern string, spec ormgen.GenerateSpec) int {
-	dirs, err := ormgen.DiscoverPackages(pattern)
-	if err != nil {
-		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
-		return 2
-	}
-	generated := 0
-	for _, dir := range dirs {
-		itemSpec := spec
-		itemSpec.Dir = dir
-		itemSpec.PackageName = ""
-		model, err := ormgen.ScanPackage(itemSpec)
-		if err != nil {
-			_, _ = fmt.Fprintf(c.Err, "%v\n", err)
-			return 2
-		}
-		if len(model.Entities) == 0 && len(model.Mappers) == 0 {
-			continue
-		}
-		source, err := ormgen.Render(model)
-		if err != nil {
-			_, _ = fmt.Fprintf(c.Err, "%v\n", err)
-			return 2
-		}
-		output := filepath.Join(model.Dir, ormgen.DefaultOutputName(model.PackageName))
-		if err := writeFile(output, source); err != nil {
-			_, _ = fmt.Fprintf(c.Err, "写入生成文件失败: %v\n", err)
-			return 1
-		}
-		_, _ = fmt.Fprintf(c.Err, "generated %s\n", output)
-		generated++
-	}
-	if generated == 0 {
-		_, _ = fmt.Fprintf(c.Err, "no goark-orm metadata found for %s\n", pattern)
-	}
-	return 0
-}
-
 func parseImportSpec(raw string) (generate.ImportSpec, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -395,7 +294,6 @@ Available generators:
   configuration     Generate a goark.Configuration source file.
   registry          Generate a Configuration registry source file.
   annotations       Scan //goark annotations and generate registration code.
-  orm               Scan //goark-orm metadata and generate ORM code.
 
 `)
 }
@@ -454,24 +352,6 @@ Flags:
 Examples:
   goark generate annotations --dir .
   goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
-
-`)
-}
-
-func (c Command) printGenerateORMHelp(w io.Writer) {
-	_, _ = fmt.Fprint(w, `Usage:
-  goark generate orm [pattern] [flags]
-
-Flags:
-  --dir path                 Go package directory to scan. Defaults to current directory.
-  --package string           Package name to scan when directory contains multiple packages.
-  --output path              Output file path for single package generation. Defaults to stdout.
-  --type-handler string      Extra registered TypeHandler name. Repeatable.
-
-Examples:
-  goark generate orm --dir .
-  goark generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
-  goark generate orm ./...
 
 `)
 }
