@@ -111,6 +111,7 @@ func defaultAnnotationExtensions() []AnnotationExtension {
 			Binder:      coreAnnotationBinder{},
 			Generator:   coreAnnotationGenerator{},
 		},
+		webAnnotationExtension(),
 		mvcAnnotationExtension(),
 	}
 }
@@ -290,7 +291,7 @@ func validateCorePropertySourcesAnnotation(ctx AnnotationValidationContext) erro
 func validateCoreComponentOrBeanOwner(ctx AnnotationValidationContext) error {
 	switch ctx.Target {
 	case AnnotationTargetType:
-		if componentKind(ctx.Item.annotations) == "" {
+		if componentOptionKind(ctx.Item.annotations) == "" {
 			return fmt.Errorf("annotation %q requires component type target", ctx.Annotation.Name)
 		}
 	case AnnotationTargetMethod:
@@ -304,7 +305,7 @@ func validateCoreComponentOrBeanOwner(ctx AnnotationValidationContext) error {
 func validateCoreConfigurationComponentOrBeanOwner(ctx AnnotationValidationContext) error {
 	switch ctx.Target {
 	case AnnotationTargetType:
-		if !ctx.Item.HasAnnotation("configuration") && componentKind(ctx.Item.annotations) == "" {
+		if !ctx.Item.HasAnnotation("configuration") && componentOptionKind(ctx.Item.annotations) == "" {
 			return fmt.Errorf("annotation %q requires configuration or component type target", ctx.Annotation.Name)
 		}
 	case AnnotationTargetMethod:
@@ -1102,6 +1103,13 @@ func componentKind(annotations []Annotation) string {
 		}
 	}
 	return ""
+}
+
+func componentOptionKind(annotations []Annotation) string {
+	if kind := componentKind(annotations); kind != "" {
+		return kind
+	}
+	return webComponentKind(annotations)
 }
 
 func buildBeanOptions(annotations []Annotation) annotationBeanOptions {
