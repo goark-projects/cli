@@ -99,7 +99,7 @@ Flags:
 
 ## Annotation Scanning
 
-`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, HTTP method mappings, request-body, model-attribute, path-variable, request-param, request-header, and cookie-value.
+`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS method mappings, request-body, model-attribute, path-variable, request-param, request-header, and cookie-value.
 
 ```bash
 goark generate annotations \

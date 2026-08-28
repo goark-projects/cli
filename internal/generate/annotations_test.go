@@ -356,6 +356,45 @@ func (c *AdminController) Create(ctx *arkweb.Context, input CreateUserRequest) (
 	}
 }
 
+func TestGenerateAnnotations_whenMVCHeadAndOptionsRoutesExist_shouldGenerateMethodHelpers(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+//goark:controller("systemController")
+//goark:request-mapping("/system")
+type SystemController struct{}
+
+//goark:head("/healthz")
+func (c *SystemController) HeadHealth() error {
+	return nil
+}
+
+//goark:request-mapping("/healthz", method="OPTIONS")
+func (c *SystemController) OptionsHealth() {}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	expected := []string{
+		"mvc.HEAD(\"/system/healthz\", mvc.NoContent",
+		"return controller.HeadHealth()",
+		"mvc.OPTIONS(\"/system/healthz\", mvc.NoContent",
+		"controller.OptionsHealth()",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated mvc head/options source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
 func TestGenerateAnnotations_whenMVCRequestParametersExist_shouldGenerateParameterBindings(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app

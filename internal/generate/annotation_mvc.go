@@ -98,10 +98,12 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "mvc-controller", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAnnotation},
 		{Name: "request-mapping", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateMVCRequestMappingAnnotation},
 		{Name: "get", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "head", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "post", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "put", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "patch", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "delete", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "options", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "request-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
 		{Name: "body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
 		{Name: "path-variable", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
@@ -795,7 +797,7 @@ func isMVCRouteAnnotation(name string) bool {
 
 func isMVCRouteMappingAnnotation(name string) bool {
 	switch name {
-	case "request-mapping", "get", "post", "put", "patch", "delete":
+	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options":
 		return true
 	default:
 		return false
@@ -1047,6 +1049,8 @@ func mvcHTTPMethod(annotation Annotation) string {
 	switch annotation.Name {
 	case "get":
 		return http.MethodGet
+	case "head":
+		return http.MethodHead
 	case "post":
 		return http.MethodPost
 	case "put":
@@ -1055,10 +1059,12 @@ func mvcHTTPMethod(annotation Annotation) string {
 		return http.MethodPatch
 	case "delete":
 		return http.MethodDelete
+	case "options":
+		return http.MethodOptions
 	case "request-mapping":
 		method := strings.ToUpper(strings.TrimSpace(argString(annotation, "method", "")))
 		switch method {
-		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions:
 			return method
 		default:
 			return ""
@@ -1094,6 +1100,8 @@ func routeConstructor(method string) string {
 	switch method {
 	case http.MethodGet:
 		return "GET"
+	case http.MethodHead:
+		return "HEAD"
 	case http.MethodPost:
 		return "POST"
 	case http.MethodPut:
@@ -1102,6 +1110,8 @@ func routeConstructor(method string) string {
 		return "PATCH"
 	case http.MethodDelete:
 		return "DELETE"
+	case http.MethodOptions:
+		return "OPTIONS"
 	default:
 		return "Handle"
 	}
