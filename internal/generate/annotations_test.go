@@ -356,6 +356,125 @@ func (c *AdminController) Create(ctx *arkweb.Context, input CreateUserRequest) (
 	}
 }
 
+func TestGenerateAnnotations_whenMVCRequestParametersExist_shouldGenerateParameterBindings(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import arkweb "goark.dev/arkarta/web"
+
+//goark:controller("adminController")
+//goark:request-mapping("/admin")
+type AdminController struct{}
+
+//goark:get("/users/{id}")
+//goark:path-variable[id]("id")
+//goark:request-param[query](name="q", defaultValue="all")
+//goark:request-header[requestID]("X-Request-ID")
+//goark:cookie-value[theme]("theme", required=false)
+func (c *AdminController) Detail(ctx *arkweb.Context, id int64, query string, requestID string, theme string) (map[string]any, error) {
+	return map[string]any{
+		"id": id,
+		"query": query,
+		"requestID": requestID,
+		"theme": theme,
+	}, nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	expected := []string{
+		"id, err := mvc.PathInt64(ctx, \"id\")",
+		"query, err := mvc.RequestParamString(ctx, \"q\", mvc.WithDefaultValue(\"all\"))",
+		"requestID, err := mvc.RequestHeaderString(ctx, \"X-Request-ID\")",
+		"theme, err := mvc.CookieValueString(ctx, \"theme\", mvc.WithRequired(false))",
+		"return controller.Detail(ctx, id, query, requestID, theme)",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated mvc parameter binding source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
+func TestGenerateAnnotations_whenMVCRequestBodyAndPathVariableExist_shouldGenerateBothBindings(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import arkweb "goark.dev/arkarta/web"
+
+type UpdateUserRequest struct {
+	Username string ` + "`json:\"username\"`" + `
+}
+
+type User struct {
+	ID int64 ` + "`json:\"id\"`" + `
+	Username string ` + "`json:\"username\"`" + `
+}
+
+//goark:controller("adminController")
+//goark:request-mapping("/admin")
+type AdminController struct{}
+
+//goark:put("/users/{id}")
+//goark:path-variable[id]("id")
+//goark:request-body[input]
+func (c *AdminController) Update(ctx *arkweb.Context, id int64, input UpdateUserRequest) (User, error) {
+	return User{ID: id, Username: input.Username}, nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	expected := []string{
+		"mvc.PUT(\"/admin/users/{id}\", mvc.BindJSON[UpdateUserRequest, any](200",
+		"id, err := mvc.PathInt64(ctx, \"id\")",
+		"return controller.Update(ctx, id, input)",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated mvc combined binding source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
+func TestGenerateAnnotations_whenMVCRequestParameterTypeUnsupported_shouldReturnValidationError(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+//goark:controller("adminController")
+type AdminController struct{}
+
+//goark:get("/users/{id}")
+//goark:path-variable[id]("id")
+func (c *AdminController) Detail(id int32) map[string]any {
+	return map[string]any{"id": id}
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "unsupported mvc parameter type int32") {
+		t.Fatalf("expected unsupported mvc parameter type error, got %v", err)
+	}
+}
+
 func TestGenerateAnnotations_whenMVCRequestBodySelectorMissing_shouldReturnValidationError(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app

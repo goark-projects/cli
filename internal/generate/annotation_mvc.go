@@ -43,9 +43,17 @@ type mvcHandler struct {
 }
 
 type mvcHandlerParam struct {
-	Name string
-	Type string
-	Kind mvcHandlerParamKind
+	Name    string
+	Type    string
+	Kind    mvcHandlerParamKind
+	Binding mvcParamBinding
+}
+
+type mvcParamBinding struct {
+	SourceName   string
+	Required     bool
+	HasDefault   bool
+	DefaultValue string
 }
 
 type mvcHandlerParamKind uint8
@@ -53,6 +61,10 @@ type mvcHandlerParamKind uint8
 const (
 	mvcParamContext mvcHandlerParamKind = iota + 1
 	mvcParamBody
+	mvcParamPathVariable
+	mvcParamRequestParam
+	mvcParamRequestHeader
+	mvcParamCookieValue
 )
 
 type mvcReturnKind uint8
@@ -91,6 +103,10 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "delete", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "request-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
 		{Name: "body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
+		{Name: "path-variable", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
+		{Name: "request-param", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
+		{Name: "request-header", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
+		{Name: "cookie-value", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 	}
 }
 
@@ -141,6 +157,34 @@ func validateMVCRequestBodyAnnotation(ctx AnnotationValidationContext) error {
 	}
 	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
 		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+	}
+	return nil
+}
+
+func validateMVCParameterBindingAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	}
+	selector := mvcBindingSelector(ctx.Annotation)
+	if selector == "" {
+		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+	}
+	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
+		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+	}
+	if err := validateAtMostOneAnnotationValue(ctx.Annotation); err != nil {
+		return err
+	}
+	if _, hasName := ctx.Annotation.Args["name"]; hasName {
+		if _, hasValue := ctx.Annotation.Args["value"]; hasValue {
+			return fmt.Errorf("annotation %q accepts either name or value argument", ctx.Annotation.Name)
+		}
+	}
+	if err := validateBoolArg(ctx.Annotation, "required"); err != nil {
+		return err
 	}
 	return nil
 }
@@ -407,6 +451,10 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 	}
 
 	bodySelectors := mvcRequestBodySelectorSet(annotations)
+	paramBindings, err := mvcParameterBindingSet(annotations)
+	if err != nil {
+		return nil, err
+	}
 	params := make([]mvcHandlerParam, 0, len(fn.Type.Params.List))
 	contextSeen := false
 	bodySeen := false
@@ -423,6 +471,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			if _, isBody := bodySelectors[name]; isBody {
 				return nil, fmt.Errorf("mvc handler method %s request body parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
 			}
+			if _, isBound := paramBindings[name]; isBound {
+				return nil, fmt.Errorf("mvc handler method %s bound parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
+			}
 			if contextSeen {
 				return nil, fmt.Errorf("mvc handler method %s must not declare multiple *arkarta/web.Context parameters", fn.Name.Name)
 			}
@@ -434,6 +485,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			return nil, fmt.Errorf("mvc handler method %s parameter must be *arkarta/web.Context", fn.Name.Name)
 		}
 		if _, isBody := bodySelectors[name]; isBody {
+			if _, isBound := paramBindings[name]; isBound {
+				return nil, fmt.Errorf("mvc handler method %s parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+			}
 			if bodySeen {
 				return nil, fmt.Errorf("mvc handler method %s must not declare multiple request body parameters", fn.Name.Name)
 			}
@@ -441,11 +495,24 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			params = append(params, mvcHandlerParam{Name: name, Type: exprString(fset, field.Type), Kind: mvcParamBody})
 			continue
 		}
-		return nil, fmt.Errorf("mvc handler method %s parameter %s must be *arkarta/web.Context or annotated with request-body", fn.Name.Name, name)
+		if binding, isBound := paramBindings[name]; isBound {
+			typ := exprString(fset, field.Type)
+			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding}); !ok {
+				return nil, fmt.Errorf("mvc handler method %s parameter %s has unsupported mvc parameter type %s", fn.Name.Name, name, typ)
+			}
+			params = append(params, mvcHandlerParam{Name: name, Type: typ, Kind: binding.Kind, Binding: binding.Binding})
+			continue
+		}
+		return nil, fmt.Errorf("mvc handler method %s parameter %s must be *arkarta/web.Context or annotated with mvc binding annotation", fn.Name.Name, name)
 	}
 	for selector := range bodySelectors {
 		if !mvcHasParam(params, selector) {
 			return nil, fmt.Errorf("mvc handler method %s request body selector %q does not match any method parameter", fn.Name.Name, selector)
+		}
+	}
+	for selector := range paramBindings {
+		if !mvcHasParam(params, selector) {
+			return nil, fmt.Errorf("mvc handler method %s parameter binding selector %q does not match any method parameter", fn.Name.Name, selector)
 		}
 	}
 	return params, nil
@@ -531,31 +598,42 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 	call := mvcHandlerCall(route.MethodName, route.Handler.Params)
 	switch route.Handler.ReturnKind {
 	case mvcReturnResultError:
-		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\nreturn ")
+		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	case mvcReturnResult:
-		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\nreturn ")
+		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
 	case mvcReturnValueError:
 		builder.WriteString("mvc.JSON[any](")
 		builder.WriteString(strconv.Itoa(route.Status))
-		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\nreturn ")
+		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	case mvcReturnValue:
 		builder.WriteString("mvc.JSON[any](")
 		builder.WriteString(strconv.Itoa(route.Status))
-		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\nreturn ")
+		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
 	case mvcReturnError:
-		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\nreturn ")
+		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return err")
+		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	default:
 		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return err")
 		builder.WriteString(call)
 		builder.WriteString("\nreturn nil\n})")
 	}
@@ -571,7 +649,9 @@ func writeMVCBindJSONHandler(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString(bodyParam.Name)
 	builder.WriteByte(' ')
 	builder.WriteString(bodyParam.Type)
-	builder.WriteString(") (any, error) {\nreturn ")
+	builder.WriteString(") (any, error) {\n")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnValue {
 		builder.WriteString(", nil")
@@ -587,9 +667,74 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 			args = append(args, "ctx")
 		case mvcParamBody:
 			args = append(args, param.Name)
+		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue:
+			args = append(args, param.Name)
 		}
 	}
 	return "controller." + methodName + "(" + strings.Join(args, ", ") + ")"
+}
+
+func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, errorReturn string) {
+	for _, param := range params {
+		call, ok := mvcParameterBindingCall(param)
+		if !ok {
+			continue
+		}
+		builder.WriteString(param.Name)
+		builder.WriteString(", err := ")
+		builder.WriteString(call)
+		builder.WriteString("\nif err != nil {\n")
+		builder.WriteString(errorReturn)
+		builder.WriteString("\n}\n")
+	}
+}
+
+func mvcParameterBindingCall(param mvcHandlerParam) (string, bool) {
+	function, ok := mvcParameterFunction(param.Kind, param.Type)
+	if !ok {
+		return "", false
+	}
+	args := []string{"ctx", strconv.Quote(param.Binding.SourceName)}
+	if param.Binding.HasDefault {
+		args = append(args, "mvc.WithDefaultValue("+strconv.Quote(param.Binding.DefaultValue)+")")
+	} else if !param.Binding.Required {
+		args = append(args, "mvc.WithRequired(false)")
+	}
+	return "mvc." + function + "(" + strings.Join(args, ", ") + ")", true
+}
+
+func mvcParameterFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
+	suffix, ok := mvcParameterTypeSuffix(typ)
+	if !ok {
+		return "", false
+	}
+	switch kind {
+	case mvcParamPathVariable:
+		return "Path" + suffix, true
+	case mvcParamRequestParam:
+		return "RequestParam" + suffix, true
+	case mvcParamRequestHeader:
+		return "RequestHeader" + suffix, true
+	case mvcParamCookieValue:
+		return "CookieValue" + suffix, true
+	default:
+		return "", false
+	}
+}
+
+func mvcParameterTypeSuffix(typ string) (string, bool) {
+	switch strings.TrimSpace(typ) {
+	case "string":
+		return "String", true
+	case "int":
+		return "Int", true
+	case "int64":
+		return "Int64", true
+	case "bool":
+		return "Bool", true
+	default:
+		return "", false
+	}
 }
 
 func hasMVCControllerAnnotation(annotations []Annotation) bool {
@@ -615,7 +760,7 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 }
 
 func isMVCRouteAnnotation(name string) bool {
-	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name)
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCParameterAnnotation(name)
 }
 
 func isMVCRouteMappingAnnotation(name string) bool {
@@ -630,6 +775,15 @@ func isMVCRouteMappingAnnotation(name string) bool {
 func isMVCBodyAnnotation(name string) bool {
 	switch name {
 	case "request-body", "body":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMVCParameterAnnotation(name string) bool {
+	switch name {
+	case "path-variable", "request-param", "request-header", "cookie-value":
 		return true
 	default:
 		return false
@@ -667,6 +821,96 @@ func mvcRequestBodySelector(annotation Annotation) string {
 		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
 			return value
 		}
+	}
+	return ""
+}
+
+type mvcParameterBindingItem struct {
+	Kind    mvcHandlerParamKind
+	Binding mvcParamBinding
+}
+
+func mvcParameterBindingSet(annotations []Annotation) (map[string]mvcParameterBindingItem, error) {
+	out := make(map[string]mvcParameterBindingItem)
+	for _, annotation := range annotations {
+		kind, ok := mvcParameterKind(annotation.Name)
+		if !ok {
+			continue
+		}
+		selector := mvcBindingSelector(annotation)
+		if selector == "" {
+			continue
+		}
+		if _, exists := out[selector]; exists {
+			return nil, fmt.Errorf("mvc parameter %q has multiple binding annotations", selector)
+		}
+		out[selector] = mvcParameterBindingItem{
+			Kind: kind,
+			Binding: mvcParamBinding{
+				SourceName:   mvcParameterSourceName(annotation, selector),
+				Required:     mvcParameterRequired(annotation),
+				HasDefault:   mvcParameterHasDefault(annotation),
+				DefaultValue: mvcParameterDefaultValue(annotation),
+			},
+		}
+	}
+	return out, nil
+}
+
+func mvcParameterKind(name string) (mvcHandlerParamKind, bool) {
+	switch name {
+	case "path-variable":
+		return mvcParamPathVariable, true
+	case "request-param":
+		return mvcParamRequestParam, true
+	case "request-header":
+		return mvcParamRequestHeader, true
+	case "cookie-value":
+		return mvcParamCookieValue, true
+	default:
+		return 0, false
+	}
+}
+
+func mvcBindingSelector(annotation Annotation) string {
+	selector := normalizeSelector(annotation.Selector)
+	if selector != "" {
+		return selector
+	}
+	return strings.TrimSpace(argString(annotation, "param", ""))
+}
+
+func mvcParameterSourceName(annotation Annotation, fallback string) string {
+	for _, key := range []string{"name", "value"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			return value
+		}
+	}
+	return fallback
+}
+
+func mvcParameterRequired(annotation Annotation) bool {
+	if mvcParameterHasDefault(annotation) {
+		return false
+	}
+	return annotationBool(annotation, "required", true)
+}
+
+func mvcParameterHasDefault(annotation Annotation) bool {
+	_, ok := annotation.Args["defaultValue"]
+	if ok {
+		return true
+	}
+	_, ok = annotation.Args["default"]
+	return ok
+}
+
+func mvcParameterDefaultValue(annotation Annotation) string {
+	if value, ok := annotation.Args["defaultValue"]; ok {
+		return value.Text()
+	}
+	if value, ok := annotation.Args["default"]; ok {
+		return value.Text()
 	}
 	return ""
 }
