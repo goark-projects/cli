@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	mvcAnnotationModelKey = "goark.mvc.annotations"
-	arkartaWebImportPath  = "goark.dev/arkarta/web"
-	goarkWebImportPath    = "goark.dev/goark/web"
+	mvcAnnotationModelKey      = "goark.mvc.annotations"
+	arkartaMultipartImportPath = "goark.dev/arkarta/servlet/multipart"
+	arkartaWebImportPath       = "goark.dev/arkarta/web"
+	goarkWebImportPath         = "goark.dev/goark/web"
 )
 
 type mvcAnnotationModel struct {
@@ -38,6 +39,7 @@ type mvcRoute struct {
 	HTTPMethod     string
 	Path           string
 	Status         int
+	Conditions     mvcRouteConditions
 	Handler        mvcHandler
 }
 
@@ -71,6 +73,10 @@ const (
 	mvcParamRequestHeader
 	mvcParamCookieValue
 	mvcParamModelAttribute
+	mvcParamRequestAttribute
+	mvcParamSessionAttribute
+	mvcParamMatrixVariable
+	mvcParamRequestPart
 )
 
 type mvcReturnKind uint8
@@ -121,6 +127,10 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "request-header", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "cookie-value", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "model-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCModelAttributeAnnotation},
+		{Name: "request-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
+		{Name: "session-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
+		{Name: "matrix-variable", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
+		{Name: "request-part", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestPartAnnotation},
 		{Name: "response-status", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCResponseStatusAnnotation},
 		{Name: "exception-handler", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCExceptionHandlerAnnotation},
 	}
@@ -240,6 +250,19 @@ func validateMVCModelAttributeAnnotation(ctx AnnotationValidationContext) error 
 		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return validateAtMostOneAnnotationValue(ctx.Annotation)
+}
+
+func validateMVCRequestPartAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCParameterBindingAnnotation(ctx); err != nil {
+		return err
+	}
+	if _, ok := ctx.Annotation.Args["defaultValue"]; ok {
+		return fmt.Errorf("annotation %q does not accept defaultValue argument", ctx.Annotation.Name)
+	}
+	if _, ok := ctx.Annotation.Args["default"]; ok {
+		return fmt.Errorf("annotation %q does not accept default argument", ctx.Annotation.Name)
+	}
+	return nil
 }
 
 func validateMVCResponseStatusAnnotation(ctx AnnotationValidationContext) error {
@@ -486,6 +509,7 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 		HTTPMethod: mapping.method,
 		Path:       mapping.path,
 		Status:     mapping.status,
+		Conditions: mapping.conditions,
 		Handler:    handler,
 	}, nil
 }
@@ -495,6 +519,7 @@ type mvcRouteMappingSpec struct {
 	path           string
 	status         int
 	explicitStatus bool
+	conditions     mvcRouteConditions
 }
 
 func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, error) {
@@ -556,6 +581,7 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 		path:           normalizeMVCPath(path),
 		status:         status,
 		explicitStatus: explicitStatus,
+		conditions:     mvcRouteConditionsFromAnnotation(annotation),
 	}, nil
 }
 
@@ -667,6 +693,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			typ := exprString(fset, field.Type)
 			if binding.Kind == mvcParamModelAttribute && !isMVCModelAttributeTypeExpr(field.Type) {
 				return nil, fmt.Errorf("mvc handler method %s model attribute parameter %s must be a non-pointer struct value", fn.Name.Name, name)
+			}
+			if binding.Kind == mvcParamRequestPart && !isArkartaMultipartPartExpr(file, field.Type) {
+				return nil, fmt.Errorf("mvc handler method %s request part parameter %s must be servletmultipart.Part", fn.Name.Name, name)
 			}
 			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding}); !ok {
 				return nil, fmt.Errorf("mvc handler method %s parameter %s has unsupported mvc parameter type %s", fn.Name.Name, name, typ)
@@ -780,6 +809,7 @@ func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString(strconv.Quote(route.Path))
 	builder.WriteString(", ")
 	writeMVCHandler(builder, route)
+	writeMVCRouteOptions(builder, route.Conditions)
 	builder.WriteByte(')')
 }
 
@@ -927,7 +957,8 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 			args = append(args, "ctx")
 		case mvcParamBody, mvcParamMultipartBody:
 			args = append(args, param.Name)
-		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue, mvcParamModelAttribute:
+		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue, mvcParamModelAttribute,
+			mvcParamRequestAttribute, mvcParamSessionAttribute, mvcParamMatrixVariable, mvcParamRequestPart:
 			args = append(args, param.Name)
 		}
 	}
@@ -952,6 +983,13 @@ func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, 
 func mvcParameterBindingCall(param mvcHandlerParam) (string, bool) {
 	if param.Kind == mvcParamModelAttribute {
 		return "mvc.ModelAttribute[" + param.Type + "](ctx)", true
+	}
+	if param.Kind == mvcParamRequestPart {
+		args := []string{"ctx", strconv.Quote(param.Binding.SourceName)}
+		if !param.Binding.Required {
+			args = append(args, "mvc.WithRequired(false)")
+		}
+		return "mvc.RequestPart(" + strings.Join(args, ", ") + ")", true
 	}
 	function, ok := mvcParameterFunction(param.Kind, param.Type)
 	if !ok {
@@ -982,6 +1020,12 @@ func mvcParameterFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
 		return "CookieValue" + suffix, true
 	case mvcParamModelAttribute:
 		return "ModelAttribute", true
+	case mvcParamRequestAttribute:
+		return "RequestAttribute" + suffix, true
+	case mvcParamSessionAttribute:
+		return "SessionAttribute" + suffix, true
+	case mvcParamMatrixVariable:
+		return "MatrixVariable" + suffix, true
 	default:
 		return "", false
 	}
@@ -1052,7 +1096,8 @@ func isMVCMultipartBodyAnnotation(name string) bool {
 
 func isMVCParameterAnnotation(name string) bool {
 	switch name {
-	case "path-variable", "request-param", "request-header", "cookie-value", "model-attribute":
+	case "path-variable", "request-param", "request-header", "cookie-value", "model-attribute",
+		"request-attribute", "session-attribute", "matrix-variable", "request-part":
 		return true
 	default:
 		return false
@@ -1177,6 +1222,14 @@ func mvcParameterKind(name string) (mvcHandlerParamKind, bool) {
 		return mvcParamCookieValue, true
 	case "model-attribute":
 		return mvcParamModelAttribute, true
+	case "request-attribute":
+		return mvcParamRequestAttribute, true
+	case "session-attribute":
+		return mvcParamSessionAttribute, true
+	case "matrix-variable":
+		return mvcParamMatrixVariable, true
+	case "request-part":
+		return mvcParamRequestPart, true
 	default:
 		return 0, false
 	}
