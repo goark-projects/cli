@@ -452,6 +452,103 @@ func (c *AdminController) Update(ctx *arkweb.Context, id int64, input UpdateUser
 	}
 }
 
+func TestGenerateAnnotations_whenMVCModelAttributeExists_shouldGenerateAggregateBinding(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import arkweb "goark.dev/arkarta/web"
+
+type UserSearchCriteria struct {
+	Username string ` + "`form:\"username\" json:\"username\"`" + `
+	Page int ` + "`form:\"page\" json:\"page\"`" + `
+}
+
+//goark:controller("adminController")
+//goark:request-mapping("/admin")
+type AdminController struct{}
+
+//goark:get("/users/search")
+//goark:model-attribute[criteria]
+func (c *AdminController) Search(ctx *arkweb.Context, criteria UserSearchCriteria) (map[string]any, error) {
+	return map[string]any{
+		"username": criteria.Username,
+		"page": criteria.Page,
+	}, nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	expected := []string{
+		"criteria, err := mvc.ModelAttribute[UserSearchCriteria](ctx)",
+		"return controller.Search(ctx, criteria)",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated mvc model attribute source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
+func TestGenerateAnnotations_whenMVCModelAttributePointerExists_shouldReturnValidationError(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+type UserSearchCriteria struct{}
+
+//goark:controller("adminController")
+type AdminController struct{}
+
+//goark:get("/users/search")
+//goark:model-attribute[criteria]
+func (c *AdminController) Search(criteria *UserSearchCriteria) map[string]any {
+	return nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "model attribute parameter criteria must be a non-pointer struct value") {
+		t.Fatalf("expected model attribute pointer validation error, got %v", err)
+	}
+}
+
+func TestGenerateAnnotations_whenMVCRequestBodyAndModelAttributeCombined_shouldReturnValidationError(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+type CreateUserRequest struct{}
+type UserSearchCriteria struct{}
+
+//goark:controller("adminController")
+type AdminController struct{}
+
+//goark:post("/users")
+//goark:request-body[input]
+//goark:model-attribute[criteria]
+func (c *AdminController) Create(input CreateUserRequest, criteria UserSearchCriteria) map[string]any {
+	return nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "must not combine request body and model attribute parameters") {
+		t.Fatalf("expected request body and model attribute validation error, got %v", err)
+	}
+}
+
 func TestGenerateAnnotations_whenMVCRequestParameterTypeUnsupported_shouldReturnValidationError(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app

@@ -65,6 +65,7 @@ const (
 	mvcParamRequestParam
 	mvcParamRequestHeader
 	mvcParamCookieValue
+	mvcParamModelAttribute
 )
 
 type mvcReturnKind uint8
@@ -107,6 +108,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "request-param", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "request-header", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "cookie-value", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
+		{Name: "model-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCModelAttributeAnnotation},
 	}
 }
 
@@ -187,6 +189,23 @@ func validateMVCParameterBindingAnnotation(ctx AnnotationValidationContext) erro
 		return err
 	}
 	return nil
+}
+
+func validateMVCModelAttributeAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	}
+	selector := mvcBindingSelector(ctx.Annotation)
+	if selector == "" {
+		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+	}
+	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
+		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+	}
+	return validateAtMostOneAnnotationValue(ctx.Annotation)
 }
 
 func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
@@ -497,6 +516,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 		}
 		if binding, isBound := paramBindings[name]; isBound {
 			typ := exprString(fset, field.Type)
+			if binding.Kind == mvcParamModelAttribute && !isMVCModelAttributeTypeExpr(field.Type) {
+				return nil, fmt.Errorf("mvc handler method %s model attribute parameter %s must be a non-pointer struct value", fn.Name.Name, name)
+			}
 			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding}); !ok {
 				return nil, fmt.Errorf("mvc handler method %s parameter %s has unsupported mvc parameter type %s", fn.Name.Name, name, typ)
 			}
@@ -514,6 +536,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 		if !mvcHasParam(params, selector) {
 			return nil, fmt.Errorf("mvc handler method %s parameter binding selector %q does not match any method parameter", fn.Name.Name, selector)
 		}
+	}
+	if bodySeen && hasMVCModelAttributeParam(params) {
+		return nil, fmt.Errorf("mvc handler method %s must not combine request body and model attribute parameters", fn.Name.Name)
 	}
 	return params, nil
 }
@@ -667,7 +692,7 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 			args = append(args, "ctx")
 		case mvcParamBody:
 			args = append(args, param.Name)
-		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue:
+		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue, mvcParamModelAttribute:
 			args = append(args, param.Name)
 		}
 	}
@@ -690,6 +715,9 @@ func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, 
 }
 
 func mvcParameterBindingCall(param mvcHandlerParam) (string, bool) {
+	if param.Kind == mvcParamModelAttribute {
+		return "mvc.ModelAttribute[" + param.Type + "](ctx)", true
+	}
 	function, ok := mvcParameterFunction(param.Kind, param.Type)
 	if !ok {
 		return "", false
@@ -717,6 +745,8 @@ func mvcParameterFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
 		return "RequestHeader" + suffix, true
 	case mvcParamCookieValue:
 		return "CookieValue" + suffix, true
+	case mvcParamModelAttribute:
+		return "ModelAttribute", true
 	default:
 		return "", false
 	}
@@ -783,7 +813,7 @@ func isMVCBodyAnnotation(name string) bool {
 
 func isMVCParameterAnnotation(name string) bool {
 	switch name {
-	case "path-variable", "request-param", "request-header", "cookie-value":
+	case "path-variable", "request-param", "request-header", "cookie-value", "model-attribute":
 		return true
 	default:
 		return false
@@ -867,6 +897,8 @@ func mvcParameterKind(name string) (mvcHandlerParamKind, bool) {
 		return mvcParamRequestHeader, true
 	case "cookie-value":
 		return mvcParamCookieValue, true
+	case "model-attribute":
+		return mvcParamModelAttribute, true
 	default:
 		return 0, false
 	}
@@ -929,6 +961,15 @@ func hasMVCBodyParam(params []mvcHandlerParam) bool {
 	return ok
 }
 
+func hasMVCModelAttributeParam(params []mvcHandlerParam) bool {
+	for _, param := range params {
+		if param.Kind == mvcParamModelAttribute {
+			return true
+		}
+	}
+	return false
+}
+
 func mvcBodyParam(params []mvcHandlerParam) (mvcHandlerParam, bool) {
 	for _, param := range params {
 		if param.Kind == mvcParamBody {
@@ -936,6 +977,32 @@ func mvcBodyParam(params []mvcHandlerParam) (mvcHandlerParam, bool) {
 		}
 	}
 	return mvcHandlerParam{}, false
+}
+
+func isMVCModelAttributeTypeExpr(expr ast.Expr) bool {
+	switch typ := expr.(type) {
+	case *ast.StarExpr, *ast.ArrayType, *ast.MapType, *ast.InterfaceType, *ast.FuncType, *ast.ChanType:
+		return false
+	case *ast.Ident:
+		return !isMVCScalarTypeName(typ.Name)
+	case *ast.SelectorExpr:
+		return true
+	default:
+		return false
+	}
+}
+
+func isMVCScalarTypeName(name string) bool {
+	switch strings.TrimSpace(name) {
+	case "string", "bool",
+		"int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+		"float32", "float64", "complex64", "complex128",
+		"byte", "rune", "any", "error":
+		return true
+	default:
+		return false
+	}
 }
 
 func mvcTypeBasePath(annotations []Annotation) string {
