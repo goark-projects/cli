@@ -14,6 +14,7 @@ import (
 const (
 	mvcAnnotationModelKey = "goark.mvc.annotations"
 	arkartaWebImportPath  = "goark.dev/arkarta/web"
+	goarkWebImportPath    = "goark.dev/goark/web"
 )
 
 type mvcAnnotationModel struct {
@@ -78,6 +79,8 @@ const (
 	mvcReturnError
 	mvcReturnResult
 	mvcReturnResultError
+	mvcReturnEntity
+	mvcReturnEntityError
 	mvcReturnValue
 	mvcReturnValueError
 )
@@ -515,10 +518,19 @@ func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, an
 	if err != nil {
 		return mvcHandler{}, err
 	}
-	if hasMVCBodyParam(params) && returnKind != mvcReturnValue && returnKind != mvcReturnValueError {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request body must return T or T,error", fn.Name.Name)
+	if hasMVCBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 	}
 	return mvcHandler{Params: params, ReturnKind: returnKind}, nil
+}
+
+func mvcReturnSupportsRequestBody(kind mvcReturnKind) bool {
+	switch kind {
+	case mvcReturnValue, mvcReturnValueError, mvcReturnEntity, mvcReturnEntityError:
+		return true
+	default:
+		return false
+	}
 }
 
 func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) ([]mvcHandlerParam, error) {
@@ -615,6 +627,8 @@ func mvcMethodReturnKind(file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, error
 			return mvcReturnError, nil
 		case isArkWebResultExpr(file, result):
 			return mvcReturnResult, nil
+		case isGoarkWebResponseEntityExpr(file, result):
+			return mvcReturnEntity, nil
 		default:
 			return mvcReturnValue, nil
 		}
@@ -623,9 +637,12 @@ func mvcMethodReturnKind(file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, error
 		if isArkWebResultExpr(file, results.List[0].Type) {
 			return mvcReturnResultError, nil
 		}
+		if isGoarkWebResponseEntityExpr(file, results.List[0].Type) {
+			return mvcReturnEntityError, nil
+		}
 		return mvcReturnValueError, nil
 	}
-	return 0, fmt.Errorf("mvc handler method %s must return void, error, T, T,error, web.Result, or web.Result,error", fn.Name.Name)
+	return 0, fmt.Errorf("mvc handler method %s must return void, error, T, T,error, web.Result, web.Result,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 }
 
 func writeMVCConfiguration(builder *bytes.Buffer, model *mvcAnnotationModel) {
@@ -681,18 +698,22 @@ func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
 
 func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 	if hasMVCBodyParam(route.Handler.Params) {
+		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+			writeMVCBindEntityHandler(builder, route)
+			return
+		}
 		writeMVCBindJSONHandler(builder, route)
 		return
 	}
 	call := mvcHandlerCall(route.MethodName, route.Handler.Params)
 	switch route.Handler.ReturnKind {
-	case mvcReturnResultError:
+	case mvcReturnResultError, mvcReturnEntityError:
 		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
 		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
-	case mvcReturnResult:
+	case mvcReturnResult, mvcReturnEntity:
 		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
 		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
 		builder.WriteString("return ")
@@ -743,6 +764,25 @@ func writeMVCBindJSONHandler(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnValue {
+		builder.WriteString(", nil")
+	}
+	builder.WriteString("\n})")
+}
+
+func writeMVCBindEntityHandler(builder *bytes.Buffer, route mvcRoute) {
+	bodyParam, _ := mvcBodyParam(route.Handler.Params)
+	builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
+	builder.WriteString("var ")
+	builder.WriteString(bodyParam.Name)
+	builder.WriteByte(' ')
+	builder.WriteString(bodyParam.Type)
+	builder.WriteString("\nif err := ctx.BindAndValidateJSON(&")
+	builder.WriteString(bodyParam.Name)
+	builder.WriteString("); err != nil {\nreturn nil, err\n}\n")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	builder.WriteString("return ")
+	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
+	if route.Handler.ReturnKind == mvcReturnEntity {
 		builder.WriteString(", nil")
 	}
 	builder.WriteString("\n})")
@@ -1226,6 +1266,17 @@ func isErrorExpr(expr ast.Expr) bool {
 
 func isArkWebResultExpr(file *ast.File, expr ast.Expr) bool {
 	return isImportedSelectorExpr(file, expr, arkartaWebImportPath, "Result")
+}
+
+func isGoarkWebResponseEntityExpr(file *ast.File, expr ast.Expr) bool {
+	switch typ := expr.(type) {
+	case *ast.IndexExpr:
+		return isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity")
+	case *ast.IndexListExpr:
+		return isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity")
+	default:
+		return false
+	}
 }
 
 func isImportedSelectorExpr(file *ast.File, expr ast.Expr, importPath string, selectorName string) bool {
