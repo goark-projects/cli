@@ -310,6 +310,75 @@ func (c *AdminController) Clear() {}
 	}
 }
 
+func TestGenerateAnnotations_whenMVCRequestBodyExists_shouldGenerateBindJSONHandler(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import arkweb "goark.dev/arkarta/web"
+
+type CreateUserRequest struct {
+	Username string ` + "`json:\"username\"`" + `
+}
+
+type User struct {
+	Username string ` + "`json:\"username\"`" + `
+}
+
+//goark:controller("adminController")
+//goark:request-mapping("/admin")
+type AdminController struct{}
+
+//goark:post("/users", status=201)
+//goark:request-body[input]
+func (c *AdminController) Create(ctx *arkweb.Context, input CreateUserRequest) (User, error) {
+	return User{Username: input.Username}, nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	expected := []string{
+		"mvc.POST(\"/admin/users\", mvc.BindJSON[CreateUserRequest, any](201",
+		"func(ctx *arkweb.Context, input CreateUserRequest) (any, error)",
+		"return controller.Create(ctx, input)",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated mvc request body source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
+func TestGenerateAnnotations_whenMVCRequestBodySelectorMissing_shouldReturnValidationError(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+//goark:controller
+type AdminController struct{}
+
+//goark:post("/admin/users")
+//goark:request-body
+func (c *AdminController) Create(input string) string {
+	return input
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "requires parameter selector") {
+		t.Fatalf("expected request body selector validation error, got %v", err)
+	}
+}
+
 func TestGenerateAnnotations_whenPropertySourceHasName_shouldKeepLocationValue(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app

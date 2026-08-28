@@ -38,9 +38,22 @@ type mvcRoute struct {
 }
 
 type mvcHandler struct {
-	AcceptsContext bool
-	ReturnKind     mvcReturnKind
+	Params     []mvcHandlerParam
+	ReturnKind mvcReturnKind
 }
+
+type mvcHandlerParam struct {
+	Name string
+	Type string
+	Kind mvcHandlerParamKind
+}
+
+type mvcHandlerParamKind uint8
+
+const (
+	mvcParamContext mvcHandlerParamKind = iota + 1
+	mvcParamBody
+)
 
 type mvcReturnKind uint8
 
@@ -76,6 +89,8 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "put", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "patch", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "delete", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "request-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
+		{Name: "body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
 	}
 }
 
@@ -111,6 +126,23 @@ func validateMVCHTTPMappingAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	return requireMVCPath(ctx.Annotation)
+}
+
+func validateMVCRequestBodyAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	}
+	selector := mvcRequestBodySelector(ctx.Annotation)
+	if selector == "" {
+		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+	}
+	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
+		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+	}
+	return nil
 }
 
 func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
@@ -202,10 +234,10 @@ func bindMVCController(ctx *AnnotationBindingContext, item AnnotationItem) error
 }
 
 func bindMVCRoute(ctx *AnnotationBindingContext, item AnnotationItem) error {
-	if !hasMVCRouteAnnotation(item.Annotations()) {
+	if !hasMVCRouteMappingAnnotation(item.Annotations()) {
 		return nil
 	}
-	route, err := buildMVCRoute(item.File(), item.FuncDecl(), item.Annotations())
+	route, err := buildMVCRoute(item.FileSet(), item.File(), item.FuncDecl(), item.Annotations())
 	if err != nil {
 		return err
 	}
@@ -284,12 +316,12 @@ func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations
 	}, nil
 }
 
-func buildMVCRoute(file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcRoute, error) {
+func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcRoute, error) {
 	mapping, err := mvcRouteFromAnnotations(annotations)
 	if err != nil {
 		return mvcRoute{}, err
 	}
-	handler, err := analyzeMVCHandler(file, fn)
+	handler, err := analyzeMVCHandler(fset, file, fn, annotations)
 	if err != nil {
 		return mvcRoute{}, err
 	}
@@ -310,7 +342,7 @@ type mvcRouteMappingSpec struct {
 func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, error) {
 	var out mvcRouteMappingSpec
 	for _, annotation := range annotations {
-		if !isMVCRouteAnnotation(annotation.Name) {
+		if !isMVCRouteMappingAnnotation(annotation.Name) {
 			continue
 		}
 		if out.method != "" {
@@ -348,11 +380,11 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 	}, nil
 }
 
-func analyzeMVCHandler(file *ast.File, fn *ast.FuncDecl) (mvcHandler, error) {
+func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcHandler, error) {
 	if fn == nil {
 		return mvcHandler{}, fmt.Errorf("mvc handler method is nil")
 	}
-	acceptsContext, err := mvcMethodAcceptsContext(file, fn)
+	params, err := mvcMethodParams(fset, file, fn, annotations)
 	if err != nil {
 		return mvcHandler{}, err
 	}
@@ -360,20 +392,63 @@ func analyzeMVCHandler(file *ast.File, fn *ast.FuncDecl) (mvcHandler, error) {
 	if err != nil {
 		return mvcHandler{}, err
 	}
-	return mvcHandler{AcceptsContext: acceptsContext, ReturnKind: returnKind}, nil
+	if hasMVCBodyParam(params) && returnKind != mvcReturnValue && returnKind != mvcReturnValueError {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request body must return T or T,error", fn.Name.Name)
+	}
+	return mvcHandler{Params: params, ReturnKind: returnKind}, nil
 }
 
-func mvcMethodAcceptsContext(file *ast.File, fn *ast.FuncDecl) (bool, error) {
+func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) ([]mvcHandlerParam, error) {
 	if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
-		return false, nil
+		if len(mvcRequestBodySelectors(annotations)) > 0 {
+			return nil, fmt.Errorf("mvc handler method %s request body selector does not match any method parameter", fn.Name.Name)
+		}
+		return nil, nil
 	}
-	if len(fn.Type.Params.List) != 1 || len(fn.Type.Params.List[0].Names) > 1 {
-		return false, fmt.Errorf("mvc handler method %s must accept zero parameters or one *arkarta/web.Context parameter", fn.Name.Name)
+
+	bodySelectors := mvcRequestBodySelectorSet(annotations)
+	params := make([]mvcHandlerParam, 0, len(fn.Type.Params.List))
+	contextSeen := false
+	bodySeen := false
+	for index, field := range fn.Type.Params.List {
+		names := field.Names
+		if len(names) == 0 {
+			names = []*ast.Ident{ast.NewIdent(fmt.Sprintf("arg%d", index))}
+		}
+		if len(names) != 1 {
+			return nil, fmt.Errorf("mvc handler method %s parameter group must declare exactly one name", fn.Name.Name)
+		}
+		name := names[0].Name
+		if isArkWebContextExpr(file, field.Type) {
+			if _, isBody := bodySelectors[name]; isBody {
+				return nil, fmt.Errorf("mvc handler method %s request body parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
+			}
+			if contextSeen {
+				return nil, fmt.Errorf("mvc handler method %s must not declare multiple *arkarta/web.Context parameters", fn.Name.Name)
+			}
+			contextSeen = true
+			params = append(params, mvcHandlerParam{Name: name, Kind: mvcParamContext})
+			continue
+		}
+		if isSelectorTypeExpr(field.Type, "Context") {
+			return nil, fmt.Errorf("mvc handler method %s parameter must be *arkarta/web.Context", fn.Name.Name)
+		}
+		if _, isBody := bodySelectors[name]; isBody {
+			if bodySeen {
+				return nil, fmt.Errorf("mvc handler method %s must not declare multiple request body parameters", fn.Name.Name)
+			}
+			bodySeen = true
+			params = append(params, mvcHandlerParam{Name: name, Type: exprString(fset, field.Type), Kind: mvcParamBody})
+			continue
+		}
+		return nil, fmt.Errorf("mvc handler method %s parameter %s must be *arkarta/web.Context or annotated with request-body", fn.Name.Name, name)
 	}
-	if !isArkWebContextExpr(file, fn.Type.Params.List[0].Type) {
-		return false, fmt.Errorf("mvc handler method %s parameter must be *arkarta/web.Context", fn.Name.Name)
+	for selector := range bodySelectors {
+		if !mvcHasParam(params, selector) {
+			return nil, fmt.Errorf("mvc handler method %s request body selector %q does not match any method parameter", fn.Name.Name, selector)
+		}
 	}
-	return true, nil
+	return params, nil
 }
 
 func mvcMethodReturnKind(file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, error) {
@@ -449,10 +524,11 @@ func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
 }
 
 func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
-	call := "controller." + route.MethodName + "()"
-	if route.Handler.AcceptsContext {
-		call = "controller." + route.MethodName + "(ctx)"
+	if hasMVCBodyParam(route.Handler.Params) {
+		writeMVCBindJSONHandler(builder, route)
+		return
 	}
+	call := mvcHandlerCall(route.MethodName, route.Handler.Params)
 	switch route.Handler.ReturnKind {
 	case mvcReturnResultError:
 		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\nreturn ")
@@ -485,6 +561,37 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 	}
 }
 
+func writeMVCBindJSONHandler(builder *bytes.Buffer, route mvcRoute) {
+	bodyParam, _ := mvcBodyParam(route.Handler.Params)
+	builder.WriteString("mvc.BindJSON[")
+	builder.WriteString(bodyParam.Type)
+	builder.WriteString(", any](")
+	builder.WriteString(strconv.Itoa(route.Status))
+	builder.WriteString(", func(ctx *arkweb.Context, ")
+	builder.WriteString(bodyParam.Name)
+	builder.WriteByte(' ')
+	builder.WriteString(bodyParam.Type)
+	builder.WriteString(") (any, error) {\nreturn ")
+	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
+	if route.Handler.ReturnKind == mvcReturnValue {
+		builder.WriteString(", nil")
+	}
+	builder.WriteString("\n})")
+}
+
+func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
+	args := make([]string, 0, len(params))
+	for _, param := range params {
+		switch param.Kind {
+		case mvcParamContext:
+			args = append(args, "ctx")
+		case mvcParamBody:
+			args = append(args, param.Name)
+		}
+	}
+	return "controller." + methodName + "(" + strings.Join(args, ", ") + ")"
+}
+
 func hasMVCControllerAnnotation(annotations []Annotation) bool {
 	return mvcControllerKind(annotations) != ""
 }
@@ -498,9 +605,9 @@ func mvcControllerKind(annotations []Annotation) string {
 	return ""
 }
 
-func hasMVCRouteAnnotation(annotations []Annotation) bool {
+func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 	for _, annotation := range annotations {
-		if isMVCRouteAnnotation(annotation.Name) {
+		if isMVCRouteMappingAnnotation(annotation.Name) {
 			return true
 		}
 	}
@@ -508,12 +615,83 @@ func hasMVCRouteAnnotation(annotations []Annotation) bool {
 }
 
 func isMVCRouteAnnotation(name string) bool {
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name)
+}
+
+func isMVCRouteMappingAnnotation(name string) bool {
 	switch name {
 	case "request-mapping", "get", "post", "put", "patch", "delete":
 		return true
 	default:
 		return false
 	}
+}
+
+func isMVCBodyAnnotation(name string) bool {
+	switch name {
+	case "request-body", "body":
+		return true
+	default:
+		return false
+	}
+}
+
+func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
+	selectors := mvcRequestBodySelectors(annotations)
+	out := make(map[string]struct{}, len(selectors))
+	for _, selector := range selectors {
+		out[selector] = struct{}{}
+	}
+	return out
+}
+
+func mvcRequestBodySelectors(annotations []Annotation) []string {
+	selectors := make([]string, 0, 1)
+	for _, annotation := range annotations {
+		if !isMVCBodyAnnotation(annotation.Name) {
+			continue
+		}
+		if selector := mvcRequestBodySelector(annotation); selector != "" {
+			selectors = append(selectors, selector)
+		}
+	}
+	return selectors
+}
+
+func mvcRequestBodySelector(annotation Annotation) string {
+	selector := normalizeSelector(annotation.Selector)
+	if selector != "" {
+		return selector
+	}
+	for _, key := range []string{"param", "name", "value"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func mvcHasParam(params []mvcHandlerParam, name string) bool {
+	for _, param := range params {
+		if param.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMVCBodyParam(params []mvcHandlerParam) bool {
+	_, ok := mvcBodyParam(params)
+	return ok
+}
+
+func mvcBodyParam(params []mvcHandlerParam) (mvcHandlerParam, bool) {
+	for _, param := range params {
+		if param.Kind == mvcParamBody {
+			return param, true
+		}
+	}
+	return mvcHandlerParam{}, false
 }
 
 func mvcTypeBasePath(annotations []Annotation) string {
@@ -647,6 +825,15 @@ func isArkWebContextExpr(file *ast.File, expr ast.Expr) bool {
 		return false
 	}
 	return isImportedSelectorExpr(file, star.X, arkartaWebImportPath, "Context")
+}
+
+func isSelectorTypeExpr(expr ast.Expr, selectorName string) bool {
+	star, ok := expr.(*ast.StarExpr)
+	if ok {
+		expr = star.X
+	}
+	selector, ok := expr.(*ast.SelectorExpr)
+	return ok && selector.Sel.Name == selectorName
 }
 
 func isErrorExpr(expr ast.Expr) bool {
