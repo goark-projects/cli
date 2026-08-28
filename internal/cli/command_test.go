@@ -44,6 +44,49 @@ func TestCommand_whenGenerateConfigurationToStdout_shouldPrintGeneratedSource(t 
 	}
 }
 
+func TestCommand_whenNewWebAppRequested_shouldWriteSkeleton(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	dir := filepath.Join(t.TempDir(), "admin")
+
+	code := Main([]string{
+		"new", "app",
+		"--module", "example.com/admin",
+		"--dir", dir,
+		"--web",
+	}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d, stderr=%s", code, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout should be empty, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "created "+dir) {
+		t.Fatalf("expected created path on stderr, got %q", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cmd", "server", "main.go")); err != nil {
+		t.Fatalf("expected generated main.go: %v", err)
+	}
+}
+
+func TestCommand_whenNewAppHelpRequested_shouldReturnSuccess(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Main([]string{"new", "app", "--help"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d", code)
+	}
+	if !strings.Contains(stdout.String(), "goark new app --module <module-path> --web") {
+		t.Fatalf("expected new app help in stdout, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr should be empty, got %q", stderr.String())
+	}
+}
+
 func TestCommand_whenGenerateConfigurationToFile_shouldWriteFileAndReportToStderr(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

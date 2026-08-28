@@ -37,6 +37,8 @@ func (c Command) Run(args []string) int {
 	case "version", "-v", "--version":
 		_, _ = fmt.Fprintf(c.Out, "goark %s\n", Version)
 		return 0
+	case "new":
+		return c.runNew(args[1:])
 	case "generate", "gen":
 		return c.runGenerate(args[1:])
 	default:
@@ -55,7 +57,11 @@ Usage:
 Available commands:
   help              Show command help.
   version           Print the CLI version.
+  new               Create project skeletons.
   generate, gen     Run code generators.
+
+Available scaffolds:
+  app               Create a Goark application skeleton.
 
 Available generators:
   configuration     Generate a goark.Configuration source file.

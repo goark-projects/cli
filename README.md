@@ -25,6 +25,7 @@ During local development:
 ```bash
 go run ./cmd/goark help
 go run ./cmd/goark version
+go run ./cmd/goark new app --module example.com/admin --dir admin --web
 go run ./cmd/goark generate configuration --name user --package generated
 go run ./cmd/goark generate registry --package generated --configuration UserConfiguration
 go run ./cmd/goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
@@ -36,9 +37,26 @@ go run ./cmd/goark generate annotations --dir internal/app --output internal/app
 | --- | --- |
 | `goark help` | Show command help. |
 | `goark version` | Print the CLI version. |
+| `goark new app` | Create a Goark application skeleton. |
 | `goark generate configuration` | Generate a `goark.Configuration` source file. |
 | `goark generate registry` | Generate a function that registers multiple `goark.Configuration` values. |
 | `goark generate annotations` | Scan `//goark:*` comments and generate core registration code. |
+
+## Application Scaffolding
+
+`goark new app --web` creates a minimal Goark Boot Web application using
+`goark.dev/gbc-web`, which includes Arkhos as the default embedded web
+container.
+
+```bash
+goark new app \
+  --module example.com/admin \
+  --dir admin \
+  --web
+```
+
+Generated files include `go.mod`, `config/app.yml`, `cmd/server/main.go`, and a
+minimal MVC health endpoint under `internal/app`.
 
 ## Configuration Generation
 
@@ -146,7 +164,6 @@ goark-orm generate orm --dir internal/user --output internal/user/zz_goark_orm_u
 
 | Generator | Purpose |
 | --- | --- |
-| `goark new` | Create a Goark application skeleton. |
 | `goark aop` | Generate AOP contracts and weaving metadata. |
 
 ## Repository Status
@@ -177,6 +194,7 @@ The dependency check should show no compile-time module dependency on `goark.dev
 ├── assets/          # README and brand assets
 ├── cmd/goark/       # CLI executable entrypoint
 ├── internal/cli/    # Command dispatch and CLI boundaries
+├── internal/scaffold/ # Project skeleton generation
 ├── go.mod           # Go module definition
 ├── LICENSE          # Apache License 2.0
 └── README.md        # Project overview
