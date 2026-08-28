@@ -119,6 +119,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "request-header", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "cookie-value", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "model-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCModelAttributeAnnotation},
+		{Name: "response-status", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCResponseStatusAnnotation},
 		{Name: "exception-handler", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCExceptionHandlerAnnotation},
 	}
 }
@@ -220,6 +221,17 @@ func validateMVCModelAttributeAnnotation(ctx AnnotationValidationContext) error 
 		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return validateAtMostOneAnnotationValue(ctx.Annotation)
+}
+
+func validateMVCResponseStatusAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	}
+	_, err := mvcResponseStatus(ctx.Annotation)
+	return err
 }
 
 func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
@@ -460,28 +472,48 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 }
 
 type mvcRouteMappingSpec struct {
-	method string
-	path   string
-	status int
+	method         string
+	path           string
+	status         int
+	explicitStatus bool
 }
 
 func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, error) {
 	var out mvcRouteMappingSpec
+	responseStatus := 0
+	hasResponseStatus := false
 	for _, annotation := range annotations {
-		if !isMVCRouteMappingAnnotation(annotation.Name) {
+		if isMVCResponseStatusAnnotation(annotation.Name) {
+			if hasResponseStatus {
+				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple response-status annotations")
+			}
+			status, err := mvcResponseStatus(annotation)
+			if err != nil {
+				return mvcRouteMappingSpec{}, err
+			}
+			responseStatus = status
+			hasResponseStatus = true
 			continue
 		}
-		if out.method != "" {
-			return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple mapping annotations")
+		if isMVCRouteMappingAnnotation(annotation.Name) {
+			if out.method != "" {
+				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple mapping annotations")
+			}
+			mapping, err := mvcRouteMapping(annotation)
+			if err != nil {
+				return mvcRouteMappingSpec{}, err
+			}
+			out = mapping
 		}
-		mapping, err := mvcRouteMapping(annotation)
-		if err != nil {
-			return mvcRouteMappingSpec{}, err
-		}
-		out = mapping
 	}
 	if out.method == "" {
 		return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method requires mapping annotation")
+	}
+	if hasResponseStatus {
+		if out.explicitStatus {
+			return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method must not declare both mapping status and response-status")
+		}
+		out.status = responseStatus
 	}
 	return out, nil
 }
@@ -495,14 +527,16 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 	if method == "" {
 		return mvcRouteMappingSpec{}, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
 	}
+	explicitStatus := mvcMappingHasExplicitStatus(annotation)
 	status, err := mvcStatus(annotation, defaultMVCStatus(method))
 	if err != nil {
 		return mvcRouteMappingSpec{}, err
 	}
 	return mvcRouteMappingSpec{
-		method: method,
-		path:   normalizeMVCPath(path),
-		status: status,
+		method:         method,
+		path:           normalizeMVCPath(path),
+		status:         status,
+		explicitStatus: explicitStatus,
 	}, nil
 }
 
@@ -894,7 +928,7 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 }
 
 func isMVCRouteAnnotation(name string) bool {
-	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCParameterAnnotation(name)
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCResponseStatusAnnotation(name)
 }
 
 func isMVCRouteMappingAnnotation(name string) bool {
@@ -922,6 +956,10 @@ func isMVCParameterAnnotation(name string) bool {
 	default:
 		return false
 	}
+}
+
+func isMVCResponseStatusAnnotation(name string) bool {
+	return name == "response-status"
 }
 
 func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
@@ -1181,12 +1219,60 @@ func mvcStatus(annotation Annotation, fallback int) (int, error) {
 	if strings.TrimSpace(value) == "" {
 		return fallback, nil
 	}
+	return parseMVCStatus(annotation, "status", value)
+}
+
+func mvcResponseStatus(annotation Annotation) (int, error) {
+	values := annotationValueTexts(annotation)
+	if len(values) > 1 {
+		return 0, fmt.Errorf("annotation %q accepts exactly one status value", annotation.Name)
+	}
+	value := ""
+	if len(values) == 1 {
+		value = values[0]
+	}
+	namedValues := mvcNamedStatusValues(annotation, "status", "statusCode", "code")
+	if len(namedValues) > 1 {
+		return 0, fmt.Errorf("annotation %q accepts exactly one status argument", annotation.Name)
+	}
+	if len(namedValues) == 1 {
+		if strings.TrimSpace(value) != "" {
+			return 0, fmt.Errorf("annotation %q accepts either value or named status argument", annotation.Name)
+		}
+		value = namedValues[0]
+	}
+	if strings.TrimSpace(value) == "" {
+		return 0, fmt.Errorf("annotation %q requires status value", annotation.Name)
+	}
+	return parseMVCStatus(annotation, "status", value)
+}
+
+func mvcNamedStatusValues(annotation Annotation, keys ...string) []string {
+	values := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+func mvcMappingHasExplicitStatus(annotation Annotation) bool {
+	for _, key := range []string{"status", "statusCode"} {
+		if strings.TrimSpace(argString(annotation, key, "")) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func parseMVCStatus(annotation Annotation, label string, value string) (int, error) {
 	status, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
-		return 0, fmt.Errorf("annotation %q status requires integer value: %w", annotation.Name, err)
+		return 0, fmt.Errorf("annotation %q %s requires integer value: %w", annotation.Name, label, err)
 	}
 	if status < 100 || status > 999 {
-		return 0, fmt.Errorf("annotation %q status %d is out of range", annotation.Name, status)
+		return 0, fmt.Errorf("annotation %q %s %d is out of range", annotation.Name, label, status)
 	}
 	return status, nil
 }
