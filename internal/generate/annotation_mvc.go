@@ -17,9 +17,12 @@ const (
 )
 
 type mvcAnnotationModel struct {
-	Controllers []*mvcController
-	byType      map[string]*mvcController
-	pending     []mvcRoute
+	Controllers              []*mvcController
+	Advices                  []*mvcControllerAdvice
+	byType                   map[string]*mvcController
+	adviceByType             map[string]*mvcControllerAdvice
+	pending                  []mvcRoute
+	pendingExceptionHandlers []mvcExceptionHandler
 }
 
 type mvcController struct {
@@ -96,6 +99,8 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "controller", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAnnotation},
 		{Name: "rest-controller", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAnnotation},
 		{Name: "mvc-controller", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAnnotation},
+		{Name: "controller-advice", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAdviceAnnotation},
+		{Name: "rest-controller-advice", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAdviceAnnotation},
 		{Name: "request-mapping", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateMVCRequestMappingAnnotation},
 		{Name: "get", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "head", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
@@ -111,6 +116,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "request-header", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "cookie-value", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "model-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCModelAttributeAnnotation},
+		{Name: "exception-handler", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCExceptionHandlerAnnotation},
 	}
 }
 
@@ -121,6 +127,9 @@ func validateMVCControllerAnnotation(ctx AnnotationValidationContext) error {
 	}
 	if _, ok := typeSpec.Type.(*ast.StructType); !ok {
 		return fmt.Errorf("annotation %q requires struct type target", ctx.Annotation.Name)
+	}
+	if hasMVCControllerAdviceAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q target must not also declare mvc controller advice", ctx.Annotation.Name)
 	}
 	return validateCoreNameAnnotation(ctx.Annotation)
 }
@@ -224,9 +233,15 @@ func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
 func (mvcAnnotationBinder) BindAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) error {
 	switch item.Target() {
 	case AnnotationTargetType:
-		return bindMVCController(ctx, item)
+		if err := bindMVCController(ctx, item); err != nil {
+			return err
+		}
+		return bindMVCControllerAdvice(ctx, item)
 	case AnnotationTargetMethod:
-		return bindMVCRoute(ctx, item)
+		if err := bindMVCRoute(ctx, item); err != nil {
+			return err
+		}
+		return bindMVCExceptionHandler(ctx, item)
 	default:
 		return nil
 	}
@@ -249,12 +264,25 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 		route.Path = joinMVCPaths(controller.BasePath, route.Path)
 		controller.Routes = append(controller.Routes, route)
 	}
+	for _, handler := range model.pendingExceptionHandlers {
+		advice := model.adviceByType[handler.AdviceType]
+		if advice == nil {
+			return fmt.Errorf("mvc exception handler method %s.%s requires mvc controller advice receiver type", handler.AdviceType, handler.MethodName)
+		}
+		advice.ExceptionHandlers = append(advice.ExceptionHandlers, handler)
+	}
 	coreModel := ensureCoreAnnotationModel(ctx)
 	resolver := newAnnotationDependencyResolver(coreModel)
 	for _, controller := range model.Controllers {
 		resolver.addCandidate(annotationDependencyCandidate{
 			Name: controller.Component.Name,
 			Type: "*" + controller.Component.TypeName,
+		})
+	}
+	for _, advice := range model.Advices {
+		resolver.addCandidate(annotationDependencyCandidate{
+			Name: advice.Component.Name,
+			Type: "*" + advice.Component.TypeName,
 		})
 	}
 	for _, controller := range model.Controllers {
@@ -271,8 +299,22 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 			return left.Path < right.Path
 		})
 	}
+	for _, advice := range model.Advices {
+		inferComponentDependencyMetadata(&advice.Component, resolver)
+		sort.SliceStable(advice.ExceptionHandlers, func(i, j int) bool {
+			left := advice.ExceptionHandlers[i]
+			right := advice.ExceptionHandlers[j]
+			if left.ErrorType == right.ErrorType {
+				return left.MethodName < right.MethodName
+			}
+			return left.ErrorType < right.ErrorType
+		})
+	}
 	sort.SliceStable(model.Controllers, func(i, j int) bool {
 		return model.Controllers[i].Component.Name < model.Controllers[j].Component.Name
+	})
+	sort.SliceStable(model.Advices, func(i, j int) bool {
+		return model.Advices[i].Component.Name < model.Advices[j].Component.Name
 	})
 	return nil
 }
@@ -319,7 +361,10 @@ func ensureMVCAnnotationModel(ctx *AnnotationBindingContext) *mvcAnnotationModel
 			return model
 		}
 	}
-	model := &mvcAnnotationModel{byType: make(map[string]*mvcController)}
+	model := &mvcAnnotationModel{
+		byType:       make(map[string]*mvcController),
+		adviceByType: make(map[string]*mvcControllerAdvice),
+	}
 	ctx.SetValue(mvcAnnotationModelKey, model)
 	return model
 }
@@ -333,12 +378,16 @@ func (mvcAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContex
 	if !ok {
 		return fmt.Errorf("invalid mvc annotation model")
 	}
-	if len(model.Controllers) == 0 {
+	if len(model.Controllers) == 0 && len(model.Advices) == 0 {
 		return nil
 	}
-	ctx.AddImport("arkweb", arkartaWebImportPath)
-	ctx.AddImport("goweb", "goark.dev/goark/web")
-	ctx.AddImport("", "goark.dev/goark/web/mvc")
+	if mvcModelUsesArkWeb(model) {
+		ctx.AddImport("arkweb", arkartaWebImportPath)
+	}
+	if mvcModelUsesConfigurer(model) {
+		ctx.AddImport("goweb", "goark.dev/goark/web")
+		ctx.AddImport("", "goark.dev/goark/web/mvc")
+	}
 	if mvcModelUsesOptionalInjection(model) {
 		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
 	}
@@ -347,38 +396,47 @@ func (mvcAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContex
 }
 
 func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation) (*mvcController, error) {
-	typeName := typeSpec.Name.Name
-	component := annotationComponent{
-		TypeName: typeName,
-		Name:     annotationName(annotations, mvcControllerKind(annotations), lowerCamel(typeName)),
-	}
-	structType, _ := typeSpec.Type.(*ast.StructType)
-	if structType != nil {
-		for _, field := range structType.Fields.List {
-			fieldAnnotations, err := parseAnnotations(field.Doc)
-			if err != nil {
-				return nil, err
-			}
-			if len(field.Names) == 0 {
-				continue
-			}
-			for _, name := range field.Names {
-				injection := buildInjection(fieldAnnotations, name.Name)
-				if injection.Kind == "" {
-					continue
-				}
-				component.Fields = append(component.Fields, annotationField{
-					Name:      name.Name,
-					Type:      exprString(fset, field.Type),
-					Injection: injection,
-				})
-			}
-		}
+	component, err := buildMVCComponent(fset, typeSpec, annotations, mvcControllerKind(annotations))
+	if err != nil {
+		return nil, err
 	}
 	return &mvcController{
 		Component: component,
 		BasePath:  mvcTypeBasePath(annotations),
 	}, nil
+}
+
+func buildMVCComponent(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation, kind string) (annotationComponent, error) {
+	typeName := typeSpec.Name.Name
+	component := annotationComponent{
+		TypeName: typeName,
+		Name:     annotationName(annotations, kind, lowerCamel(typeName)),
+	}
+	structType, _ := typeSpec.Type.(*ast.StructType)
+	if structType == nil {
+		return component, nil
+	}
+	for _, field := range structType.Fields.List {
+		fieldAnnotations, err := parseAnnotations(field.Doc)
+		if err != nil {
+			return annotationComponent{}, err
+		}
+		if len(field.Names) == 0 {
+			continue
+		}
+		for _, name := range field.Names {
+			injection := buildInjection(fieldAnnotations, name.Name)
+			if injection.Kind == "" {
+				continue
+			}
+			component.Fields = append(component.Fields, annotationField{
+				Name:      name.Name,
+				Type:      exprString(fset, field.Type),
+				Injection: injection,
+			})
+		}
+	}
+	return component, nil
 }
 
 func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcRoute, error) {
@@ -582,6 +640,10 @@ func writeMVCConfiguration(builder *bytes.Buffer, model *mvcAnnotationModel) {
 	for _, controller := range model.Controllers {
 		writeComponentRegistration(builder, controller.Component)
 		writeMVCConfigurerRegistration(builder, controller)
+	}
+	for _, advice := range model.Advices {
+		writeComponentRegistration(builder, advice.Component)
+		writeMVCAdviceConfigurerRegistration(builder, advice)
 	}
 	builder.WriteString("return nil\n}\n\n")
 }
@@ -1225,6 +1287,39 @@ func mvcModelUsesOptionalInjection(model *mvcAnnotationModel) bool {
 			if !field.Injection.Required && field.Injection.Kind != "value" {
 				return true
 			}
+		}
+	}
+	for _, advice := range model.Advices {
+		for _, field := range advice.Component.Fields {
+			if !field.Injection.Required && field.Injection.Kind != "value" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mvcModelUsesConfigurer(model *mvcAnnotationModel) bool {
+	if len(model.Controllers) > 0 {
+		return true
+	}
+	for _, advice := range model.Advices {
+		if len(advice.ExceptionHandlers) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func mvcModelUsesArkWeb(model *mvcAnnotationModel) bool {
+	for _, controller := range model.Controllers {
+		if len(controller.Routes) > 0 {
+			return true
+		}
+	}
+	for _, advice := range model.Advices {
+		if len(advice.ExceptionHandlers) > 0 {
+			return true
 		}
 	}
 	return false

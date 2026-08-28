@@ -536,6 +536,98 @@ func (c *AdminController) Search(ctx *arkweb.Context, criteria UserSearchCriteri
 	}
 }
 
+func TestGenerateAnnotations_whenMVCControllerAdviceExists_shouldGenerateExceptionHandlers(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import (
+	"net/http"
+
+	arkweb "goark.dev/arkarta/web"
+)
+
+type UserNotFoundError struct {
+	ID string
+}
+
+func (e *UserNotFoundError) Error() string {
+	return "user " + e.ID + " not found"
+}
+
+//goark:controller("adminController")
+type AdminController struct{}
+
+//goark:get("/admin/users/{id}")
+func (c *AdminController) User(ctx *arkweb.Context) (map[string]string, error) {
+	return nil, &UserNotFoundError{ID: ctx.PathValue("id")}
+}
+
+//goark:controller-advice("adminAdvice")
+type AdminAdvice struct{}
+
+//goark:exception-handler
+func (a *AdminAdvice) NotFound(ctx *arkweb.Context, err *UserNotFoundError) arkweb.Result {
+	return arkweb.JSON(http.StatusNotFound, map[string]string{"id": err.ID})
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
+		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	expected := []string{
+		"container.Register(registry, \"adminAdvice\"",
+		"container.Register[goweb.Configurer](registry, \"adminAdvice.mvcAdviceConfigurer\"",
+		"advice, err := container.GetByType[*AdminAdvice](ctx, resolver, container.WithQualifier(\"adminAdvice\"))",
+		"mvc.NewConfigurer().WithExceptionHandlers(",
+		"mvc.ExceptionHandlerAs[*UserNotFoundError](func(ctx *arkweb.Context, err *UserNotFoundError) arkweb.Result",
+		"return advice.NotFound(ctx, err)",
+		"container.WithFactoryDependencies(\"adminAdvice\")",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated mvc advice source missing %q:\n%s", fragment, text)
+		}
+	}
+}
+
+func TestGenerateAnnotations_whenMVCExceptionHandlerReceiverIsNotAdvice_shouldReturnValidationError(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import arkweb "goark.dev/arkarta/web"
+
+type UserNotFoundError struct{}
+
+func (e *UserNotFoundError) Error() string {
+	return "not found"
+}
+
+type AdminAdvice struct{}
+
+//goark:exception-handler
+func (a *AdminAdvice) NotFound(err *UserNotFoundError) arkweb.Result {
+	return nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "requires mvc controller advice receiver type") {
+		t.Fatalf("expected mvc advice receiver validation error, got %v", err)
+	}
+}
+
 func TestGenerateAnnotations_whenMVCModelAttributePointerExists_shouldReturnValidationError(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app
