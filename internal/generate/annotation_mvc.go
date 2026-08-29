@@ -16,6 +16,7 @@ const (
 	arkartaMultipartImportPath = "goark.dev/arkarta/servlet/multipart"
 	arkartaWebImportPath       = "goark.dev/arkarta/web"
 	goarkWebImportPath         = "goark.dev/goark/web"
+	goarkMVCImportPath         = "goark.dev/goark/web/mvc"
 )
 
 type mvcAnnotationModel struct {
@@ -41,6 +42,7 @@ type mvcRoute struct {
 	Path           string
 	Status         int
 	StatusExplicit bool
+	ControllerKind string
 	Conditions     mvcRouteConditions
 	Handler        mvcHandler
 }
@@ -48,6 +50,7 @@ type mvcRoute struct {
 type mvcHandler struct {
 	Params     []mvcHandlerParam
 	ReturnKind mvcReturnKind
+	ReturnType string
 }
 
 type mvcHandlerParam struct {
@@ -79,6 +82,7 @@ const (
 	mvcParamSessionAttribute
 	mvcParamMatrixVariable
 	mvcParamRequestPart
+	mvcParamModel
 )
 
 type mvcReturnKind uint8
@@ -321,6 +325,7 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 			return fmt.Errorf("mvc route method %s.%s requires mvc controller receiver type", route.ControllerType, route.MethodName)
 		}
 		route.Path = joinMVCPaths(controller.BasePath, route.Path)
+		route.ControllerKind = controller.Kind
 		controller.Routes = append(controller.Routes, route)
 	}
 	for _, handler := range model.pendingExceptionHandlers {
@@ -608,7 +613,11 @@ func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, an
 	if hasMVCMultipartBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
 		return mvcHandler{}, fmt.Errorf("mvc handler method %s with multipart body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 	}
-	return mvcHandler{Params: params, ReturnKind: returnKind}, nil
+	return mvcHandler{
+		Params:     params,
+		ReturnKind: returnKind,
+		ReturnType: mvcPrimaryReturnType(fset, fn),
+	}, nil
 }
 
 func mvcReturnSupportsRequestBody(kind mvcReturnKind) bool {
@@ -640,6 +649,7 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 	params := make([]mvcHandlerParam, 0, len(fn.Type.Params.List))
 	contextSeen := false
 	bodySeen := false
+	modelSeen := false
 	for index, field := range fn.Type.Params.List {
 		names := field.Names
 		if len(names) == 0 {
@@ -664,6 +674,23 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			}
 			contextSeen = true
 			params = append(params, mvcHandlerParam{Name: name, Kind: mvcParamContext})
+			continue
+		}
+		if isGoarkMVCModelPointerExpr(file, field.Type) {
+			if _, isBody := bodySelectors[name]; isBody {
+				return nil, fmt.Errorf("mvc handler method %s request body parameter %s must not be *mvc.Model", fn.Name.Name, name)
+			}
+			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
+				return nil, fmt.Errorf("mvc handler method %s multipart body parameter %s must not be *mvc.Model", fn.Name.Name, name)
+			}
+			if _, isBound := paramBindings[name]; isBound {
+				return nil, fmt.Errorf("mvc handler method %s bound parameter %s must not be *mvc.Model", fn.Name.Name, name)
+			}
+			if modelSeen {
+				return nil, fmt.Errorf("mvc handler method %s must not declare multiple *mvc.Model parameters", fn.Name.Name)
+			}
+			modelSeen = true
+			params = append(params, mvcHandlerParam{Name: name, Type: "mvc.Model", Kind: mvcParamModel})
 			continue
 		}
 		if isSelectorTypeExpr(field.Type, "Context") {
@@ -766,6 +793,13 @@ func mvcMethodReturnKind(file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, error
 	return 0, fmt.Errorf("mvc handler method %s must return void, error, T, T,error, web.Result, web.Result,error, web.ResponseEntity, web.ResponseEntity,error, web.DownloadResult, or web.DownloadResult,error", fn.Name.Name)
 }
 
+func mvcPrimaryReturnType(fset *token.FileSet, fn *ast.FuncDecl) string {
+	if fn == nil || fn.Type.Results == nil || len(fn.Type.Results.List) == 0 {
+		return ""
+	}
+	return exprString(fset, fn.Type.Results.List[0].Type)
+}
+
 func writeMVCConfiguration(builder *bytes.Buffer, model *mvcAnnotationModel) {
 	builder.WriteString("type GoarkWebMVCConfiguration struct{}\n\n")
 	builder.WriteString("func (GoarkWebMVCConfiguration) Name() string {\nreturn \"goark.web.mvc\"\n}\n\n")
@@ -828,6 +862,10 @@ func mvcControllerConstructor(kind string) string {
 }
 
 func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
+	if shouldRenderMVCModelView(route) {
+		writeMVCModelViewHandler(builder, route)
+		return
+	}
 	if shouldWrapMVCResponseStatus(route) {
 		builder.WriteString("mvc.ResponseStatus(")
 		builder.WriteString(strconv.Itoa(route.Status))
@@ -837,6 +875,20 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 		return
 	}
 	writeMVCHandlerCore(builder, route)
+}
+
+func shouldRenderMVCModelView(route mvcRoute) bool {
+	if route.ControllerKind == "rest-controller" || !hasMVCModelParam(route.Handler.Params) {
+		return false
+	}
+	switch route.Handler.ReturnKind {
+	case mvcReturnNone, mvcReturnError:
+		return true
+	case mvcReturnValue, mvcReturnValueError:
+		return strings.TrimSpace(route.Handler.ReturnType) == "string"
+	default:
+		return false
+	}
 }
 
 func shouldWrapMVCResponseStatus(route mvcRoute) bool {
@@ -849,6 +901,49 @@ func shouldWrapMVCResponseStatus(route mvcRoute) bool {
 	default:
 		return false
 	}
+}
+
+func writeMVCModelViewHandler(builder *bytes.Buffer, route mvcRoute) {
+	modelParam, _ := mvcModelParam(route.Handler.Params)
+	call := mvcHandlerCall(route.MethodName, route.Handler.Params)
+	builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	switch route.Handler.ReturnKind {
+	case mvcReturnError:
+		builder.WriteString("if err := ")
+		builder.WriteString(call)
+		builder.WriteString("; err != nil {\nreturn nil, err\n}\n")
+		writeMVCModelAndViewReturn(builder, "", modelParam.Name, route.Status)
+	case mvcReturnValue:
+		builder.WriteString("viewName := ")
+		builder.WriteString(call)
+		builder.WriteByte('\n')
+		writeMVCModelAndViewReturn(builder, "viewName", modelParam.Name, route.Status)
+	case mvcReturnValueError:
+		builder.WriteString("viewName, err := ")
+		builder.WriteString(call)
+		builder.WriteString("\nif err != nil {\nreturn nil, err\n}\n")
+		writeMVCModelAndViewReturn(builder, "viewName", modelParam.Name, route.Status)
+	default:
+		builder.WriteString(call)
+		builder.WriteByte('\n')
+		writeMVCModelAndViewReturn(builder, "", modelParam.Name, route.Status)
+	}
+	builder.WriteString("\n})")
+}
+
+func writeMVCModelAndViewReturn(builder *bytes.Buffer, viewName string, modelName string, statusCode int) {
+	builder.WriteString("return mvc.NewModelAndView(")
+	if viewName == "" {
+		builder.WriteString(strconv.Quote(""))
+	} else {
+		builder.WriteString(viewName)
+	}
+	builder.WriteString(", ")
+	builder.WriteString(modelName)
+	builder.WriteString(", mvc.WithViewStatus(")
+	builder.WriteString(strconv.Itoa(statusCode))
+	builder.WriteString(")), nil")
 }
 
 func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
@@ -993,6 +1088,8 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 		switch param.Kind {
 		case mvcParamContext:
 			args = append(args, "ctx")
+		case mvcParamModel:
+			args = append(args, "&"+param.Name)
 		case mvcParamBody, mvcParamMultipartBody:
 			args = append(args, param.Name)
 		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue, mvcParamModelAttribute,
@@ -1005,6 +1102,11 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 
 func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, errorReturn string) {
 	for _, param := range params {
+		if param.Kind == mvcParamModel {
+			builder.WriteString(param.Name)
+			builder.WriteString(" := mvc.NewModel()\n")
+			continue
+		}
 		call, ok := mvcParameterBindingCall(param)
 		if !ok {
 			continue
@@ -1344,6 +1446,11 @@ func hasMVCModelAttributeParam(params []mvcHandlerParam) bool {
 	return false
 }
 
+func hasMVCModelParam(params []mvcHandlerParam) bool {
+	_, ok := mvcModelParam(params)
+	return ok
+}
+
 func mvcBodyParam(params []mvcHandlerParam) (mvcHandlerParam, bool) {
 	for _, param := range params {
 		if param.Kind == mvcParamBody {
@@ -1356,6 +1463,15 @@ func mvcBodyParam(params []mvcHandlerParam) (mvcHandlerParam, bool) {
 func mvcMultipartBodyParam(params []mvcHandlerParam) (mvcHandlerParam, bool) {
 	for _, param := range params {
 		if param.Kind == mvcParamMultipartBody {
+			return param, true
+		}
+	}
+	return mvcHandlerParam{}, false
+}
+
+func mvcModelParam(params []mvcHandlerParam) (mvcHandlerParam, bool) {
+	for _, param := range params {
+		if param.Kind == mvcParamModel {
 			return param, true
 		}
 	}
@@ -1575,6 +1691,14 @@ func isArkWebContextExpr(file *ast.File, expr ast.Expr) bool {
 		return false
 	}
 	return isImportedSelectorExpr(file, star.X, arkartaWebImportPath, "Context")
+}
+
+func isGoarkMVCModelPointerExpr(file *ast.File, expr ast.Expr) bool {
+	star, ok := expr.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	return isImportedSelectorExpr(file, star.X, goarkMVCImportPath, "Model")
 }
 
 func isSelectorTypeExpr(expr ast.Expr, selectorName string) bool {
