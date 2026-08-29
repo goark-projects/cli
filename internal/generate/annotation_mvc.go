@@ -63,6 +63,7 @@ type mvcHandler struct {
 type mvcHandlerParam struct {
 	Name            string
 	Type            string
+	BodyType        string
 	Kind            mvcHandlerParamKind
 	Binding         mvcParamBinding
 	RequestPartFile bool
@@ -81,6 +82,7 @@ type mvcHandlerParamKind uint8
 const (
 	mvcParamContext mvcHandlerParamKind = iota + 1
 	mvcParamBody
+	mvcParamRequestEntity
 	mvcParamMultipartBody
 	mvcParamPathVariable
 	mvcParamRequestParam
@@ -137,6 +139,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "options", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "request-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
 		{Name: "body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
+		{Name: "request-entity", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestEntityAnnotation},
 		{Name: "multipart-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCMultipartBodyAnnotation},
 		{Name: "path-variable", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "request-param", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
@@ -691,14 +694,17 @@ func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, an
 	if hasMVCBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
 		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 	}
+	if hasMVCRequestEntityParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request entity must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+	}
 	if hasMVCMultipartBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
 		return mvcHandler{}, fmt.Errorf("mvc handler method %s with multipart body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 	}
 	if hasMVCResponseBodyAnnotation(annotations) && hasMVCModelParam(params) {
 		return mvcHandler{}, fmt.Errorf("mvc handler method %s response-body must not be used with *mvc.Model", fn.Name.Name)
 	}
-	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) && !hasMVCJSONRequestPartParam(params) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, multipart body, model attribute, or JSON request part parameter", fn.Name.Name)
+	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCRequestEntityParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) && !hasMVCJSONRequestPartParam(params) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, request entity, multipart body, model attribute, or JSON request part parameter", fn.Name.Name)
 	}
 	return mvcHandler{
 		Params:     params,
@@ -722,6 +728,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 		if len(mvcRequestBodySelectors(annotations)) > 0 {
 			return nil, fmt.Errorf("mvc handler method %s request body selector does not match any method parameter", fn.Name.Name)
 		}
+		if len(mvcRequestEntitySelectors(annotations)) > 0 {
+			return nil, fmt.Errorf("mvc handler method %s request entity selector does not match any method parameter", fn.Name.Name)
+		}
 		if len(mvcMultipartBodySelectors(annotations)) > 0 {
 			return nil, fmt.Errorf("mvc handler method %s multipart body selector does not match any method parameter", fn.Name.Name)
 		}
@@ -729,6 +738,7 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 	}
 
 	bodySelectors := mvcRequestBodySelectorSet(annotations)
+	requestEntitySelectors := mvcRequestEntitySelectorSet(annotations)
 	multipartBodySelectors := mvcMultipartBodySelectorSet(annotations)
 	paramBindings, err := mvcParameterBindingSet(annotations)
 	if err != nil {
@@ -751,6 +761,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			if _, isBody := bodySelectors[name]; isBody {
 				return nil, fmt.Errorf("mvc handler method %s request body parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
 			}
+			if _, isRequestEntity := requestEntitySelectors[name]; isRequestEntity {
+				return nil, fmt.Errorf("mvc handler method %s request entity parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
+			}
 			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
 				return nil, fmt.Errorf("mvc handler method %s multipart body parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
 			}
@@ -768,6 +781,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			if _, isBody := bodySelectors[name]; isBody {
 				return nil, fmt.Errorf("mvc handler method %s request body parameter %s must not be *mvc.Model", fn.Name.Name, name)
 			}
+			if _, isRequestEntity := requestEntitySelectors[name]; isRequestEntity {
+				return nil, fmt.Errorf("mvc handler method %s request entity parameter %s must not be *mvc.Model", fn.Name.Name, name)
+			}
 			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
 				return nil, fmt.Errorf("mvc handler method %s multipart body parameter %s must not be *mvc.Model", fn.Name.Name, name)
 			}
@@ -783,6 +799,27 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 		}
 		if isSelectorTypeExpr(field.Type, "Context") {
 			return nil, fmt.Errorf("mvc handler method %s parameter must be *arkarta/web.Context", fn.Name.Name)
+		}
+		requestEntityBodyType, isRequestEntityType := mvcRequestEntityBodyType(fset, file, field.Type)
+		if _, isRequestEntity := requestEntitySelectors[name]; isRequestEntity || isRequestEntityType {
+			if _, isBody := bodySelectors[name]; isBody {
+				return nil, fmt.Errorf("mvc handler method %s parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+			}
+			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
+				return nil, fmt.Errorf("mvc handler method %s parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+			}
+			if _, isBound := paramBindings[name]; isBound {
+				return nil, fmt.Errorf("mvc handler method %s parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+			}
+			if !isRequestEntityType {
+				return nil, fmt.Errorf("mvc handler method %s request entity parameter %s must be goark.dev/goark/web.RequestEntity[T]", fn.Name.Name, name)
+			}
+			if bodySeen {
+				return nil, fmt.Errorf("mvc handler method %s must not declare multiple request body parameters", fn.Name.Name)
+			}
+			bodySeen = true
+			params = append(params, mvcHandlerParam{Name: name, Type: "goweb.RequestEntity[" + requestEntityBodyType + "]", Kind: mvcParamRequestEntity, BodyType: requestEntityBodyType})
+			continue
 		}
 		if _, isBody := bodySelectors[name]; isBody {
 			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
@@ -829,6 +866,11 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 	for selector := range bodySelectors {
 		if !mvcHasParam(params, selector) {
 			return nil, fmt.Errorf("mvc handler method %s request body selector %q does not match any method parameter", fn.Name.Name, selector)
+		}
+	}
+	for selector := range requestEntitySelectors {
+		if !mvcHasParam(params, selector) {
+			return nil, fmt.Errorf("mvc handler method %s request entity selector %q does not match any method parameter", fn.Name.Name, selector)
 		}
 	}
 	for selector := range multipartBodySelectors {
@@ -1053,6 +1095,14 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 			return
 		}
 		writeMVCBindJSONHandler(builder, route)
+		return
+	}
+	if hasMVCRequestEntityParam(route.Handler.Params) {
+		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+			writeMVCBindRequestEntityEntityHandler(builder, route)
+			return
+		}
+		writeMVCBindRequestEntityHandler(builder, route)
 		return
 	}
 	if hasMVCMultipartBodyParam(route.Handler.Params) {
@@ -1296,7 +1346,7 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 			args = append(args, "ctx")
 		case mvcParamModel:
 			args = append(args, "&"+param.Name)
-		case mvcParamBody, mvcParamMultipartBody:
+		case mvcParamBody, mvcParamRequestEntity, mvcParamMultipartBody:
 			args = append(args, param.Name)
 		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue, mvcParamModelAttribute,
 			mvcParamRequestAttribute, mvcParamSessionAttribute, mvcParamMatrixVariable, mvcParamRequestPart:
@@ -1459,7 +1509,7 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 }
 
 func isMVCRouteAnnotation(name string) bool {
-	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCValidatedAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name) || isMVCCrossOriginAnnotation(name)
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCRequestEntityAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCValidatedAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name) || isMVCCrossOriginAnnotation(name)
 }
 
 func isMVCRouteMappingAnnotation(name string) bool {

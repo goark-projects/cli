@@ -117,7 +117,7 @@ Flags:
 
 ## Annotation Scanning
 
-`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, cross-origin, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS method mappings, request-body, multipart-body, response-body, response-status, validated, model-attribute, path-variable, request-param, request-header, cookie-value, request-attribute, session-attribute, matrix-variable, and request-part.
+`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, cross-origin, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS method mappings, request-body, request-entity, multipart-body, response-body, response-status, validated, model-attribute, path-variable, request-param, request-header, cookie-value, request-attribute, session-attribute, matrix-variable, and request-part.
 
 ```bash
 goark generate annotations \
@@ -143,7 +143,9 @@ annotation family should add its own
 the core DI generator.
 
 MVC handler parameters are explicit and generated statically. Use
-`//goark:request-body[input]` for a JSON request body and use
+`//goark:request-body[input]` for a JSON request body, use
+`//goark:request-entity[request]` or a `goweb.RequestEntity[T]` parameter for a
+Spring-style request entity carrying body, headers, method, and URL metadata, and use
 `//goark:model-attribute[criteria]` for a query/form aggregate, and use
 `//goark:path-variable[id]`, `//goark:request-param[query]`,
 `//goark:request-header[requestID]`, or `//goark:cookie-value[theme]` for scalar
@@ -154,8 +156,8 @@ cookies, and matrix variables also support the corresponding slice forms.
 `defaultValue` or `required=false` can be supplied on request parameters,
 headers, and cookies.
 Use `//goark:validated("create")` on routes with request-body,
-multipart-body, or model-attribute parameters to generate explicit validation
-group binding.
+request-entity, multipart-body, or model-attribute parameters to generate
+explicit validation group binding.
 Use `//goark:response-body` on a `controller` route when a normal return value
 must be written to the response body instead of applying the controller view
 resolution default. `rest-controller` already defaults normal return values to
