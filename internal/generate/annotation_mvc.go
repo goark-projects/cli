@@ -57,10 +57,11 @@ type mvcHandler struct {
 }
 
 type mvcHandlerParam struct {
-	Name    string
-	Type    string
-	Kind    mvcHandlerParamKind
-	Binding mvcParamBinding
+	Name            string
+	Type            string
+	Kind            mvcHandlerParamKind
+	Binding         mvcParamBinding
+	RequestPartFile bool
 }
 
 type mvcParamBinding struct {
@@ -672,8 +673,8 @@ func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, an
 	if hasMVCResponseBodyAnnotation(annotations) && hasMVCModelParam(params) {
 		return mvcHandler{}, fmt.Errorf("mvc handler method %s response-body must not be used with *mvc.Model", fn.Name.Name)
 	}
-	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, multipart body, or model attribute parameter", fn.Name.Name)
+	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) && !hasMVCJSONRequestPartParam(params) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, multipart body, model attribute, or JSON request part parameter", fn.Name.Name)
 	}
 	return mvcHandler{
 		Params:     params,
@@ -789,13 +790,11 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			if binding.Kind == mvcParamModelAttribute && !isMVCModelAttributeTypeExpr(field.Type) {
 				return nil, fmt.Errorf("mvc handler method %s model attribute parameter %s must be a non-pointer struct value", fn.Name.Name, name)
 			}
-			if binding.Kind == mvcParamRequestPart && !isArkartaMultipartPartExpr(file, field.Type) {
-				return nil, fmt.Errorf("mvc handler method %s request part parameter %s must be servletmultipart.Part", fn.Name.Name, name)
-			}
-			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding}, nil); !ok {
+			requestPartFile := binding.Kind == mvcParamRequestPart && isArkartaMultipartPartExpr(file, field.Type)
+			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding, RequestPartFile: requestPartFile}, nil); !ok {
 				return nil, fmt.Errorf("mvc handler method %s parameter %s has unsupported mvc parameter type %s", fn.Name.Name, name, typ)
 			}
-			params = append(params, mvcHandlerParam{Name: name, Type: typ, Kind: binding.Kind, Binding: binding.Binding})
+			params = append(params, mvcHandlerParam{Name: name, Type: typ, Kind: binding.Kind, Binding: binding.Binding, RequestPartFile: requestPartFile})
 			continue
 		}
 		return nil, fmt.Errorf("mvc handler method %s parameter %s must be *arkarta/web.Context or annotated with mvc binding annotation", fn.Name.Name, name)
@@ -1305,11 +1304,7 @@ func mvcParameterBindingCall(param mvcHandlerParam, validationGroups []string) (
 		return "mvc.ModelAttribute[" + param.Type + "](ctx)", true
 	}
 	if param.Kind == mvcParamRequestPart {
-		args := []string{"ctx", strconv.Quote(param.Binding.SourceName)}
-		if !param.Binding.Required {
-			args = append(args, "mvc.WithRequired(false)")
-		}
-		return "mvc.RequestPart(" + strings.Join(args, ", ") + ")", true
+		return mvcRequestPartBindingCall(param, validationGroups)
 	}
 	function, ok := mvcParameterFunction(param.Kind, param.Type)
 	if !ok {
