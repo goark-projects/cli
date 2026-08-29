@@ -36,22 +36,24 @@ type mvcController struct {
 }
 
 type mvcRoute struct {
-	ControllerType string
-	MethodName     string
-	HTTPMethod     string
-	Path           string
-	Status         int
-	StatusExplicit bool
-	ResponseBody   bool
-	ControllerKind string
-	Conditions     mvcRouteConditions
-	Handler        mvcHandler
+	ControllerType   string
+	MethodName       string
+	HTTPMethod       string
+	Path             string
+	Status           int
+	StatusExplicit   bool
+	ResponseBody     bool
+	ValidationGroups []string
+	ControllerKind   string
+	Conditions       mvcRouteConditions
+	Handler          mvcHandler
 }
 
 type mvcHandler struct {
 	Params     []mvcHandlerParam
 	ReturnKind mvcReturnKind
 	ReturnType string
+	EntityBody string
 }
 
 type mvcHandlerParam struct {
@@ -138,6 +140,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "session-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "matrix-variable", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "request-part", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestPartAnnotation},
+		{Name: "validated", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCValidatedAnnotation},
 		{Name: "response-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCResponseBodyAnnotation},
 		{Name: "response-status", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCResponseStatusAnnotation},
 		{Name: "exception-handler", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCExceptionHandlerAnnotation},
@@ -269,6 +272,22 @@ func validateMVCRequestPartAnnotation(ctx AnnotationValidationContext) error {
 	}
 	if _, ok := ctx.Annotation.Args["default"]; ok {
 		return fmt.Errorf("annotation %q does not accept default argument", ctx.Annotation.Name)
+	}
+	return nil
+}
+
+func validateMVCValidatedAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	}
+	if normalizeSelector(ctx.Annotation.Selector) != "" {
+		return fmt.Errorf("annotation %q does not accept selector", ctx.Annotation.Name)
+	}
+	if len(mvcValidationGroups(ctx.Annotation)) == 0 {
+		return fmt.Errorf("annotation %q requires validation group value", ctx.Annotation.Name)
 	}
 	return nil
 }
@@ -529,23 +548,25 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 		return mvcRoute{}, err
 	}
 	return mvcRoute{
-		HTTPMethod:     mapping.method,
-		Path:           mapping.path,
-		Status:         mapping.status,
-		StatusExplicit: mapping.explicitStatus,
-		ResponseBody:   mapping.responseBody,
-		Conditions:     mapping.conditions,
-		Handler:        handler,
+		HTTPMethod:       mapping.method,
+		Path:             mapping.path,
+		Status:           mapping.status,
+		StatusExplicit:   mapping.explicitStatus,
+		ResponseBody:     mapping.responseBody,
+		ValidationGroups: mapping.validationGroups,
+		Conditions:       mapping.conditions,
+		Handler:          handler,
 	}, nil
 }
 
 type mvcRouteMappingSpec struct {
-	method         string
-	path           string
-	status         int
-	explicitStatus bool
-	responseBody   bool
-	conditions     mvcRouteConditions
+	method           string
+	path             string
+	status           int
+	explicitStatus   bool
+	responseBody     bool
+	validationGroups []string
+	conditions       mvcRouteConditions
 }
 
 func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, error) {
@@ -553,7 +574,16 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 	responseStatus := 0
 	hasResponseStatus := false
 	hasResponseBody := false
+	hasValidated := false
 	for _, annotation := range annotations {
+		if isMVCValidatedAnnotation(annotation.Name) {
+			if hasValidated {
+				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple validated annotations")
+			}
+			out.validationGroups = mvcValidationGroups(annotation)
+			hasValidated = true
+			continue
+		}
 		if isMVCResponseBodyAnnotation(annotation.Name) {
 			if hasResponseBody {
 				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple response-body annotations")
@@ -642,10 +672,14 @@ func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, an
 	if hasMVCResponseBodyAnnotation(annotations) && hasMVCModelParam(params) {
 		return mvcHandler{}, fmt.Errorf("mvc handler method %s response-body must not be used with *mvc.Model", fn.Name.Name)
 	}
+	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, multipart body, or model attribute parameter", fn.Name.Name)
+	}
 	return mvcHandler{
 		Params:     params,
 		ReturnKind: returnKind,
 		ReturnType: mvcPrimaryReturnType(fset, fn),
+		EntityBody: mvcPrimaryResponseEntityBodyType(fset, file, fn),
 	}, nil
 }
 
@@ -758,7 +792,7 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 			if binding.Kind == mvcParamRequestPart && !isArkartaMultipartPartExpr(file, field.Type) {
 				return nil, fmt.Errorf("mvc handler method %s request part parameter %s must be servletmultipart.Part", fn.Name.Name, name)
 			}
-			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding}); !ok {
+			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding}, nil); !ok {
 				return nil, fmt.Errorf("mvc handler method %s parameter %s has unsupported mvc parameter type %s", fn.Name.Name, name, typ)
 			}
 			params = append(params, mvcHandlerParam{Name: name, Type: typ, Kind: binding.Kind, Binding: binding.Binding})
@@ -827,6 +861,14 @@ func mvcPrimaryReturnType(fset *token.FileSet, fn *ast.FuncDecl) string {
 		return ""
 	}
 	return exprString(fset, fn.Type.Results.List[0].Type)
+}
+
+func mvcPrimaryResponseEntityBodyType(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl) string {
+	if fn == nil || fn.Type.Results == nil || len(fn.Type.Results.List) == 0 {
+		return ""
+	}
+	body, _ := mvcResponseEntityBodyType(fset, file, fn.Type.Results.List[0].Type)
+	return body
 }
 
 func writeMVCConfiguration(builder *bytes.Buffer, model *mvcAnnotationModel) {
@@ -936,7 +978,7 @@ func writeMVCModelViewHandler(builder *bytes.Buffer, route mvcRoute) {
 	modelParam, _ := mvcModelParam(route.Handler.Params)
 	call := mvcHandlerCall(route.MethodName, route.Handler.Params)
 	builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 	switch route.Handler.ReturnKind {
 	case mvcReturnError:
 		builder.WriteString("if err := ")
@@ -996,13 +1038,13 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 	switch route.Handler.ReturnKind {
 	case mvcReturnResultError, mvcReturnEntityError:
 		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	case mvcReturnResult, mvcReturnEntity:
 		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
@@ -1010,7 +1052,7 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		writeMVCValueReturnHandlerName(builder, route)
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
@@ -1018,19 +1060,19 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		writeMVCValueReturnHandlerName(builder, route)
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
 	case mvcReturnError:
 		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return err")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return err", route.ValidationGroups)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	default:
 		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return err")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return err", route.ValidationGroups)
 		builder.WriteString(call)
 		builder.WriteString("\nreturn nil\n})")
 	}
@@ -1046,7 +1088,11 @@ func writeMVCValueReturnHandlerName(builder *bytes.Buffer, route mvcRoute) {
 
 func writeMVCBindJSONHandler(builder *bytes.Buffer, route mvcRoute) {
 	bodyParam, _ := mvcBodyParam(route.Handler.Params)
-	builder.WriteString("mvc.BindJSON[")
+	if len(route.ValidationGroups) > 0 {
+		builder.WriteString("mvc.BindJSONGroups[")
+	} else {
+		builder.WriteString("mvc.BindJSON[")
+	}
 	builder.WriteString(bodyParam.Type)
 	builder.WriteString(", any](")
 	builder.WriteString(strconv.Itoa(route.Status))
@@ -1055,16 +1101,22 @@ func writeMVCBindJSONHandler(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteByte(' ')
 	builder.WriteString(bodyParam.Type)
 	builder.WriteString(") (any, error) {\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnValue {
 		builder.WriteString(", nil")
 	}
-	builder.WriteString("\n})")
+	builder.WriteString("\n}")
+	writeMVCValidationGroupArguments(builder, route.ValidationGroups)
+	builder.WriteByte(')')
 }
 
 func writeMVCBindEntityHandler(builder *bytes.Buffer, route mvcRoute) {
+	if len(route.ValidationGroups) > 0 && route.Handler.EntityBody != "" {
+		writeMVCBindEntityGroupsHandler(builder, route)
+		return
+	}
 	bodyParam, _ := mvcBodyParam(route.Handler.Params)
 	builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
 	builder.WriteString("var ")
@@ -1074,7 +1126,7 @@ func writeMVCBindEntityHandler(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString("\nif err := ctx.BindAndValidateJSON(&")
 	builder.WriteString(bodyParam.Name)
 	builder.WriteString("); err != nil {\nreturn nil, err\n}\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnEntity {
@@ -1085,7 +1137,11 @@ func writeMVCBindEntityHandler(builder *bytes.Buffer, route mvcRoute) {
 
 func writeMVCBindMultipartHandler(builder *bytes.Buffer, route mvcRoute) {
 	bodyParam, _ := mvcMultipartBodyParam(route.Handler.Params)
-	builder.WriteString("mvc.BindMultipart[")
+	if len(route.ValidationGroups) > 0 {
+		builder.WriteString("mvc.BindMultipartGroups[")
+	} else {
+		builder.WriteString("mvc.BindMultipart[")
+	}
 	builder.WriteString(bodyParam.Type)
 	builder.WriteString(", any](")
 	builder.WriteString(strconv.Itoa(route.Status))
@@ -1094,29 +1150,113 @@ func writeMVCBindMultipartHandler(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteByte(' ')
 	builder.WriteString(bodyParam.Type)
 	builder.WriteString(") (any, error) {\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnValue {
 		builder.WriteString(", nil")
 	}
-	builder.WriteString("\n})")
+	builder.WriteString("\n}")
+	if len(route.ValidationGroups) > 0 {
+		builder.WriteString(", ")
+		writeMVCValidationGroupSlice(builder, route.ValidationGroups)
+	}
+	builder.WriteByte(')')
 }
 
 func writeMVCBindMultipartEntityHandler(builder *bytes.Buffer, route mvcRoute) {
+	if len(route.ValidationGroups) > 0 && route.Handler.EntityBody != "" {
+		writeMVCBindMultipartEntityGroupsHandler(builder, route)
+		return
+	}
 	bodyParam, _ := mvcMultipartBodyParam(route.Handler.Params)
 	builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
 	builder.WriteString(bodyParam.Name)
 	builder.WriteString(", err := mvc.Multipart[")
 	builder.WriteString(bodyParam.Type)
 	builder.WriteString("](ctx)\nif err != nil {\nreturn nil, err\n}\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnEntity {
 		builder.WriteString(", nil")
 	}
 	builder.WriteString("\n})")
+}
+
+func writeMVCBindEntityGroupsHandler(builder *bytes.Buffer, route mvcRoute) {
+	bodyParam, _ := mvcBodyParam(route.Handler.Params)
+	builder.WriteString("mvc.BindEntityGroups[")
+	builder.WriteString(bodyParam.Type)
+	builder.WriteString(", ")
+	builder.WriteString(route.Handler.EntityBody)
+	builder.WriteString("](func(ctx *arkweb.Context, ")
+	builder.WriteString(bodyParam.Name)
+	builder.WriteByte(' ')
+	builder.WriteString(bodyParam.Type)
+	builder.WriteString(") (goweb.ResponseEntity[")
+	builder.WriteString(route.Handler.EntityBody)
+	builder.WriteString("], error) {\n")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return goweb.ResponseEntity["+route.Handler.EntityBody+"]{}, err", route.ValidationGroups)
+	builder.WriteString("return ")
+	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
+	if route.Handler.ReturnKind == mvcReturnEntity {
+		builder.WriteString(", nil")
+	}
+	builder.WriteString("\n}")
+	writeMVCValidationGroupArguments(builder, route.ValidationGroups)
+	builder.WriteByte(')')
+}
+
+func writeMVCBindMultipartEntityGroupsHandler(builder *bytes.Buffer, route mvcRoute) {
+	bodyParam, _ := mvcMultipartBodyParam(route.Handler.Params)
+	builder.WriteString("mvc.BindMultipartEntityGroups[")
+	builder.WriteString(bodyParam.Type)
+	builder.WriteString(", ")
+	builder.WriteString(route.Handler.EntityBody)
+	builder.WriteString("](func(ctx *arkweb.Context, ")
+	builder.WriteString(bodyParam.Name)
+	builder.WriteByte(' ')
+	builder.WriteString(bodyParam.Type)
+	builder.WriteString(") (goweb.ResponseEntity[")
+	builder.WriteString(route.Handler.EntityBody)
+	builder.WriteString("], error) {\n")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return goweb.ResponseEntity["+route.Handler.EntityBody+"]{}, err", route.ValidationGroups)
+	builder.WriteString("return ")
+	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
+	if route.Handler.ReturnKind == mvcReturnEntity {
+		builder.WriteString(", nil")
+	}
+	builder.WriteString("\n}, ")
+	writeMVCValidationGroupSlice(builder, route.ValidationGroups)
+	builder.WriteByte(')')
+}
+
+func writeMVCValidationGroupArguments(builder *bytes.Buffer, groups []string) {
+	for _, group := range groups {
+		builder.WriteString(", ")
+		builder.WriteString(strconv.Quote(group))
+	}
+}
+
+func writeMVCValidationGroupSlice(builder *bytes.Buffer, groups []string) {
+	builder.WriteString("[]string{")
+	for index, group := range groups {
+		if index > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(strconv.Quote(group))
+	}
+	builder.WriteByte('}')
+}
+
+func mvcValidationGroupArguments(groups []string) string {
+	if len(groups) == 0 {
+		return ""
+	}
+	var builder bytes.Buffer
+	writeMVCValidationGroupArguments(&builder, groups)
+	return builder.String()
 }
 
 func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
@@ -1137,14 +1277,14 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 	return "controller." + methodName + "(" + strings.Join(args, ", ") + ")"
 }
 
-func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, errorReturn string) {
+func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, errorReturn string, validationGroups []string) {
 	for _, param := range params {
 		if param.Kind == mvcParamModel {
 			builder.WriteString(param.Name)
 			builder.WriteString(" := mvc.NewModel()\n")
 			continue
 		}
-		call, ok := mvcParameterBindingCall(param)
+		call, ok := mvcParameterBindingCall(param, validationGroups)
 		if !ok {
 			continue
 		}
@@ -1157,8 +1297,11 @@ func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, 
 	}
 }
 
-func mvcParameterBindingCall(param mvcHandlerParam) (string, bool) {
+func mvcParameterBindingCall(param mvcHandlerParam, validationGroups []string) (string, bool) {
 	if param.Kind == mvcParamModelAttribute {
+		if len(validationGroups) > 0 {
+			return "mvc.ModelAttributeGroups[" + param.Type + "](ctx" + mvcValidationGroupArguments(validationGroups) + ")", true
+		}
 		return "mvc.ModelAttribute[" + param.Type + "](ctx)", true
 	}
 	if param.Kind == mvcParamRequestPart {
@@ -1288,7 +1431,7 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 }
 
 func isMVCRouteAnnotation(name string) bool {
-	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name)
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCValidatedAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name)
 }
 
 func isMVCRouteMappingAnnotation(name string) bool {
@@ -1313,6 +1456,10 @@ func isMVCMultipartBodyAnnotation(name string) bool {
 	return name == "multipart-body"
 }
 
+func isMVCValidatedAnnotation(name string) bool {
+	return name == "validated"
+}
+
 func isMVCParameterAnnotation(name string) bool {
 	switch name {
 	case "path-variable", "request-param", "request-header", "cookie-value", "model-attribute",
@@ -1331,8 +1478,31 @@ func hasMVCResponseBodyAnnotation(annotations []Annotation) bool {
 	return hasAnnotation(annotations, "response-body")
 }
 
+func hasMVCValidatedAnnotation(annotations []Annotation) bool {
+	return hasAnnotation(annotations, "validated")
+}
+
 func isMVCResponseBodyAnnotation(name string) bool {
 	return name == "response-body"
+}
+
+func mvcValidationGroups(annotation Annotation) []string {
+	values := annotationValueTexts(annotation)
+	for _, key := range []string{"groups", "group"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			values = append(values, value)
+		}
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
 }
 
 func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
