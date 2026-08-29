@@ -42,6 +42,7 @@ type mvcAnnotationModel struct {
 type mvcController struct {
 	Component annotationComponent
 	BasePaths []string
+	Methods   []string
 	Routes    []mvcRoute
 	Kind      string
 
@@ -54,6 +55,7 @@ type mvcRoute struct {
 	MethodName       string
 	HTTPMethod       string
 	HTTPMethods      []string
+	HTTPMethodsSet   bool
 	Path             string
 	Paths            []string
 	Status           int
@@ -190,7 +192,11 @@ func validateMVCRequestMappingAnnotation(ctx AnnotationValidationContext) error 
 		if !hasMVCControllerAnnotation(ctx.Item.Annotations()) {
 			return fmt.Errorf("annotation %q on type requires mvc controller target", ctx.Annotation.Name)
 		}
-		return requireMVCPath(ctx.Annotation)
+		if err := requireMVCPath(ctx.Annotation); err != nil {
+			return err
+		}
+		_, err := mvcTypeRequestMethodsFromAnnotation(ctx.Annotation)
+		return err
 	}
 	if err := validateMVCHandlerMethod(ctx); err != nil {
 		return err
@@ -382,7 +388,11 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 		if controller == nil {
 			return fmt.Errorf("mvc route method %s.%s requires mvc controller receiver type", route.ControllerType, route.MethodName)
 		}
-		controller.Routes = append(controller.Routes, expandMVCRoutePaths(controller, route)...)
+		routes, err := expandMVCRoutePaths(controller, route)
+		if err != nil {
+			return err
+		}
+		controller.Routes = append(controller.Routes, routes...)
 	}
 	for _, handler := range model.pendingExceptionHandlers {
 		advice := model.adviceByType[handler.AdviceType]
@@ -530,9 +540,14 @@ func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations
 	if err != nil {
 		return nil, err
 	}
+	methods, err := mvcTypeRequestMethods(annotations)
+	if err != nil {
+		return nil, err
+	}
 	return &mvcController{
 		Component:   component,
 		BasePaths:   mvcTypeBasePaths(annotations),
+		Methods:     methods,
 		Kind:        mvcControllerKind(annotations),
 		Conditions:  mvcTypeRouteConditions(annotations),
 		CrossOrigin: crossOrigin,
@@ -584,6 +599,7 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 	return mvcRoute{
 		HTTPMethod:       mapping.methods[0],
 		HTTPMethods:      mapping.methods,
+		HTTPMethodsSet:   mapping.methodsSet,
 		Path:             mapping.paths[0],
 		Paths:            mapping.paths,
 		Status:           mapping.status,
@@ -598,6 +614,7 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 
 type mvcRouteMappingSpec struct {
 	methods          []string
+	methodsSet       bool
 	paths            []string
 	status           int
 	explicitStatus   bool
@@ -678,7 +695,7 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 	if err != nil {
 		return mvcRouteMappingSpec{}, err
 	}
-	methods, err := mvcHTTPMethods(annotation)
+	methods, methodsSet, err := mvcHTTPMethods(annotation)
 	if err != nil {
 		return mvcRouteMappingSpec{}, err
 	}
@@ -689,6 +706,7 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 	}
 	return mvcRouteMappingSpec{
 		methods:        methods,
+		methodsSet:     methodsSet,
 		paths:          normalizeMVCPaths(paths),
 		status:         status,
 		explicitStatus: explicitStatus,
@@ -1889,6 +1907,23 @@ func mvcTypeBasePaths(annotations []Annotation) []string {
 	return []string{""}
 }
 
+func mvcTypeRequestMethods(annotations []Annotation) ([]string, error) {
+	for _, annotation := range annotations {
+		if annotation.Name == "request-mapping" {
+			return mvcTypeRequestMethodsFromAnnotation(annotation)
+		}
+	}
+	return nil, nil
+}
+
+func mvcTypeRequestMethodsFromAnnotation(annotation Annotation) ([]string, error) {
+	methods := strings.TrimSpace(argString(annotation, "method", ""))
+	if methods == "" {
+		return nil, nil
+	}
+	return parseMVCRequestMethods(annotation, methods)
+}
+
 func requireMVCPath(annotation Annotation) error {
 	_, err := requireMVCPathTexts(annotation)
 	return err
@@ -1915,32 +1950,35 @@ func requireMVCPathTexts(annotation Annotation) ([]string, error) {
 	return paths, nil
 }
 
-func mvcHTTPMethods(annotation Annotation) ([]string, error) {
+func mvcHTTPMethods(annotation Annotation) ([]string, bool, error) {
 	switch annotation.Name {
 	case "get":
-		return []string{http.MethodGet}, nil
+		return []string{http.MethodGet}, true, nil
 	case "head":
-		return []string{http.MethodHead}, nil
+		return []string{http.MethodHead}, true, nil
 	case "post":
-		return []string{http.MethodPost}, nil
+		return []string{http.MethodPost}, true, nil
 	case "put":
-		return []string{http.MethodPut}, nil
+		return []string{http.MethodPut}, true, nil
 	case "patch":
-		return []string{http.MethodPatch}, nil
+		return []string{http.MethodPatch}, true, nil
 	case "delete":
-		return []string{http.MethodDelete}, nil
+		return []string{http.MethodDelete}, true, nil
 	case "options":
-		return []string{http.MethodOptions}, nil
+		return []string{http.MethodOptions}, true, nil
 	case "trace":
-		return []string{http.MethodTrace}, nil
+		return []string{http.MethodTrace}, true, nil
 	case "request-mapping":
-		methods := strings.TrimSpace(argString(annotation, "method", ""))
-		if methods == "" {
-			return append([]string(nil), defaultMVCRequestMappingMethods[:]...), nil
+		methods, err := mvcTypeRequestMethodsFromAnnotation(annotation)
+		if err != nil {
+			return nil, false, err
 		}
-		return parseMVCRequestMethods(annotation, methods)
+		if len(methods) == 0 {
+			return append([]string(nil), defaultMVCRequestMappingMethods[:]...), false, nil
+		}
+		return methods, true, nil
 	default:
-		return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+		return nil, false, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
 	}
 }
 
@@ -2095,7 +2133,7 @@ func normalizeMVCPaths(paths []string) []string {
 	return out
 }
 
-func expandMVCRoutePaths(controller *mvcController, route mvcRoute) []mvcRoute {
+func expandMVCRoutePaths(controller *mvcController, route mvcRoute) ([]mvcRoute, error) {
 	basePaths := controller.BasePaths
 	if len(basePaths) == 0 {
 		basePaths = []string{""}
@@ -2107,6 +2145,10 @@ func expandMVCRoutePaths(controller *mvcController, route mvcRoute) []mvcRoute {
 	methods := route.HTTPMethods
 	if len(methods) == 0 {
 		methods = []string{route.HTTPMethod}
+	}
+	methods = combineMVCRequestMethods(controller.Methods, methods, route.HTTPMethodsSet)
+	if len(methods) == 0 {
+		return nil, fmt.Errorf("mvc route method %s.%s has no HTTP method after controller request-mapping merge", route.ControllerType, route.MethodName)
 	}
 	out := make([]mvcRoute, 0, len(methods)*len(basePaths)*len(paths))
 	seen := make(map[string]struct{}, len(methods)*len(basePaths)*len(paths))
@@ -2128,7 +2170,33 @@ func expandMVCRoutePaths(controller *mvcController, route mvcRoute) []mvcRoute {
 			}
 		}
 	}
+	return out, nil
+}
+
+func combineMVCRequestMethods(controllerMethods []string, routeMethods []string, routeMethodsSet bool) []string {
+	if len(controllerMethods) == 0 {
+		return routeMethods
+	}
+	if !routeMethodsSet {
+		return append([]string(nil), controllerMethods...)
+	}
+	out := make([]string, 0, len(routeMethods))
+	for _, method := range routeMethods {
+		if containsMVCRequestMethod(controllerMethods, method) {
+			out = append(out, method)
+		}
+	}
 	return out
+}
+
+func containsMVCRequestMethod(methods []string, method string) bool {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	for _, item := range methods {
+		if item == method {
+			return true
+		}
+	}
+	return false
 }
 
 func joinMVCPaths(base string, path string) string {
