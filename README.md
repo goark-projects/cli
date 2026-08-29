@@ -117,7 +117,7 @@ Flags:
 
 ## Annotation Scanning
 
-`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, cross-origin, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS method mappings, request-body, request-entity, multipart-body, response-body, response-status, validated, model-attribute, path-variable, request-param, request-header, cookie-value, request-attribute, session-attribute, matrix-variable, and request-part.
+`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, cross-origin, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS/TRACE method mappings, request-body, request-entity, multipart-body, response-body, response-status, validated, model-attribute, path-variable, request-param, request-header, cookie-value, request-attribute, session-attribute, matrix-variable, and request-part.
 
 ```bash
 goark generate annotations \
@@ -144,8 +144,10 @@ the core DI generator.
 
 MVC mapping annotations accept one or more path values, matching the Spring MVC
 model where a controller or handler can be registered under multiple concrete
-paths. Type-level and method-level path sets are expanded deterministically into
-individual generated route registrations.
+paths. `//goark:request-mapping` without a `method` argument expands to the
+standard MVC HTTP method set; `method="GET,POST"` narrows it explicitly.
+Type-level path sets, method-level path sets, and method sets are expanded
+deterministically into individual generated route registrations.
 
 MVC handler parameters are explicit and generated statically. Use
 `//goark:request-body[input]` for a JSON request body, use

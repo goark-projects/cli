@@ -20,6 +20,17 @@ const (
 	goarkMVCImportPath         = "goark.dev/goark/web/mvc"
 )
 
+var defaultMVCRequestMappingMethods = [...]string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodOptions,
+	http.MethodTrace,
+}
+
 type mvcAnnotationModel struct {
 	Controllers              []*mvcController
 	Advices                  []*mvcControllerAdvice
@@ -42,6 +53,7 @@ type mvcRoute struct {
 	ControllerType   string
 	MethodName       string
 	HTTPMethod       string
+	HTTPMethods      []string
 	Path             string
 	Paths            []string
 	Status           int
@@ -138,6 +150,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "patch", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "delete", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "options", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
+		{Name: "trace", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "request-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
 		{Name: "body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestBodyAnnotation},
 		{Name: "request-entity", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestEntityAnnotation},
@@ -568,7 +581,8 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 		return mvcRoute{}, err
 	}
 	return mvcRoute{
-		HTTPMethod:       mapping.method,
+		HTTPMethod:       mapping.methods[0],
+		HTTPMethods:      mapping.methods,
 		Path:             mapping.paths[0],
 		Paths:            mapping.paths,
 		Status:           mapping.status,
@@ -582,7 +596,7 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 }
 
 type mvcRouteMappingSpec struct {
-	method           string
+	methods          []string
 	paths            []string
 	status           int
 	explicitStatus   bool
@@ -598,6 +612,7 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 	hasResponseStatus := false
 	hasResponseBody := false
 	hasValidated := false
+	hasMapping := false
 	for _, annotation := range annotations {
 		if isMVCValidatedAnnotation(annotation.Name) {
 			if hasValidated {
@@ -628,7 +643,7 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 			continue
 		}
 		if isMVCRouteMappingAnnotation(annotation.Name) {
-			if out.method != "" {
+			if hasMapping {
 				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple mapping annotations")
 			}
 			mapping, err := mvcRouteMapping(annotation)
@@ -636,6 +651,7 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 				return mvcRouteMappingSpec{}, err
 			}
 			out = mapping
+			hasMapping = true
 		}
 	}
 	crossOrigin, err := mvcCrossOriginFromAnnotations(annotations)
@@ -643,7 +659,7 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 		return mvcRouteMappingSpec{}, err
 	}
 	out.crossOrigin = crossOrigin
-	if out.method == "" {
+	if !hasMapping {
 		return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method requires mapping annotation")
 	}
 	if hasResponseStatus {
@@ -661,17 +677,17 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 	if err != nil {
 		return mvcRouteMappingSpec{}, err
 	}
-	method := mvcHTTPMethod(annotation)
-	if method == "" {
-		return mvcRouteMappingSpec{}, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+	methods, err := mvcHTTPMethods(annotation)
+	if err != nil {
+		return mvcRouteMappingSpec{}, err
 	}
 	explicitStatus := mvcMappingHasExplicitStatus(annotation)
-	status, err := mvcStatus(annotation, defaultMVCStatus(method))
+	status, err := mvcStatus(annotation, defaultMVCStatus(methods))
 	if err != nil {
 		return mvcRouteMappingSpec{}, err
 	}
 	return mvcRouteMappingSpec{
-		method:         method,
+		methods:        methods,
 		paths:          normalizeMVCPaths(paths),
 		status:         status,
 		explicitStatus: explicitStatus,
@@ -1514,7 +1530,7 @@ func isMVCRouteAnnotation(name string) bool {
 
 func isMVCRouteMappingAnnotation(name string) bool {
 	switch name {
-	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options":
+	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options", "trace":
 		return true
 	default:
 		return false
@@ -1897,32 +1913,65 @@ func requireMVCPathTexts(annotation Annotation) ([]string, error) {
 	return paths, nil
 }
 
-func mvcHTTPMethod(annotation Annotation) string {
+func mvcHTTPMethods(annotation Annotation) ([]string, error) {
 	switch annotation.Name {
 	case "get":
-		return http.MethodGet
+		return []string{http.MethodGet}, nil
 	case "head":
-		return http.MethodHead
+		return []string{http.MethodHead}, nil
 	case "post":
-		return http.MethodPost
+		return []string{http.MethodPost}, nil
 	case "put":
-		return http.MethodPut
+		return []string{http.MethodPut}, nil
 	case "patch":
-		return http.MethodPatch
+		return []string{http.MethodPatch}, nil
 	case "delete":
-		return http.MethodDelete
+		return []string{http.MethodDelete}, nil
 	case "options":
-		return http.MethodOptions
+		return []string{http.MethodOptions}, nil
+	case "trace":
+		return []string{http.MethodTrace}, nil
 	case "request-mapping":
-		method := strings.ToUpper(strings.TrimSpace(argString(annotation, "method", "")))
-		switch method {
-		case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions:
-			return method
-		default:
-			return ""
+		methods := strings.TrimSpace(argString(annotation, "method", ""))
+		if methods == "" {
+			return append([]string(nil), defaultMVCRequestMappingMethods[:]...), nil
 		}
+		return parseMVCRequestMethods(annotation, methods)
 	default:
-		return ""
+		return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+	}
+}
+
+func parseMVCRequestMethods(annotation Annotation, value string) ([]string, error) {
+	parts := strings.Split(value, ",")
+	methods := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		method := strings.ToUpper(strings.TrimSpace(part))
+		if method == "" {
+			return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+		}
+		if !isSupportedMVCRequestMethod(method) {
+			return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+		}
+		if _, exists := seen[method]; exists {
+			continue
+		}
+		seen[method] = struct{}{}
+		methods = append(methods, method)
+	}
+	if len(methods) == 0 {
+		return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+	}
+	return methods, nil
+}
+
+func isSupportedMVCRequestMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions, http.MethodTrace:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -1989,8 +2038,8 @@ func parseMVCStatus(annotation Annotation, label string, value string) (int, err
 	return status, nil
 }
 
-func defaultMVCStatus(method string) int {
-	if method == http.MethodPost {
+func defaultMVCStatus(methods []string) int {
+	if len(methods) == 1 && methods[0] == http.MethodPost {
 		return http.StatusCreated
 	}
 	return http.StatusOK
@@ -2012,6 +2061,8 @@ func routeConstructor(method string) string {
 		return "DELETE"
 	case http.MethodOptions:
 		return "OPTIONS"
+	case http.MethodTrace:
+		return "TRACE"
 	default:
 		return "Handle"
 	}
@@ -2051,19 +2102,28 @@ func expandMVCRoutePaths(controller *mvcController, route mvcRoute) []mvcRoute {
 	if len(paths) == 0 {
 		paths = []string{route.Path}
 	}
-	out := make([]mvcRoute, 0, len(basePaths)*len(paths))
-	seen := make(map[string]struct{}, len(basePaths)*len(paths))
-	for _, basePath := range basePaths {
-		for _, path := range paths {
-			next := route
-			next.Path = joinMVCPaths(basePath, path)
-			next.Paths = nil
-			next.ControllerKind = controller.Kind
-			if _, exists := seen[next.Path]; exists {
-				continue
+	methods := route.HTTPMethods
+	if len(methods) == 0 {
+		methods = []string{route.HTTPMethod}
+	}
+	out := make([]mvcRoute, 0, len(methods)*len(basePaths)*len(paths))
+	seen := make(map[string]struct{}, len(methods)*len(basePaths)*len(paths))
+	for _, method := range methods {
+		for _, basePath := range basePaths {
+			for _, path := range paths {
+				next := route
+				next.HTTPMethod = method
+				next.HTTPMethods = nil
+				next.Path = joinMVCPaths(basePath, path)
+				next.Paths = nil
+				next.ControllerKind = controller.Kind
+				key := next.HTTPMethod + "\x00" + next.Path
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				out = append(out, next)
 			}
-			seen[next.Path] = struct{}{}
-			out = append(out, next)
 		}
 	}
 	return out
