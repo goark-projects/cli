@@ -142,6 +142,11 @@ annotation family should add its own
 `AnnotationGenerator`; it should not require scanner changes or modifications to
 the core DI generator.
 
+MVC mapping annotations accept one or more path values, matching the Spring MVC
+model where a controller or handler can be registered under multiple concrete
+paths. Type-level and method-level path sets are expanded deterministically into
+individual generated route registrations.
+
 MVC handler parameters are explicit and generated statically. Use
 `//goark:request-body[input]` for a JSON request body, use
 `//goark:request-entity[request]` or a `goweb.RequestEntity[T]` parameter for a

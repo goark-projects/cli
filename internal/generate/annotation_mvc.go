@@ -31,7 +31,7 @@ type mvcAnnotationModel struct {
 
 type mvcController struct {
 	Component annotationComponent
-	BasePath  string
+	BasePaths []string
 	Routes    []mvcRoute
 	Kind      string
 
@@ -43,6 +43,7 @@ type mvcRoute struct {
 	MethodName       string
 	HTTPMethod       string
 	Path             string
+	Paths            []string
 	Status           int
 	StatusExplicit   bool
 	ResponseBody     bool
@@ -368,9 +369,7 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 		if controller == nil {
 			return fmt.Errorf("mvc route method %s.%s requires mvc controller receiver type", route.ControllerType, route.MethodName)
 		}
-		route.Path = joinMVCPaths(controller.BasePath, route.Path)
-		route.ControllerKind = controller.Kind
-		controller.Routes = append(controller.Routes, route)
+		controller.Routes = append(controller.Routes, expandMVCRoutePaths(controller, route)...)
 	}
 	for _, handler := range model.pendingExceptionHandlers {
 		advice := model.adviceByType[handler.AdviceType]
@@ -520,7 +519,7 @@ func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations
 	}
 	return &mvcController{
 		Component:   component,
-		BasePath:    mvcTypeBasePath(annotations),
+		BasePaths:   mvcTypeBasePaths(annotations),
 		Kind:        mvcControllerKind(annotations),
 		CrossOrigin: crossOrigin,
 	}, nil
@@ -570,7 +569,8 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 	}
 	return mvcRoute{
 		HTTPMethod:       mapping.method,
-		Path:             mapping.path,
+		Path:             mapping.paths[0],
+		Paths:            mapping.paths,
 		Status:           mapping.status,
 		StatusExplicit:   mapping.explicitStatus,
 		ResponseBody:     mapping.responseBody,
@@ -583,7 +583,7 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 
 type mvcRouteMappingSpec struct {
 	method           string
-	path             string
+	paths            []string
 	status           int
 	explicitStatus   bool
 	responseBody     bool
@@ -657,7 +657,7 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 }
 
 func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
-	path, err := requireMVCPathText(annotation)
+	paths, err := requireMVCPathTexts(annotation)
 	if err != nil {
 		return mvcRouteMappingSpec{}, err
 	}
@@ -672,7 +672,7 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 	}
 	return mvcRouteMappingSpec{
 		method:         method,
-		path:           normalizeMVCPath(path),
+		paths:          normalizeMVCPaths(paths),
 		status:         status,
 		explicitStatus: explicitStatus,
 		conditions:     mvcRouteConditionsFromAnnotation(annotation),
@@ -1858,25 +1858,25 @@ func isMVCScalarTypeName(name string) bool {
 	}
 }
 
-func mvcTypeBasePath(annotations []Annotation) string {
+func mvcTypeBasePaths(annotations []Annotation) []string {
 	for _, annotation := range annotations {
 		if annotation.Name != "request-mapping" {
 			continue
 		}
-		path, err := requireMVCPathText(annotation)
+		paths, err := requireMVCPathTexts(annotation)
 		if err == nil {
-			return normalizeMVCPath(path)
+			return normalizeMVCPaths(paths)
 		}
 	}
-	return ""
+	return []string{""}
 }
 
 func requireMVCPath(annotation Annotation) error {
-	_, err := requireMVCPathText(annotation)
+	_, err := requireMVCPathTexts(annotation)
 	return err
 }
 
-func requireMVCPathText(annotation Annotation) (string, error) {
+func requireMVCPathTexts(annotation Annotation) ([]string, error) {
 	values := annotationValueTexts(annotation)
 	if len(values) == 0 {
 		if value := argString(annotation, "path", ""); value != "" {
@@ -1884,16 +1884,17 @@ func requireMVCPathText(annotation Annotation) (string, error) {
 		}
 	}
 	if len(values) == 0 {
-		return "", fmt.Errorf("annotation %q requires path value", annotation.Name)
+		return nil, fmt.Errorf("annotation %q requires path value", annotation.Name)
 	}
-	if len(values) > 1 {
-		return "", fmt.Errorf("annotation %q accepts exactly one path value", annotation.Name)
+	paths := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, fmt.Errorf("annotation %q requires path value", annotation.Name)
+		}
+		paths = append(paths, value)
 	}
-	value := strings.TrimSpace(values[0])
-	if value == "" {
-		return "", fmt.Errorf("annotation %q requires path value", annotation.Name)
-	}
-	return value, nil
+	return paths, nil
 }
 
 func mvcHTTPMethod(annotation Annotation) string {
@@ -2025,6 +2026,47 @@ func normalizeMVCPath(path string) string {
 		path = "/" + path
 	}
 	return strings.TrimRight(path, "/")
+}
+
+func normalizeMVCPaths(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		path = normalizeMVCPath(path)
+		if _, exists := seen[path]; exists {
+			continue
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
+	}
+	return out
+}
+
+func expandMVCRoutePaths(controller *mvcController, route mvcRoute) []mvcRoute {
+	basePaths := controller.BasePaths
+	if len(basePaths) == 0 {
+		basePaths = []string{""}
+	}
+	paths := route.Paths
+	if len(paths) == 0 {
+		paths = []string{route.Path}
+	}
+	out := make([]mvcRoute, 0, len(basePaths)*len(paths))
+	seen := make(map[string]struct{}, len(basePaths)*len(paths))
+	for _, basePath := range basePaths {
+		for _, path := range paths {
+			next := route
+			next.Path = joinMVCPaths(basePath, path)
+			next.Paths = nil
+			next.ControllerKind = controller.Kind
+			if _, exists := seen[next.Path]; exists {
+				continue
+			}
+			seen[next.Path] = struct{}{}
+			out = append(out, next)
+		}
+	}
+	return out
 }
 
 func joinMVCPaths(base string, path string) string {
