@@ -277,8 +277,8 @@ func validateMVCResponseStatusAnnotation(ctx AnnotationValidationContext) error 
 	if err := validateMVCHandlerMethod(ctx); err != nil {
 		return err
 	}
-	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) && !hasMVCExceptionHandlerAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route or exception handler method target", ctx.Annotation.Name)
 	}
 	_, err := mvcResponseStatus(ctx.Annotation)
 	return err
@@ -288,8 +288,8 @@ func validateMVCResponseBodyAnnotation(ctx AnnotationValidationContext) error {
 	if err := validateMVCHandlerMethod(ctx); err != nil {
 		return err
 	}
-	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) && !hasMVCExceptionHandlerAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route or exception handler method target", ctx.Annotation.Name)
 	}
 	if normalizeSelector(ctx.Annotation.Selector) != "" || len(ctx.Annotation.Args) > 0 || len(ctx.Annotation.Values) > 0 {
 		return fmt.Errorf("annotation %q does not accept arguments", ctx.Annotation.Name)

@@ -12,13 +12,18 @@ import (
 type mvcControllerAdvice struct {
 	Component         annotationComponent
 	ExceptionHandlers []mvcExceptionHandler
+	Kind              string
 }
 
 type mvcExceptionHandler struct {
-	AdviceType string
-	MethodName string
-	ErrorType  string
-	Params     []mvcExceptionHandlerParam
+	AdviceType   string
+	MethodName   string
+	ErrorType    string
+	Params       []mvcExceptionHandlerParam
+	ReturnKind   mvcReturnKind
+	EntityBody   string
+	Status       int
+	ResponseBody bool
 }
 
 type mvcExceptionHandlerParam struct {
@@ -103,7 +108,10 @@ func buildMVCControllerAdvice(fset *token.FileSet, typeSpec *ast.TypeSpec, annot
 	if err != nil {
 		return nil, err
 	}
-	return &mvcControllerAdvice{Component: component}, nil
+	return &mvcControllerAdvice{
+		Component: component,
+		Kind:      mvcControllerAdviceKind(annotations),
+	}, nil
 }
 
 func buildMVCExceptionHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcExceptionHandler, error) {
@@ -114,12 +122,21 @@ func buildMVCExceptionHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncD
 	if err != nil {
 		return mvcExceptionHandler{}, err
 	}
-	if err := validateMVCExceptionHandlerReturn(file, fn); err != nil {
+	returnKind, entityBody, err := mvcExceptionHandlerReturn(fset, file, fn)
+	if err != nil {
+		return mvcExceptionHandler{}, err
+	}
+	status, responseBody, err := mvcExceptionHandlerResponseSpec(annotations, returnKind)
+	if err != nil {
 		return mvcExceptionHandler{}, err
 	}
 	return mvcExceptionHandler{
-		ErrorType: errorType,
-		Params:    params,
+		ErrorType:    errorType,
+		Params:       params,
+		ReturnKind:   returnKind,
+		EntityBody:   entityBody,
+		Status:       status,
+		ResponseBody: responseBody,
 	}, nil
 }
 
@@ -170,12 +187,71 @@ func mvcExceptionHandlerParams(fset *token.FileSet, file *ast.File, fn *ast.Func
 	return params, errorType, nil
 }
 
-func validateMVCExceptionHandlerReturn(file *ast.File, fn *ast.FuncDecl) error {
+func mvcExceptionHandlerReturn(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, string, error) {
 	results := fn.Type.Results
-	if results == nil || len(results.List) != 1 || !isArkWebResultExpr(file, results.List[0].Type) {
-		return fmt.Errorf("mvc exception handler method %s must return arkarta/web.Result", fn.Name.Name)
+	if results == nil || len(results.List) != 1 {
+		return mvcReturnNone, "", fmt.Errorf("mvc exception handler method %s must return arkarta/web.Result, web.ResponseEntity, or ordinary value", fn.Name.Name)
 	}
-	return nil
+	result := results.List[0].Type
+	if isErrorExpr(result) {
+		return mvcReturnNone, "", fmt.Errorf("mvc exception handler method %s must return arkarta/web.Result, web.ResponseEntity, or ordinary value", fn.Name.Name)
+	}
+	if isArkWebResultExpr(file, result) || isGoarkWebDownloadResultExpr(file, result) {
+		return mvcReturnResult, "", nil
+	}
+	if entityBody, ok := mvcResponseEntityBodyType(fset, file, result); ok {
+		return mvcReturnEntity, entityBody, nil
+	}
+	return mvcReturnValue, "", nil
+}
+
+func mvcExceptionHandlerResponseSpec(annotations []Annotation, returnKind mvcReturnKind) (int, bool, error) {
+	status := 0
+	hasStatus := false
+	responseBody := false
+	for _, annotation := range annotations {
+		switch {
+		case isMVCResponseStatusAnnotation(annotation.Name):
+			if hasStatus {
+				return 0, false, fmt.Errorf("mvc exception handler method has multiple response-status annotations")
+			}
+			value, err := mvcResponseStatus(annotation)
+			if err != nil {
+				return 0, false, err
+			}
+			status = value
+			hasStatus = true
+		case isMVCResponseBodyAnnotation(annotation.Name):
+			if responseBody {
+				return 0, false, fmt.Errorf("mvc exception handler method has multiple response-body annotations")
+			}
+			responseBody = true
+		}
+	}
+	if hasStatus && returnKind != mvcReturnValue {
+		return 0, false, fmt.Errorf("mvc exception handler response-status requires ordinary return value")
+	}
+	if responseBody && returnKind != mvcReturnValue {
+		return 0, false, fmt.Errorf("mvc exception handler response-body requires ordinary return value")
+	}
+	return status, responseBody, nil
+}
+
+func mvcResponseEntityBodyType(fset *token.FileSet, file *ast.File, expr ast.Expr) (string, bool) {
+	switch typ := expr.(type) {
+	case *ast.IndexExpr:
+		if !isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity") {
+			return "", false
+		}
+		return exprString(fset, typ.Index), true
+	case *ast.IndexListExpr:
+		if !isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity") || len(typ.Indices) != 1 {
+			return "", false
+		}
+		return exprString(fset, typ.Indices[0]), true
+	default:
+		return "", false
+	}
 }
 
 func writeMVCAdviceConfigurerRegistration(builder *bytes.Buffer, advice *mvcControllerAdvice) {
@@ -191,19 +267,38 @@ func writeMVCAdviceConfigurerRegistration(builder *bytes.Buffer, advice *mvcCont
 	builder.WriteString("](ctx, resolver, container.WithQualifier(")
 	builder.WriteString(strconv.Quote(advice.Component.Name))
 	builder.WriteString("))\nif err != nil {\nreturn nil, err\n}\n")
-	builder.WriteString("out = mvc.NewConfigurer().WithExceptionHandlers(")
-	for index, handler := range advice.ExceptionHandlers {
-		if index > 0 {
-			builder.WriteString(",\n")
-		}
+	builder.WriteString("out = mvc.NewConfigurer().WithControllerAdvices(")
+	builder.WriteString(mvcControllerAdviceConstructor(advice.Kind))
+	builder.WriteByte('(')
+	builder.WriteString(strconv.Quote(advice.Component.Name))
+	for _, handler := range advice.ExceptionHandlers {
+		builder.WriteString(",\n")
 		writeMVCExceptionHandler(builder, handler)
 	}
-	builder.WriteString(")\nreturn out, nil\n}, container.WithFactoryDependencies(")
+	builder.WriteString("))\nreturn out, nil\n}, container.WithFactoryDependencies(")
 	builder.WriteString(strconv.Quote(advice.Component.Name))
 	builder.WriteString(")); err != nil {\nreturn err\n}\n")
 }
 
+func mvcControllerAdviceConstructor(kind string) string {
+	if kind == "rest-controller-advice" {
+		return "mvc.NewRestControllerAdvice"
+	}
+	return "mvc.NewControllerAdvice"
+}
+
 func writeMVCExceptionHandler(builder *bytes.Buffer, handler mvcExceptionHandler) {
+	switch handler.ReturnKind {
+	case mvcReturnEntity:
+		writeMVCExceptionEntityHandler(builder, handler)
+	case mvcReturnValue:
+		writeMVCExceptionValueHandler(builder, handler)
+	default:
+		writeMVCExceptionResultHandler(builder, handler)
+	}
+}
+
+func writeMVCExceptionResultHandler(builder *bytes.Buffer, handler mvcExceptionHandler) {
 	builder.WriteString("mvc.ExceptionHandlerAs[")
 	builder.WriteString(handler.ErrorType)
 	builder.WriteString("](func(")
@@ -215,6 +310,52 @@ func writeMVCExceptionHandler(builder *bytes.Buffer, handler mvcExceptionHandler
 	builder.WriteString(" *arkweb.Context, err ")
 	builder.WriteString(handler.ErrorType)
 	builder.WriteString(") arkweb.Result {\nreturn advice.")
+	builder.WriteString(handler.MethodName)
+	builder.WriteByte('(')
+	builder.WriteString(mvcExceptionHandlerCallArgs(handler.Params))
+	builder.WriteString(")\n})")
+}
+
+func writeMVCExceptionEntityHandler(builder *bytes.Buffer, handler mvcExceptionHandler) {
+	builder.WriteString("mvc.ExceptionEntityAs[")
+	builder.WriteString(handler.ErrorType)
+	builder.WriteString(", ")
+	builder.WriteString(handler.EntityBody)
+	builder.WriteString("](func(")
+	if mvcExceptionHandlerUsesContext(handler) {
+		builder.WriteString("ctx")
+	} else {
+		builder.WriteString("_")
+	}
+	builder.WriteString(" *arkweb.Context, err ")
+	builder.WriteString(handler.ErrorType)
+	builder.WriteString(") goweb.ResponseEntity[")
+	builder.WriteString(handler.EntityBody)
+	builder.WriteString("] {\nreturn advice.")
+	builder.WriteString(handler.MethodName)
+	builder.WriteByte('(')
+	builder.WriteString(mvcExceptionHandlerCallArgs(handler.Params))
+	builder.WriteString(")\n})")
+}
+
+func writeMVCExceptionValueHandler(builder *bytes.Buffer, handler mvcExceptionHandler) {
+	if handler.ResponseBody {
+		builder.WriteString("mvc.ExceptionResponseBodyAs[")
+	} else {
+		builder.WriteString("mvc.ExceptionReturnAs[")
+	}
+	builder.WriteString(handler.ErrorType)
+	builder.WriteString(", any](")
+	builder.WriteString(strconv.Itoa(handler.Status))
+	builder.WriteString(", func(")
+	if mvcExceptionHandlerUsesContext(handler) {
+		builder.WriteString("ctx")
+	} else {
+		builder.WriteString("_")
+	}
+	builder.WriteString(" *arkweb.Context, err ")
+	builder.WriteString(handler.ErrorType)
+	builder.WriteString(") any {\nreturn advice.")
 	builder.WriteString(handler.MethodName)
 	builder.WriteByte('(')
 	builder.WriteString(mvcExceptionHandlerCallArgs(handler.Params))

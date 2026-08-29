@@ -155,6 +155,12 @@ Use `//goark:response-body` on a `controller` route when a normal return value
 must be written to the response body instead of applying the controller view
 resolution default. `rest-controller` already defaults normal return values to
 the response body; the annotation is accepted there to keep intent explicit.
+`//goark:controller-advice` and `//goark:rest-controller-advice` methods can
+use `//goark:exception-handler` to return `arkarta/web.Result`,
+`goark.dev/goark/web.ResponseEntity[T]`, or an ordinary value. Ordinary values
+use the advice default return strategy; add `//goark:response-body` on a normal
+controller advice method to force response-body output and
+`//goark:response-status(...)` to set the ordinary-value HTTP status.
 
 ## ORM Generation
 

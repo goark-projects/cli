@@ -679,7 +679,7 @@ func (a *AdminAdvice) NotFound(ctx *arkweb.Context, err *UserNotFoundError) arkw
 		"container.Register(registry, \"adminAdvice\"",
 		"container.Register[goweb.Configurer](registry, \"adminAdvice.mvcAdviceConfigurer\"",
 		"advice, err := container.GetByType[*AdminAdvice](ctx, resolver, container.WithQualifier(\"adminAdvice\"))",
-		"mvc.NewConfigurer().WithExceptionHandlers(",
+		"mvc.NewConfigurer().WithControllerAdvices(mvc.NewControllerAdvice(\"adminAdvice\"",
 		"mvc.ExceptionHandlerAs[*UserNotFoundError](func(ctx *arkweb.Context, err *UserNotFoundError) arkweb.Result",
 		"return advice.NotFound(ctx, err)",
 		"container.WithFactoryDependencies(\"adminAdvice\")",
