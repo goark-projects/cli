@@ -16,6 +16,7 @@ const (
 	arkartaMultipartImportPath = "goark.dev/arkarta/servlet/multipart"
 	arkartaWebImportPath       = "goark.dev/arkarta/web"
 	goarkWebImportPath         = "goark.dev/goark/web"
+	goarkWebCORSImportPath     = "goark.dev/goark/web/cors"
 	goarkMVCImportPath         = "goark.dev/goark/web/mvc"
 )
 
@@ -33,6 +34,8 @@ type mvcController struct {
 	BasePath  string
 	Routes    []mvcRoute
 	Kind      string
+
+	CrossOrigin *mvcCrossOrigin
 }
 
 type mvcRoute struct {
@@ -46,6 +49,7 @@ type mvcRoute struct {
 	ValidationGroups []string
 	ControllerKind   string
 	Conditions       mvcRouteConditions
+	CrossOrigin      *mvcCrossOrigin
 	Handler          mvcHandler
 }
 
@@ -123,6 +127,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "controller-advice", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAdviceAnnotation},
 		{Name: "rest-controller-advice", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateMVCControllerAdviceAnnotation},
 		{Name: "request-mapping", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateMVCRequestMappingAnnotation},
+		{Name: "cross-origin", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateMVCCrossOriginAnnotation},
 		{Name: "get", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "head", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
 		{Name: "post", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCHTTPMappingAnnotation},
@@ -488,6 +493,12 @@ func (mvcAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContex
 		ctx.AddImport("goweb", "goark.dev/goark/web")
 		ctx.AddImport("", "goark.dev/goark/web/mvc")
 	}
+	if mvcModelUsesCORS(model) {
+		ctx.AddImport("", goarkWebCORSImportPath)
+	}
+	if mvcModelUsesCORSMaxAge(model) {
+		ctx.AddImport("", "time")
+	}
 	if mvcModelUsesOptionalInjection(model) {
 		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
 	}
@@ -500,10 +511,15 @@ func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations
 	if err != nil {
 		return nil, err
 	}
+	crossOrigin, err := mvcCrossOriginFromAnnotations(annotations)
+	if err != nil {
+		return nil, err
+	}
 	return &mvcController{
-		Component: component,
-		BasePath:  mvcTypeBasePath(annotations),
-		Kind:      mvcControllerKind(annotations),
+		Component:   component,
+		BasePath:    mvcTypeBasePath(annotations),
+		Kind:        mvcControllerKind(annotations),
+		CrossOrigin: crossOrigin,
 	}, nil
 }
 
@@ -557,6 +573,7 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 		ResponseBody:     mapping.responseBody,
 		ValidationGroups: mapping.validationGroups,
 		Conditions:       mapping.conditions,
+		CrossOrigin:      mapping.crossOrigin,
 		Handler:          handler,
 	}, nil
 }
@@ -569,6 +586,7 @@ type mvcRouteMappingSpec struct {
 	responseBody     bool
 	validationGroups []string
 	conditions       mvcRouteConditions
+	crossOrigin      *mvcCrossOrigin
 }
 
 func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, error) {
@@ -617,6 +635,11 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 			out = mapping
 		}
 	}
+	crossOrigin, err := mvcCrossOriginFromAnnotations(annotations)
+	if err != nil {
+		return mvcRouteMappingSpec{}, err
+	}
+	out.crossOrigin = crossOrigin
 	if out.method == "" {
 		return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method requires mapping annotation")
 	}
@@ -912,7 +935,9 @@ func writeMVCConfigurerRegistration(builder *bytes.Buffer, controller *mvcContro
 		builder.WriteString(",\n")
 		writeMVCRoute(builder, route)
 	}
-	builder.WriteString("))\nreturn out, nil\n}, container.WithFactoryDependencies(")
+	builder.WriteByte(')')
+	writeMVCControllerCrossOrigin(builder, controller.CrossOrigin)
+	builder.WriteString(")\nreturn out, nil\n}, container.WithFactoryDependencies(")
 	builder.WriteString(strconv.Quote(controller.Component.Name))
 	builder.WriteString(")); err != nil {\nreturn err\n}\n")
 }
@@ -925,6 +950,7 @@ func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString(", ")
 	writeMVCHandler(builder, route)
 	writeMVCRouteOptions(builder, route.Conditions)
+	writeMVCCrossOriginRouteOption(builder, route.CrossOrigin)
 	builder.WriteByte(')')
 }
 
@@ -1433,7 +1459,7 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 }
 
 func isMVCRouteAnnotation(name string) bool {
-	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCValidatedAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name)
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCValidatedAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name) || isMVCCrossOriginAnnotation(name)
 }
 
 func isMVCRouteMappingAnnotation(name string) bool {
