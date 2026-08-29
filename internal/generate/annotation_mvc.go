@@ -31,6 +31,7 @@ type mvcController struct {
 	Component annotationComponent
 	BasePath  string
 	Routes    []mvcRoute
+	Kind      string
 }
 
 type mvcRoute struct {
@@ -460,6 +461,7 @@ func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations
 	return &mvcController{
 		Component: component,
 		BasePath:  mvcTypeBasePath(annotations),
+		Kind:      mvcControllerKind(annotations),
 	}, nil
 }
 
@@ -791,7 +793,9 @@ func writeMVCConfigurerRegistration(builder *bytes.Buffer, controller *mvcContro
 	builder.WriteString("](ctx, resolver, container.WithQualifier(")
 	builder.WriteString(strconv.Quote(controller.Component.Name))
 	builder.WriteString("))\nif err != nil {\nreturn nil, err\n}\n")
-	builder.WriteString("out = mvc.NewConfigurer(mvc.NewController(")
+	builder.WriteString("out = mvc.NewConfigurer(")
+	builder.WriteString(mvcControllerConstructor(controller.Kind))
+	builder.WriteByte('(')
 	builder.WriteString(strconv.Quote(controller.Component.Name))
 	for _, route := range controller.Routes {
 		builder.WriteString(",\n")
@@ -811,6 +815,13 @@ func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
 	writeMVCHandler(builder, route)
 	writeMVCRouteOptions(builder, route.Conditions)
 	builder.WriteByte(')')
+}
+
+func mvcControllerConstructor(kind string) string {
+	if kind == "rest-controller" {
+		return "mvc.NewRestController"
+	}
+	return "mvc.NewController"
 }
 
 func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {

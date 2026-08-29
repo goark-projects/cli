@@ -310,6 +310,39 @@ func (c *AdminController) Clear() {}
 	}
 }
 
+func TestGenerateAnnotations_whenMVCRestControllerExists_shouldGenerateRestControllerConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	source := `package app
+
+import arkweb "goark.dev/arkarta/web"
+
+//goark:rest-controller("apiController")
+//goark:request-mapping("/api")
+type APIController struct{}
+
+//goark:get("/status")
+func (c *APIController) Status(ctx *arkweb.Context) (string, error) {
+	return "UP", nil
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	if !strings.Contains(text, "mvc.NewRestController(\"apiController\"") {
+		t.Fatalf("generated mvc source should use NewRestController:\n%s", text)
+	}
+	if strings.Contains(text, "mvc.NewController(\"apiController\"") {
+		t.Fatalf("generated mvc source must not downgrade rest controller:\n%s", text)
+	}
+}
+
 func TestGenerateAnnotations_whenMVCRequestBodyExists_shouldGenerateBindJSONHandler(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app
