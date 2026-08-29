@@ -39,13 +39,15 @@ func (c *SystemController) Probe() string {
 		`mvc.PATCH("/probe", mvc.Return[any](200`,
 		`mvc.POST("/probe", mvc.Return[any](200`,
 		`mvc.PUT("/probe", mvc.Return[any](200`,
-		`mvc.TRACE("/probe", mvc.Return[any](200`,
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("generated default request mapping route missing %q:\n%s", fragment, text)
 		}
 	}
-	if strings.Count(text, "return controller.Probe()") != 8 {
+	if strings.Contains(text, `mvc.TRACE("/probe"`) {
+		t.Fatalf("generated default request mapping must not include TRACE:\n%s", text)
+	}
+	if strings.Count(text, "return controller.Probe()") != 7 {
 		t.Fatalf("generated handler count is wrong:\n%s", text)
 	}
 }

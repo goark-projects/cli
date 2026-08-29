@@ -28,7 +28,6 @@ var defaultMVCRequestMappingMethods = [...]string{
 	http.MethodPatch,
 	http.MethodDelete,
 	http.MethodOptions,
-	http.MethodTrace,
 }
 
 type mvcAnnotationModel struct {
