@@ -9,7 +9,7 @@ import (
 	"goark.dev/cli/internal/generate"
 )
 
-func TestGenerateAnnotations_whenControllerRequestMappingHasMethods_shouldNarrowHandlerMethods(t *testing.T) {
+func TestGenerateAnnotations_whenControllerRequestMappingHasMethods_shouldInheritMethodsForImplicitRequestMapping(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app
 
@@ -37,7 +37,7 @@ func (c *SystemController) Probe() string {
 		`mvc.TRACE("/api/probe", mvc.Return[any](200`,
 	} {
 		if !strings.Contains(text, fragment) {
-			t.Fatalf("generated narrowed method route missing %q:\n%s", fragment, text)
+			t.Fatalf("generated inherited method route missing %q:\n%s", fragment, text)
 		}
 	}
 	for _, fragment := range []string{
@@ -46,7 +46,7 @@ func (c *SystemController) Probe() string {
 		`mvc.OPTIONS("/api/probe"`,
 	} {
 		if strings.Contains(text, fragment) {
-			t.Fatalf("generated narrowed method route must not include %q:\n%s", fragment, text)
+			t.Fatalf("generated inherited method route must not include %q:\n%s", fragment, text)
 		}
 	}
 	if strings.Count(text, "return controller.Probe()") != 2 {
@@ -54,7 +54,7 @@ func (c *SystemController) Probe() string {
 	}
 }
 
-func TestGenerateAnnotations_whenControllerAndHandlerMethodsDoNotOverlap_shouldFail(t *testing.T) {
+func TestGenerateAnnotations_whenControllerAndHandlerMethodsDiffer_shouldCombineMethods(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app
 
@@ -71,8 +71,21 @@ func (c *SystemController) Probe() string {
 		t.Fatalf("write source failed: %v", err)
 	}
 
-	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
-	if err == nil || !strings.Contains(err.Error(), "has no HTTP method after controller request-mapping merge") {
-		t.Fatalf("err = %v, want controller method merge failure", err)
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	assertGeneratedPackageBuilds(t, dir, generated)
+	text := string(generated)
+	for _, fragment := range []string{
+		`mvc.GET("/api/probe", mvc.Return[any](200`,
+		`mvc.POST("/api/probe", mvc.Return[any](200`,
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("generated combined method route missing %q:\n%s", fragment, text)
+		}
+	}
+	if strings.Count(text, "return controller.Probe()") != 2 {
+		t.Fatalf("generated handler count is wrong:\n%s", text)
 	}
 }

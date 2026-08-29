@@ -2148,7 +2148,7 @@ func expandMVCRoutePaths(controller *mvcController, route mvcRoute) ([]mvcRoute,
 	}
 	methods = combineMVCRequestMethods(controller.Methods, methods, route.HTTPMethodsSet)
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("mvc route method %s.%s has no HTTP method after controller request-mapping merge", route.ControllerType, route.MethodName)
+		return nil, fmt.Errorf("mvc route method %s.%s has no HTTP method after controller request-mapping combination", route.ControllerType, route.MethodName)
 	}
 	out := make([]mvcRoute, 0, len(methods)*len(basePaths)*len(paths))
 	seen := make(map[string]struct{}, len(methods)*len(basePaths)*len(paths))
@@ -2180,23 +2180,19 @@ func combineMVCRequestMethods(controllerMethods []string, routeMethods []string,
 	if !routeMethodsSet {
 		return append([]string(nil), controllerMethods...)
 	}
-	out := make([]string, 0, len(routeMethods))
+	out := append([]string(nil), routeMethods...)
+	seen := make(map[string]struct{}, len(routeMethods)+len(controllerMethods))
 	for _, method := range routeMethods {
-		if containsMVCRequestMethod(controllerMethods, method) {
-			out = append(out, method)
+		seen[method] = struct{}{}
+	}
+	for _, method := range controllerMethods {
+		if _, exists := seen[method]; exists {
+			continue
 		}
+		seen[method] = struct{}{}
+		out = append(out, method)
 	}
 	return out
-}
-
-func containsMVCRequestMethod(methods []string, method string) bool {
-	method = strings.ToUpper(strings.TrimSpace(method))
-	for _, item := range methods {
-		if item == method {
-			return true
-		}
-	}
-	return false
 }
 
 func joinMVCPaths(base string, path string) string {
