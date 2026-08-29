@@ -40,6 +40,7 @@ type mvcRoute struct {
 	HTTPMethod     string
 	Path           string
 	Status         int
+	StatusExplicit bool
 	Conditions     mvcRouteConditions
 	Handler        mvcHandler
 }
@@ -508,11 +509,12 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 		return mvcRoute{}, err
 	}
 	return mvcRoute{
-		HTTPMethod: mapping.method,
-		Path:       mapping.path,
-		Status:     mapping.status,
-		Conditions: mapping.conditions,
-		Handler:    handler,
+		HTTPMethod:     mapping.method,
+		Path:           mapping.path,
+		Status:         mapping.status,
+		StatusExplicit: mapping.explicitStatus,
+		Conditions:     mapping.conditions,
+		Handler:        handler,
 	}, nil
 }
 
@@ -560,6 +562,7 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 			return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method must not declare both mapping status and response-status")
 		}
 		out.status = responseStatus
+		out.explicitStatus = true
 	}
 	return out, nil
 }
@@ -825,6 +828,30 @@ func mvcControllerConstructor(kind string) string {
 }
 
 func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
+	if shouldWrapMVCResponseStatus(route) {
+		builder.WriteString("mvc.ResponseStatus(")
+		builder.WriteString(strconv.Itoa(route.Status))
+		builder.WriteString(", ")
+		writeMVCHandlerCore(builder, route)
+		builder.WriteByte(')')
+		return
+	}
+	writeMVCHandlerCore(builder, route)
+}
+
+func shouldWrapMVCResponseStatus(route mvcRoute) bool {
+	if !route.StatusExplicit {
+		return false
+	}
+	switch route.Handler.ReturnKind {
+	case mvcReturnNone, mvcReturnError, mvcReturnResult, mvcReturnResultError:
+		return true
+	default:
+		return false
+	}
+}
+
+func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 	if hasMVCBodyParam(route.Handler.Params) {
 		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
 			writeMVCBindEntityHandler(builder, route)
@@ -856,7 +883,7 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
 	case mvcReturnValueError:
-		builder.WriteString("mvc.JSON[any](")
+		builder.WriteString("mvc.Return[any](")
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
 		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
@@ -864,7 +891,7 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	case mvcReturnValue:
-		builder.WriteString("mvc.JSON[any](")
+		builder.WriteString("mvc.Return[any](")
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
 		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")

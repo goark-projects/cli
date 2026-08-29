@@ -298,7 +298,7 @@ func (c *AdminController) Clear() {}
 		"container.Register[goweb.Configurer](registry, \"adminController.mvcConfigurer\"",
 		"container.GetByType[*AdminController](ctx, resolver, container.WithQualifier(\"adminController\"))",
 		"mvc.NewController(\"adminController\"",
-		"mvc.GET(\"/admin/users\", mvc.JSON[any](200",
+		"mvc.GET(\"/admin/users\", mvc.Return[any](200",
 		"return controller.Users(ctx)",
 		"mvc.DELETE(\"/admin/users\", mvc.NoContent",
 		"container.WithFactoryDependencies(\"adminController\")",
@@ -925,8 +925,8 @@ func (c *AdminController) Users() (notark.Result, error) {
 	}
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
-	if !strings.Contains(text, "mvc.JSON[any](200") {
-		t.Fatalf("expected non-arkarta Result to use JSON value handler:\n%s", text)
+	if !strings.Contains(text, "mvc.Return[any](200") {
+		t.Fatalf("expected non-arkarta Result to use return value handler:\n%s", text)
 	}
 	if strings.Contains(text, "(arkweb.Result, error)") {
 		t.Fatalf("non-arkarta Result must not generate arkweb result handler:\n%s", text)
