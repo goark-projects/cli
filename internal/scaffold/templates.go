@@ -7,7 +7,8 @@ func appFiles(spec appSpec) []fileSpec {
 		{path: ".gitignore", content: gitignoreTemplate()},
 		{path: "README.md", content: readmeTemplate(spec)},
 		{path: "go.mod", content: goModTemplate(spec)},
-		{path: "config/app.yml", content: appConfigTemplate(spec)},
+		{path: "resource/app.yml", content: appConfigTemplate(spec)},
+		{path: "resource/static/index.html", content: staticIndexTemplate(spec)},
 		{path: "cmd/server/main.go", content: mainTemplate(spec)},
 		{path: "internal/app/configuration.go", content: configurationTemplate()},
 	}
@@ -36,6 +37,7 @@ go run ./cmd/server
 ` + "```" + `
 
 The default health endpoint is ` + "`GET /healthz`" + `.
+Static resources are served from ` + "`resource/static`" + ` under ` + "`/static/*`" + `.
 
 ## Chinese
 
@@ -51,6 +53,7 @@ go run ./cmd/server
 ` + "```" + `
 
 默认健康检查端点为 ` + "`GET /healthz`" + `。
+静态资源默认从 ` + "`resource/static`" + ` 挂载到 ` + "`/static/*`" + `。
 `
 }
 
@@ -58,6 +61,15 @@ func goModTemplate(spec appSpec) string {
 	return `module ` + spec.modulePath + `
 
 go 1.25
+
+require (
+	goark.dev/arkarta v0.0.0
+	goark.dev/arkhos v0.0.0
+	goark.dev/boot v0.0.0
+	goark.dev/gbc-arkhos v0.0.0
+	goark.dev/gbc-web v0.0.0
+	goark.dev/goark v0.0.0
+)
 `
 }
 
@@ -68,6 +80,27 @@ func appConfigTemplate(spec appSpec) string {
       name: ` + strconv.Quote(spec.name) + `
     server:
       address: ":8080"
+    client:
+      timeout: 5s
+      max-response-bytes: 1048576
+`
+}
+
+func staticIndexTemplate(spec appSpec) string {
+	return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>` + spec.name + `</title>
+</head>
+<body>
+  <main>
+    <h1>` + spec.name + `</h1>
+    <p>Goark Boot Web application is running.</p>
+  </main>
+</body>
+</html>
 `
 }
 
@@ -85,7 +118,6 @@ import (
 
 	app ` + modulePath + `
 	"goark.dev/boot"
-	"goark.dev/boot/configdata"
 	gbcarkhos "goark.dev/gbc-arkhos"
 	gbcweb "goark.dev/gbc-web"
 	"goark.dev/goark"
@@ -96,7 +128,6 @@ func main() {
 	defer stop()
 
 	application, err := boot.Run(ctx,
-		boot.WithConfigDataOptions(configdata.WithLocations("config")),
 		boot.WithConfiguration(app.Configurations()...),
 		boot.WithAutoConfiguration(gbcweb.AutoConfigure()),
 	)
@@ -125,22 +156,50 @@ func configurationTemplate() string {
 	return `package app
 
 import (
+	"context"
 	"net/http"
 
 	arkweb "goark.dev/arkarta/web"
+	gbcweb "goark.dev/gbc-web"
 	"goark.dev/goark"
+	"goark.dev/goark/container"
 	"goark.dev/goark/web/mvc"
+	webclient "goark.dev/goark/web/client"
 )
 
 // Configurations 返回应用贡献给 Goark Boot 的显式配置单元。
 func Configurations() []goark.Configuration {
 	return []goark.Configuration{
+		webClientConfiguration{},
 		mvc.NewConfiguration("app.web", mvc.NewController("healthController",
 			mvc.GET("/healthz", mvc.JSON(http.StatusOK, func(_ *arkweb.Context) (map[string]string, error) {
 				return map[string]string{"status": "UP"}, nil
 			})),
 		)),
 	}
+}
+
+type webClientConfiguration struct{}
+
+func (webClientConfiguration) Name() string {
+	return "app.web.client"
+}
+
+func (webClientConfiguration) Order() int {
+	return 0
+}
+
+func (c webClientConfiguration) Register(ctx context.Context, registry *container.Registry) error {
+	return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))
+}
+
+func (webClientConfiguration) RegisterWithContext(_ context.Context, config goark.ConfigurationContext) error {
+	return gbcweb.RegisterHTTPClientBuilderCustomizer(config.Registry(), "appHTTPClientCustomizer", gbcweb.HTTPClientBuilderCustomizerFunc(func(ctx context.Context, builder *webclient.Builder) (*webclient.Builder, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return builder.DefaultHeader("X-Goark-App", "true"), nil
+	}))
 }
 `
 }

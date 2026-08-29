@@ -25,7 +25,8 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		".gitignore",
 		"README.md",
 		"go.mod",
-		"config/app.yml",
+		"resource/app.yml",
+		"resource/static/index.html",
 		"cmd/server/main.go",
 		"internal/app/configuration.go",
 	}
@@ -38,8 +39,12 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		}
 	}
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "module example.com/admin")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.0")
+	assertFileContains(t, filepath.Join(dir, "resource/app.yml"), "max-response-bytes")
+	assertFileContains(t, filepath.Join(dir, "resource/static/index.html"), "Goark Boot Web application is running.")
 	assertFileContains(t, filepath.Join(dir, "cmd/server/main.go"), `app "example.com/admin/internal/app"`)
 	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), `mvc.GET("/healthz"`)
+	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), `gbcweb.RegisterHTTPClientBuilderCustomizer`)
 
 	writeLocalReplaces(t, dir)
 	assertGeneratedAppBuilds(t, dir)
