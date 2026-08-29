@@ -147,7 +147,9 @@ model where a controller or handler can be registered under multiple concrete
 paths. `//goark:request-mapping` without a `method` argument expands to the
 standard MVC HTTP method set; `method="GET,POST"` narrows it explicitly.
 Type-level path sets, method-level path sets, and method sets are expanded
-deterministically into individual generated route registrations.
+deterministically into individual generated route registrations. Type-level
+`consumes`, `produces`, `params`, and `headers` conditions are emitted on the
+generated controller and merged with route-level conditions by Goark MVC.
 
 MVC handler parameters are explicit and generated statically. Use
 `//goark:request-body[input]` for a JSON request body, use

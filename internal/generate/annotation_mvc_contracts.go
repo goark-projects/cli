@@ -23,6 +23,15 @@ func mvcRouteConditionsFromAnnotation(annotation Annotation) mvcRouteConditions 
 	}
 }
 
+func mvcTypeRouteConditions(annotations []Annotation) mvcRouteConditions {
+	for _, annotation := range annotations {
+		if annotation.Name == "request-mapping" {
+			return mvcRouteConditionsFromAnnotation(annotation)
+		}
+	}
+	return mvcRouteConditions{}
+}
+
 func mvcRouteConditionValues(annotation Annotation, key string) []string {
 	value := strings.TrimSpace(argString(annotation, key, ""))
 	if value == "" {
@@ -46,11 +55,34 @@ func writeMVCRouteOptions(builder *bytes.Buffer, conditions mvcRouteConditions) 
 	writeMVCRouteOption(builder, "Headers", conditions.Headers)
 }
 
+func writeMVCControllerOptions(builder *bytes.Buffer, conditions mvcRouteConditions) {
+	writeMVCControllerOption(builder, "Consumes", conditions.Consumes)
+	writeMVCControllerOption(builder, "Produces", conditions.Produces)
+	writeMVCControllerOption(builder, "Params", conditions.Params)
+	writeMVCControllerOption(builder, "Headers", conditions.Headers)
+}
+
 func writeMVCRouteOption(builder *bytes.Buffer, name string, values []string) {
 	if len(values) == 0 {
 		return
 	}
 	builder.WriteString(", mvc.With")
+	builder.WriteString(name)
+	builder.WriteByte('(')
+	for index, value := range values {
+		if index > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(strconv.Quote(value))
+	}
+	builder.WriteByte(')')
+}
+
+func writeMVCControllerOption(builder *bytes.Buffer, name string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	builder.WriteString(".With")
 	builder.WriteString(name)
 	builder.WriteByte('(')
 	for index, value := range values {

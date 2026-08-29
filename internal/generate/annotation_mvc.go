@@ -45,6 +45,7 @@ type mvcController struct {
 	Routes    []mvcRoute
 	Kind      string
 
+	Conditions  mvcRouteConditions
 	CrossOrigin *mvcCrossOrigin
 }
 
@@ -533,6 +534,7 @@ func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations
 		Component:   component,
 		BasePaths:   mvcTypeBasePaths(annotations),
 		Kind:        mvcControllerKind(annotations),
+		Conditions:  mvcTypeRouteConditions(annotations),
 		CrossOrigin: crossOrigin,
 	}, nil
 }
@@ -993,6 +995,7 @@ func writeMVCConfigurerRegistration(builder *bytes.Buffer, controller *mvcContro
 		writeMVCRoute(builder, route)
 	}
 	builder.WriteByte(')')
+	writeMVCControllerOptions(builder, controller.Conditions)
 	writeMVCControllerCrossOrigin(builder, controller.CrossOrigin)
 	builder.WriteString(")\nreturn out, nil\n}, container.WithFactoryDependencies(")
 	builder.WriteString(strconv.Quote(controller.Component.Name))
