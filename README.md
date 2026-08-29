@@ -148,9 +148,11 @@ MVC handler parameters are explicit and generated statically. Use
 `//goark:path-variable[id]`, `//goark:request-param[query]`,
 `//goark:request-header[requestID]`, or `//goark:cookie-value[theme]` for scalar
 request values. Model attributes bind into non-pointer struct value parameters.
-Scalar parameter binding currently supports `string`, `int`, `int64`, and
-`bool`; `defaultValue` or `required=false` can be supplied on request
-parameters, headers, and cookies.
+Scalar parameter binding currently supports `string`, `int`, `int64`, `bool`,
+`float64`, and `time.Time`; path variables, request parameters, headers,
+cookies, and matrix variables also support the corresponding slice forms.
+`defaultValue` or `required=false` can be supplied on request parameters,
+headers, and cookies.
 Use `//goark:response-body` on a `controller` route when a normal return value
 must be written to the response body instead of applying the controller view
 resolution default. `rest-controller` already defaults normal return values to

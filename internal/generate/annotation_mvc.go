@@ -1182,7 +1182,7 @@ func mvcParameterBindingCall(param mvcHandlerParam) (string, bool) {
 }
 
 func mvcParameterFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
-	suffix, ok := mvcParameterTypeSuffix(typ)
+	suffix, ok := mvcParameterFunctionSuffix(kind, typ)
 	if !ok {
 		return "", false
 	}
@@ -1208,7 +1208,14 @@ func mvcParameterFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
 	}
 }
 
-func mvcParameterTypeSuffix(typ string) (string, bool) {
+func mvcParameterFunctionSuffix(kind mvcHandlerParamKind, typ string) (string, bool) {
+	if kind == mvcParamRequestAttribute || kind == mvcParamSessionAttribute {
+		return mvcScalarParameterTypeSuffix(typ)
+	}
+	return mvcCollectionParameterTypeSuffix(typ)
+}
+
+func mvcCollectionParameterTypeSuffix(typ string) (string, bool) {
 	switch strings.TrimSpace(typ) {
 	case "string":
 		return "String", true
@@ -1218,6 +1225,41 @@ func mvcParameterTypeSuffix(typ string) (string, bool) {
 		return "Int64", true
 	case "bool":
 		return "Bool", true
+	case "float64":
+		return "Float64", true
+	case "time.Time":
+		return "Time", true
+	case "[]string":
+		return "Strings", true
+	case "[]int":
+		return "Ints", true
+	case "[]int64":
+		return "Int64s", true
+	case "[]bool":
+		return "Bools", true
+	case "[]float64":
+		return "Float64s", true
+	case "[]time.Time":
+		return "Times", true
+	default:
+		return "", false
+	}
+}
+
+func mvcScalarParameterTypeSuffix(typ string) (string, bool) {
+	switch strings.TrimSpace(typ) {
+	case "string":
+		return "String", true
+	case "int":
+		return "Int", true
+	case "int64":
+		return "Int64", true
+	case "bool":
+		return "Bool", true
+	case "float64":
+		return "Float64", true
+	case "time.Time":
+		return "Time", true
 	default:
 		return "", false
 	}
