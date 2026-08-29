@@ -117,7 +117,7 @@ Flags:
 
 ## Annotation Scanning
 
-`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS method mappings, request-body, model-attribute, path-variable, request-param, request-header, and cookie-value.
+`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS method mappings, request-body, response-body, response-status, model-attribute, path-variable, request-param, request-header, and cookie-value.
 
 ```bash
 goark generate annotations \
@@ -151,6 +151,10 @@ request values. Model attributes bind into non-pointer struct value parameters.
 Scalar parameter binding currently supports `string`, `int`, `int64`, and
 `bool`; `defaultValue` or `required=false` can be supplied on request
 parameters, headers, and cookies.
+Use `//goark:response-body` on a `controller` route when a normal return value
+must be written to the response body instead of applying the controller view
+resolution default. `rest-controller` already defaults normal return values to
+the response body; the annotation is accepted there to keep intent explicit.
 
 ## ORM Generation
 

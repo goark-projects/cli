@@ -42,6 +42,7 @@ type mvcRoute struct {
 	Path           string
 	Status         int
 	StatusExplicit bool
+	ResponseBody   bool
 	ControllerKind string
 	Conditions     mvcRouteConditions
 	Handler        mvcHandler
@@ -137,6 +138,7 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "session-attribute", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "matrix-variable", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCParameterBindingAnnotation},
 		{Name: "request-part", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCRequestPartAnnotation},
+		{Name: "response-body", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCResponseBodyAnnotation},
 		{Name: "response-status", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCResponseStatusAnnotation},
 		{Name: "exception-handler", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateMVCExceptionHandlerAnnotation},
 	}
@@ -280,6 +282,19 @@ func validateMVCResponseStatusAnnotation(ctx AnnotationValidationContext) error 
 	}
 	_, err := mvcResponseStatus(ctx.Annotation)
 	return err
+}
+
+func validateMVCResponseBodyAnnotation(ctx AnnotationValidationContext) error {
+	if err := validateMVCHandlerMethod(ctx); err != nil {
+		return err
+	}
+	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
+		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+	}
+	if normalizeSelector(ctx.Annotation.Selector) != "" || len(ctx.Annotation.Args) > 0 || len(ctx.Annotation.Values) > 0 {
+		return fmt.Errorf("annotation %q does not accept arguments", ctx.Annotation.Name)
+	}
+	return nil
 }
 
 func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
@@ -518,6 +533,7 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 		Path:           mapping.path,
 		Status:         mapping.status,
 		StatusExplicit: mapping.explicitStatus,
+		ResponseBody:   mapping.responseBody,
 		Conditions:     mapping.conditions,
 		Handler:        handler,
 	}, nil
@@ -528,6 +544,7 @@ type mvcRouteMappingSpec struct {
 	path           string
 	status         int
 	explicitStatus bool
+	responseBody   bool
 	conditions     mvcRouteConditions
 }
 
@@ -535,7 +552,16 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 	var out mvcRouteMappingSpec
 	responseStatus := 0
 	hasResponseStatus := false
+	hasResponseBody := false
 	for _, annotation := range annotations {
+		if isMVCResponseBodyAnnotation(annotation.Name) {
+			if hasResponseBody {
+				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple response-body annotations")
+			}
+			out.responseBody = true
+			hasResponseBody = true
+			continue
+		}
 		if isMVCResponseStatusAnnotation(annotation.Name) {
 			if hasResponseStatus {
 				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple response-status annotations")
@@ -612,6 +638,9 @@ func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, an
 	}
 	if hasMVCMultipartBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
 		return mvcHandler{}, fmt.Errorf("mvc handler method %s with multipart body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+	}
+	if hasMVCResponseBodyAnnotation(annotations) && hasMVCModelParam(params) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s response-body must not be used with *mvc.Model", fn.Name.Name)
 	}
 	return mvcHandler{
 		Params:     params,
@@ -878,7 +907,7 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 }
 
 func shouldRenderMVCModelView(route mvcRoute) bool {
-	if route.ControllerKind == "rest-controller" || !hasMVCModelParam(route.Handler.Params) {
+	if route.ResponseBody || route.ControllerKind == "rest-controller" || !hasMVCModelParam(route.Handler.Params) {
 		return false
 	}
 	switch route.Handler.ReturnKind {
@@ -978,7 +1007,7 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
 	case mvcReturnValueError:
-		builder.WriteString("mvc.Return[any](")
+		writeMVCValueReturnHandlerName(builder, route)
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
 		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
@@ -986,7 +1015,7 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	case mvcReturnValue:
-		builder.WriteString("mvc.Return[any](")
+		writeMVCValueReturnHandlerName(builder, route)
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
 		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err")
@@ -1005,6 +1034,14 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		builder.WriteString(call)
 		builder.WriteString("\nreturn nil\n})")
 	}
+}
+
+func writeMVCValueReturnHandlerName(builder *bytes.Buffer, route mvcRoute) {
+	if route.ResponseBody {
+		builder.WriteString("mvc.ResponseBody[any](")
+		return
+	}
+	builder.WriteString("mvc.Return[any](")
 }
 
 func writeMVCBindJSONHandler(builder *bytes.Buffer, route mvcRoute) {
@@ -1209,7 +1246,7 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 }
 
 func isMVCRouteAnnotation(name string) bool {
-	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCResponseStatusAnnotation(name)
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name)
 }
 
 func isMVCRouteMappingAnnotation(name string) bool {
@@ -1246,6 +1283,14 @@ func isMVCParameterAnnotation(name string) bool {
 
 func isMVCResponseStatusAnnotation(name string) bool {
 	return name == "response-status"
+}
+
+func hasMVCResponseBodyAnnotation(annotations []Annotation) bool {
+	return hasAnnotation(annotations, "response-body")
+}
+
+func isMVCResponseBodyAnnotation(name string) bool {
+	return name == "response-body"
 }
 
 func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
