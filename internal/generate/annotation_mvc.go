@@ -36,6 +36,7 @@ type mvcAnnotationModel struct {
 	byType                   map[string]*mvcController
 	adviceByType             map[string]*mvcControllerAdvice
 	pending                  []mvcRoute
+	pendingModelAttributes   []mvcModelAttributeMethod
 	pendingExceptionHandlers []mvcExceptionHandler
 }
 
@@ -48,6 +49,8 @@ type mvcController struct {
 
 	Conditions  mvcRouteConditions
 	CrossOrigin *mvcCrossOrigin
+
+	ModelAttributes []mvcModelAttributeMethod
 }
 
 type mvcRoute struct {
@@ -73,6 +76,15 @@ type mvcHandler struct {
 	ReturnKind mvcReturnKind
 	ReturnType string
 	EntityBody string
+}
+
+type mvcModelAttributeMethod struct {
+	ControllerType string
+	MethodName     string
+	Name           string
+	Params         []mvcHandlerParam
+	ReturnKind     mvcReturnKind
+	ReturnType     string
 }
 
 type mvcHandlerParam struct {
@@ -281,7 +293,7 @@ func validateMVCModelAttributeAnnotation(ctx AnnotationValidationContext) error 
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+		return validateMVCModelAttributeMethodAnnotation(ctx)
 	}
 	selector := mvcBindingSelector(ctx.Annotation)
 	if selector == "" {
@@ -291,6 +303,45 @@ func validateMVCModelAttributeAnnotation(ctx AnnotationValidationContext) error 
 		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return validateAtMostOneAnnotationValue(ctx.Annotation)
+}
+
+func validateMVCModelAttributeMethodAnnotation(ctx AnnotationValidationContext) error {
+	if mvcModelAttributeAnnotationCount(ctx.Item.Annotations()) > 1 {
+		return fmt.Errorf("mvc model attribute method %s has multiple model-attribute annotations", ctx.Item.FuncName())
+	}
+	if selector := normalizeSelector(ctx.Annotation.Selector); selector != "" {
+		return fmt.Errorf("annotation %q selector %q requires mvc route method target", ctx.Annotation.Name, selector)
+	}
+	if _, hasParam := ctx.Annotation.Args["param"]; hasParam {
+		return fmt.Errorf("annotation %q param argument requires mvc route method target", ctx.Annotation.Name)
+	}
+	if err := validateAtMostOneAnnotationValue(ctx.Annotation); err != nil {
+		return err
+	}
+	if _, hasName := ctx.Annotation.Args["name"]; hasName {
+		if _, hasValue := ctx.Annotation.Args["value"]; hasValue {
+			return fmt.Errorf("annotation %q accepts either name or value argument", ctx.Annotation.Name)
+		}
+	}
+	name := mvcModelAttributeMethodName(ctx.Annotation)
+	if name == "" {
+		return fmt.Errorf("annotation %q requires model attribute name", ctx.Annotation.Name)
+	}
+	fn := ctx.Item.FuncDecl()
+	if fn == nil {
+		return fmt.Errorf("annotation %q requires concrete method with receiver", ctx.Annotation.Name)
+	}
+	if _, err := mvcModelAttributeMethodParams(ctx.Item.File(), fn); err != nil {
+		return err
+	}
+	returnKind, err := mvcMethodReturnKind(ctx.Item.File(), fn)
+	if err != nil {
+		return err
+	}
+	if !mvcModelAttributeMethodSupportsReturn(returnKind) {
+		return fmt.Errorf("mvc model attribute method %s must return T or T,error", fn.Name.Name)
+	}
+	return nil
 }
 
 func validateMVCRequestPartAnnotation(ctx AnnotationValidationContext) error {
@@ -368,6 +419,9 @@ func (mvcAnnotationBinder) BindAnnotation(ctx *AnnotationBindingContext, item An
 		if err := bindMVCRoute(ctx, item); err != nil {
 			return err
 		}
+		if err := bindMVCModelAttributeMethod(ctx, item); err != nil {
+			return err
+		}
 		return bindMVCExceptionHandler(ctx, item)
 	default:
 		return nil
@@ -393,6 +447,13 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 			return err
 		}
 		controller.Routes = append(controller.Routes, routes...)
+	}
+	for _, attribute := range model.pendingModelAttributes {
+		controller := model.byType[attribute.ControllerType]
+		if controller == nil {
+			return fmt.Errorf("mvc model attribute method %s.%s requires mvc controller receiver type", attribute.ControllerType, attribute.MethodName)
+		}
+		controller.ModelAttributes = append(controller.ModelAttributes, attribute)
 	}
 	for _, handler := range model.pendingExceptionHandlers {
 		advice := model.adviceByType[handler.AdviceType]
@@ -427,6 +488,14 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 				return left.HTTPMethod < right.HTTPMethod
 			}
 			return left.Path < right.Path
+		})
+		sort.SliceStable(controller.ModelAttributes, func(i, j int) bool {
+			left := controller.ModelAttributes[i]
+			right := controller.ModelAttributes[j]
+			if left.Name == right.Name {
+				return left.MethodName < right.MethodName
+			}
+			return left.Name < right.Name
 		})
 	}
 	for _, advice := range model.Advices {
@@ -482,6 +551,21 @@ func bindMVCRoute(ctx *AnnotationBindingContext, item AnnotationItem) error {
 	route.MethodName = item.FuncName()
 	model := ensureMVCAnnotationModel(ctx)
 	model.pending = append(model.pending, route)
+	return nil
+}
+
+func bindMVCModelAttributeMethod(ctx *AnnotationBindingContext, item AnnotationItem) error {
+	if hasMVCRouteMappingAnnotation(item.Annotations()) || !hasAnnotation(item.Annotations(), "model-attribute") {
+		return nil
+	}
+	attribute, err := buildMVCModelAttributeMethod(item.FileSet(), item.File(), item.FuncDecl(), item.Annotations())
+	if err != nil {
+		return err
+	}
+	attribute.ControllerType = item.ReceiverTypeName()
+	attribute.MethodName = item.FuncName()
+	model := ensureMVCAnnotationModel(ctx)
+	model.pendingModelAttributes = append(model.pendingModelAttributes, attribute)
 	return nil
 }
 
@@ -609,6 +693,26 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 		Conditions:       mapping.conditions,
 		CrossOrigin:      mapping.crossOrigin,
 		Handler:          handler,
+	}, nil
+}
+
+func buildMVCModelAttributeMethod(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcModelAttributeMethod, error) {
+	params, err := mvcModelAttributeMethodParams(file, fn)
+	if err != nil {
+		return mvcModelAttributeMethod{}, err
+	}
+	returnKind, err := mvcMethodReturnKind(file, fn)
+	if err != nil {
+		return mvcModelAttributeMethod{}, err
+	}
+	if !mvcModelAttributeMethodSupportsReturn(returnKind) {
+		return mvcModelAttributeMethod{}, fmt.Errorf("mvc model attribute method %s must return T or T,error", fn.Name.Name)
+	}
+	return mvcModelAttributeMethod{
+		Name:       mvcModelAttributeMethodNameAnnotation(annotations),
+		Params:     params,
+		ReturnKind: returnKind,
+		ReturnType: mvcPrimaryReturnType(fset, fn),
 	}, nil
 }
 
@@ -924,6 +1028,46 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 	return params, nil
 }
 
+func mvcModelAttributeMethodParams(file *ast.File, fn *ast.FuncDecl) ([]mvcHandlerParam, error) {
+	if fn == nil || fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
+		return nil, nil
+	}
+	params := make([]mvcHandlerParam, 0, len(fn.Type.Params.List))
+	contextSeen := false
+	for index, field := range fn.Type.Params.List {
+		names := field.Names
+		if len(names) == 0 {
+			names = []*ast.Ident{ast.NewIdent(fmt.Sprintf("arg%d", index))}
+		}
+		if len(names) != 1 {
+			return nil, fmt.Errorf("mvc model attribute method %s parameter group must declare exactly one name", fn.Name.Name)
+		}
+		name := names[0].Name
+		if isArkWebContextExpr(file, field.Type) {
+			if contextSeen {
+				return nil, fmt.Errorf("mvc model attribute method %s must not declare multiple *arkarta/web.Context parameters", fn.Name.Name)
+			}
+			contextSeen = true
+			params = append(params, mvcHandlerParam{Name: name, Kind: mvcParamContext})
+			continue
+		}
+		if isSelectorTypeExpr(field.Type, "Context") {
+			return nil, fmt.Errorf("mvc model attribute method %s parameter must be *arkarta/web.Context", fn.Name.Name)
+		}
+		return nil, fmt.Errorf("mvc model attribute method %s parameter %s must be *arkarta/web.Context", fn.Name.Name, name)
+	}
+	return params, nil
+}
+
+func mvcModelAttributeMethodSupportsReturn(kind mvcReturnKind) bool {
+	switch kind {
+	case mvcReturnValue, mvcReturnValueError:
+		return true
+	default:
+		return false
+	}
+}
+
 func mvcMethodReturnKind(file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, error) {
 	results := fn.Type.Results
 	if results == nil || len(results.List) == 0 {
@@ -1015,6 +1159,7 @@ func writeMVCConfigurerRegistration(builder *bytes.Buffer, controller *mvcContro
 	builder.WriteByte(')')
 	writeMVCControllerOptions(builder, controller.Conditions)
 	writeMVCControllerCrossOrigin(builder, controller.CrossOrigin)
+	writeMVCModelAttributeMethods(builder, controller.ModelAttributes)
 	builder.WriteString(")\nreturn out, nil\n}, container.WithFactoryDependencies(")
 	builder.WriteString(strconv.Quote(controller.Component.Name))
 	builder.WriteString(")); err != nil {\nreturn err\n}\n")
@@ -1030,6 +1175,35 @@ func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
 	writeMVCRouteOptions(builder, route.Conditions)
 	writeMVCCrossOriginRouteOption(builder, route.CrossOrigin)
 	builder.WriteByte(')')
+}
+
+func writeMVCModelAttributeMethods(builder *bytes.Buffer, attributes []mvcModelAttributeMethod) {
+	if len(attributes) == 0 {
+		return
+	}
+	builder.WriteString(".WithModelAttributes(")
+	for index, attribute := range attributes {
+		if index > 0 {
+			builder.WriteString(",\n")
+		}
+		writeMVCModelAttributeMethod(builder, attribute)
+	}
+	builder.WriteByte(')')
+}
+
+func writeMVCModelAttributeMethod(builder *bytes.Buffer, attribute mvcModelAttributeMethod) {
+	builder.WriteString("mvc.ModelAttributeValue[")
+	builder.WriteString(attribute.ReturnType)
+	builder.WriteString("](")
+	builder.WriteString(strconv.Quote(attribute.Name))
+	builder.WriteString(", func(ctx *arkweb.Context) (")
+	builder.WriteString(attribute.ReturnType)
+	builder.WriteString(", error) {\nreturn ")
+	builder.WriteString(mvcHandlerCall(attribute.MethodName, attribute.Params))
+	if attribute.ReturnKind == mvcReturnValue {
+		builder.WriteString(", nil")
+	}
+	builder.WriteString("\n})")
 }
 
 func mvcControllerConstructor(kind string) string {
@@ -1755,6 +1929,40 @@ func mvcBindingSelector(annotation Annotation) string {
 	return strings.TrimSpace(argString(annotation, "param", ""))
 }
 
+func mvcModelAttributeMethodNameAnnotation(annotations []Annotation) string {
+	for _, annotation := range annotations {
+		if annotation.Name == "model-attribute" {
+			return mvcModelAttributeMethodName(annotation)
+		}
+	}
+	return ""
+}
+
+func mvcModelAttributeAnnotationCount(annotations []Annotation) int {
+	count := 0
+	for _, annotation := range annotations {
+		if annotation.Name == "model-attribute" {
+			count++
+		}
+	}
+	return count
+}
+
+func mvcModelAttributeMethodName(annotation Annotation) string {
+	values := annotationValueTexts(annotation)
+	if len(values) == 1 {
+		if value := strings.TrimSpace(values[0]); value != "" {
+			return value
+		}
+	}
+	for _, key := range []string{"name", "value"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func mvcParameterSourceName(annotation Annotation, fallback string) string {
 	values := annotationValueTexts(annotation)
 	if len(values) == 1 {
@@ -2341,7 +2549,7 @@ func mvcModelUsesConfigurer(model *mvcAnnotationModel) bool {
 
 func mvcModelUsesArkWeb(model *mvcAnnotationModel) bool {
 	for _, controller := range model.Controllers {
-		if len(controller.Routes) > 0 {
+		if len(controller.Routes) > 0 || len(controller.ModelAttributes) > 0 {
 			return true
 		}
 	}
