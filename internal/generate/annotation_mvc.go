@@ -65,10 +65,11 @@ type mvcHandlerParam struct {
 }
 
 type mvcParamBinding struct {
-	SourceName   string
-	Required     bool
-	HasDefault   bool
-	DefaultValue string
+	SourceName     string
+	SourceExplicit bool
+	Required       bool
+	HasDefault     bool
+	DefaultValue   string
 }
 
 type mvcHandlerParamKind uint8
@@ -791,6 +792,9 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 				return nil, fmt.Errorf("mvc handler method %s model attribute parameter %s must be a non-pointer struct value", fn.Name.Name, name)
 			}
 			requestPartFile := binding.Kind == mvcParamRequestPart && isArkartaMultipartPartExpr(file, field.Type)
+			if err := validateMVCParameterMapBinding(fn.Name.Name, name, typ, binding.Kind, binding.Binding); err != nil {
+				return nil, err
+			}
 			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding, RequestPartFile: requestPartFile}, nil); !ok {
 				return nil, fmt.Errorf("mvc handler method %s parameter %s has unsupported mvc parameter type %s", fn.Name.Name, name, typ)
 			}
@@ -1306,6 +1310,9 @@ func mvcParameterBindingCall(param mvcHandlerParam, validationGroups []string) (
 	if param.Kind == mvcParamRequestPart {
 		return mvcRequestPartBindingCall(param, validationGroups)
 	}
+	if function, ok := mvcParameterMapFunction(param.Kind, param.Type); ok {
+		return "mvc." + function + "(ctx)", true
+	}
 	function, ok := mvcParameterFunction(param.Kind, param.Type)
 	if !ok {
 		return "", false
@@ -1592,10 +1599,11 @@ func mvcParameterBindingSet(annotations []Annotation) (map[string]mvcParameterBi
 		out[selector] = mvcParameterBindingItem{
 			Kind: kind,
 			Binding: mvcParamBinding{
-				SourceName:   mvcParameterSourceName(annotation, selector),
-				Required:     mvcParameterRequired(annotation),
-				HasDefault:   mvcParameterHasDefault(annotation),
-				DefaultValue: mvcParameterDefaultValue(annotation),
+				SourceName:     mvcParameterSourceName(annotation, selector),
+				SourceExplicit: mvcParameterHasSourceName(annotation),
+				Required:       mvcParameterRequired(annotation),
+				HasDefault:     mvcParameterHasDefault(annotation),
+				DefaultValue:   mvcParameterDefaultValue(annotation),
 			},
 		}
 	}
@@ -1636,12 +1644,30 @@ func mvcBindingSelector(annotation Annotation) string {
 }
 
 func mvcParameterSourceName(annotation Annotation, fallback string) string {
+	values := annotationValueTexts(annotation)
+	if len(values) == 1 {
+		if value := strings.TrimSpace(values[0]); value != "" {
+			return value
+		}
+	}
 	for _, key := range []string{"name", "value"} {
 		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
 			return value
 		}
 	}
 	return fallback
+}
+
+func mvcParameterHasSourceName(annotation Annotation) bool {
+	if len(annotationValueTexts(annotation)) > 0 {
+		return true
+	}
+	for _, key := range []string{"name", "value"} {
+		if strings.TrimSpace(argString(annotation, key, "")) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func mvcParameterRequired(annotation Annotation) bool {
