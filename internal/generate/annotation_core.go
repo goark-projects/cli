@@ -13,11 +13,12 @@ import (
 const coreAnnotationModelKey = "goark.core.annotations"
 
 type coreAnnotationModel struct {
-	Configurations []*annotationConfiguration
-	Components     []annotationComponent
-	UsesValue      bool
-	UsesProperties bool
-	configByType   map[string]*annotationConfiguration
+	Configurations          []*annotationConfiguration
+	ConfigurationProperties []annotationConfigurationProperties
+	Components              []annotationComponent
+	UsesValue               bool
+	UsesProperties          bool
+	configByType            map[string]*annotationConfiguration
 }
 
 type annotationConfiguration struct {
@@ -28,6 +29,7 @@ type annotationConfiguration struct {
 	PropertySources []annotationPropertySource
 	Beans           []annotationBean
 	Components      []annotationComponent
+	Properties      []annotationConfigurationProperties
 	Synthetic       bool
 }
 
@@ -138,6 +140,7 @@ func coreAnnotationDescriptors() []AnnotationDescriptor {
 		{Name: "profile", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreProfileAnnotation},
 		{Name: "property-source", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCorePropertySourceAnnotation},
 		{Name: "property-sources", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCorePropertySourcesAnnotation},
+		{Name: "configuration-properties", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateConfigurationPropertiesAnnotation},
 		{Name: "conditional", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreConditionalAnnotation},
 	}
 }
@@ -450,6 +453,7 @@ func (coreAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingCont
 		return model.Configurations[i].TypeName < model.Configurations[j].TypeName
 	})
 	model.Configurations[0].Components = append(model.Configurations[0].Components, model.Components...)
+	model.Configurations[0].Properties = append(model.Configurations[0].Properties, model.ConfigurationProperties...)
 	for _, configuration := range model.Configurations {
 		sort.SliceStable(configuration.Beans, func(i, j int) bool {
 			return configuration.Beans[i].Name < configuration.Beans[j].Name
@@ -620,10 +624,20 @@ func bindCoreTypeAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) 
 	}
 	annotations := item.annotations
 	model := ensureCoreAnnotationModel(ctx)
+	if hasAnnotation(annotations, "configuration-properties") {
+		properties, err := buildConfigurationProperties(ctx, item)
+		if err != nil {
+			return err
+		}
+		model.ConfigurationProperties = append(model.ConfigurationProperties, properties)
+	}
 	if hasAnnotation(annotations, "configuration") {
 		configuration := buildConfiguration(typeSpec.Name.Name, annotations)
 		model.Configurations = append(model.Configurations, configuration)
 		model.configByType[configuration.TypeName] = configuration
+		return nil
+	}
+	if hasAnnotation(annotations, "configuration-properties") {
 		return nil
 	}
 	if componentKind(annotations) == "" {
@@ -694,6 +708,14 @@ func (coreAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationConte
 	if model.UsesProperties {
 		ctx.AddImport("coreenv", "goark.dev/goark/core/env")
 		ctx.AddImport("", "goark.dev/goark/core/resource")
+	}
+	if len(model.ConfigurationProperties) > 0 {
+		ctx.AddImport("coreenv", "goark.dev/goark/core/env")
+		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
+		addConfigurationPropertiesImports(ctx, model.ConfigurationProperties)
+	}
+	for _, properties := range model.ConfigurationProperties {
+		writeConfigurationProperties(ctx.buffer(), properties)
 	}
 	for _, configuration := range model.Configurations {
 		writeGeneratedConfiguration(ctx.buffer(), configuration)
@@ -882,8 +904,11 @@ func writeRegisterWithContext(builder *bytes.Buffer, configuration *annotationCo
 	if len(configuration.Profiles) > 0 {
 		writeProfileGuard(builder, strings.Join(wrapExpressions(configuration.Profiles), " | "), configuration.Name, "return nil")
 	}
-	if len(configuration.Components) > 0 || len(configuration.Beans) > 0 {
+	if len(configuration.Components) > 0 || len(configuration.Beans) > 0 || len(configuration.Properties) > 0 {
 		builder.WriteString("registry := config.Registry()\n")
+	}
+	for _, properties := range configuration.Properties {
+		writeConfigurationPropertiesRegistration(builder, properties)
 	}
 	for _, component := range configuration.Components {
 		writeComponentRegistration(builder, component)

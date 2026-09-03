@@ -266,6 +266,13 @@ func (c *AnnotationGenerationContext) buffer() *bytes.Buffer {
 
 type annotationPackage struct {
 	PackageName string
+	fset        *token.FileSet
+	types       map[string]annotationTypeDeclaration
+}
+
+type annotationTypeDeclaration struct {
+	file *ast.File
+	spec *ast.TypeSpec
 }
 
 // GenerateAnnotations 扫描 Go 源码注解并生成 goark 注册代码。
@@ -336,7 +343,21 @@ func scanAnnotations(spec AnnotationScanSpec, pipeline *annotationPipeline) (*an
 		return nil, nil, fmt.Errorf("package %q not found in %s", packageName, dir)
 	}
 
-	pkg := &annotationPackage{PackageName: packageName}
+	pkg := &annotationPackage{PackageName: packageName, fset: fset, types: make(map[string]annotationTypeDeclaration)}
+	for _, file := range parsedPackage.Files {
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, item := range general.Specs {
+				typeSpec, ok := item.(*ast.TypeSpec)
+				if ok {
+					pkg.types[typeSpec.Name.Name] = annotationTypeDeclaration{file: file, spec: typeSpec}
+				}
+			}
+		}
+	}
 	ctx := &AnnotationBindingContext{
 		spec:   spec,
 		pkg:    pkg,
