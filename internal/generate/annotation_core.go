@@ -486,6 +486,12 @@ func newAnnotationDependencyResolver(model *coreAnnotationModel) annotationDepen
 		byType: make(map[string][]annotationDependencyCandidate),
 	}
 	for _, configuration := range model.Configurations {
+		for _, properties := range configuration.Properties {
+			resolver.addCandidate(annotationDependencyCandidate{
+				Name: properties.BeanName,
+				Type: "*" + properties.TypeName,
+			})
+		}
 		for _, component := range configuration.Components {
 			resolver.addCandidate(annotationDependencyCandidate{
 				Name:     component.Name,

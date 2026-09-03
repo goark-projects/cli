@@ -30,6 +30,12 @@ type ServerProperties struct {
 }
 
 func (p *ServerProperties) Validate() error { return nil }
+
+//goark:configuration
+type AppConfiguration struct{}
+
+//goark:bean
+func (AppConfiguration) Server(properties *ServerProperties) string { return "server" }
 `
 	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
 		t.Fatalf("write source failed: %v", err)
@@ -53,6 +59,7 @@ func (p *ServerProperties) Validate() error { return nil }
 		`any(out).(goark.ConfigurationPropertiesValidator)`,
 		`func ServerPropertiesConfigurationMetadata() []goark.ConfigurationProperty`,
 		`container.Register(registry, "serverProperties"`,
+		`container.WithFactoryDependencies("serverProperties")`,
 	}
 	for _, fragment := range expected {
 		if !strings.Contains(text, fragment) {
