@@ -35,7 +35,11 @@ func writeConfigurationProperties(builder *bytes.Buffer, properties annotationCo
 		builder.WriteString(strconv.Quote(properties.Prefix))
 		builder.WriteString(", []string{")
 		for _, field := range properties.Fields {
-			builder.WriteString(strconv.Quote(field.Name))
+			name := field.Name
+			if field.MapValueType != "" {
+				name += ".*"
+			}
+			builder.WriteString(strconv.Quote(name))
 			builder.WriteByte(',')
 		}
 		builder.WriteString("}); err != nil {\nreturn nil, err\n}\n")
@@ -45,6 +49,10 @@ func writeConfigurationProperties(builder *bytes.Buffer, properties annotationCo
 }
 
 func writeConfigurationPropertyBinding(builder *bytes.Buffer, field annotationConfigurationPropertyField) {
+	if field.MapValueType != "" {
+		writeConfigurationPropertyMapBinding(builder, field)
+		return
+	}
 	builder.WriteString("if value, found, bindErr := coreenv.GetPropertyAsValue[")
 	builder.WriteString(field.Type)
 	builder.WriteString("](environment, ")
@@ -68,6 +76,16 @@ func writeConfigurationPropertyBinding(builder *bytes.Buffer, field annotationCo
 		builder.WriteString(")\n}")
 	}
 	builder.WriteByte('\n')
+}
+
+func writeConfigurationPropertyMapBinding(builder *bytes.Buffer, field annotationConfigurationPropertyField) {
+	builder.WriteString("if value, found, bindErr := coreenv.GetPropertyMapAsValue[")
+	builder.WriteString(field.MapValueType)
+	builder.WriteString("](environment, ")
+	builder.WriteString(strconv.Quote(field.Name))
+	builder.WriteString("); bindErr != nil {\nreturn nil, bindErr\n} else if found {\n")
+	builder.WriteString(field.Target)
+	builder.WriteString(" = value\n}\n")
 }
 
 func writeConfigurationPropertiesMetadata(builder *bytes.Buffer, properties annotationConfigurationProperties) {

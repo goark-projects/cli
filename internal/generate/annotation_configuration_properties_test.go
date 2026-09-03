@@ -26,6 +26,7 @@ type ServerProperties struct {
 	Port int ` + "`goark:\",default=8080\"`" + `
 	HTTPReadTimeout time.Duration ` + "`goark:\"read-timeout,required\"`" + `
 	TLS *TLSProperties
+	Levels map[string]string
 }
 
 func (p *ServerProperties) Validate() error { return nil }
@@ -47,6 +48,7 @@ func (p *ServerProperties) Validate() error { return nil }
 		`func BindServerProperties(environment goark.Environment) (out *ServerProperties, err error)`,
 		`coreenv.GetPropertyAsValue[time.Duration](environment, "server.read-timeout")`,
 		`coreenv.GetPropertyAsValue[bool](environment, "server.tls.enabled")`,
+		`coreenv.GetPropertyMapAsValue[string](environment, "server.levels")`,
 		`goark.ValidateConfigurationPropertyNames(environment, "server"`,
 		`any(out).(goark.ConfigurationPropertiesValidator)`,
 		`func ServerPropertiesConfigurationMetadata() []goark.ConfigurationProperty`,
@@ -60,21 +62,21 @@ func (p *ServerProperties) Validate() error { return nil }
 	assertGeneratedPackageBuilds(t, dir, generated)
 }
 
-func TestGenerateAnnotations_whenConfigurationPropertiesUsesMap_shouldReturnExplicitError(t *testing.T) {
+func TestGenerateAnnotations_whenConfigurationPropertiesMapKeyIsNotString_shouldReturnExplicitError(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app
 
 //goark:configuration-properties("logging.level")
 type LoggingLevels struct {
-	Levels map[string]string
+	Levels map[int]string
 }
 `
 	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
 		t.Fatalf("write source failed: %v", err)
 	}
 	_, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
-	if err == nil || !strings.Contains(err.Error(), "map type, which is not supported yet") {
-		t.Fatalf("GenerateAnnotations() error = %v, want map support boundary", err)
+	if err == nil || !strings.Contains(err.Error(), "map key must be string") {
+		t.Fatalf("GenerateAnnotations() error = %v, want string map key boundary", err)
 	}
 }
 
@@ -93,12 +95,13 @@ func TestGeneratedConfigurationPropertiesBinder(t *testing.T) {
 	environment := coreenv.MustNewStandardEnvironment()
 	source, err := coreenv.NewMapPropertySource("test", map[string]any{
 		"server.read-timeout": "5s",
+		"server.levels.root": "INFO",
 	})
 	if err != nil { t.Fatal(err) }
 	if err := environment.PropertySources().AddFirst(source); err != nil { t.Fatal(err) }
 	properties, err := BindServerProperties(environment)
 	if err != nil { t.Fatal(err) }
-	if properties.Port != 8080 || properties.HTTPReadTimeout != 5*time.Second || properties.TLS == nil || !properties.TLS.Enabled {
+	if properties.Port != 8080 || properties.HTTPReadTimeout != 5*time.Second || properties.TLS == nil || !properties.TLS.Enabled || properties.Levels["root"] != "INFO" {
 		t.Fatalf("unexpected properties: %#v", properties)
 	}
 }

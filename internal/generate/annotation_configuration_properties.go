@@ -25,6 +25,7 @@ type annotationConfigurationPropertyField struct {
 	Target       string
 	Name         string
 	Type         string
+	MapValueType string
 	DefaultValue string
 	Required     bool
 }
@@ -114,8 +115,19 @@ func collectConfigurationPropertyFields(
 			}
 			continue
 		}
-		if _, ok := field.Type.(*ast.MapType); ok {
-			return fmt.Errorf("configuration properties field %s.%s uses map type, which is not supported yet", typeName, fieldName)
+		if mapType, ok := field.Type.(*ast.MapType); ok {
+			key, ok := mapType.Key.(*ast.Ident)
+			if !ok || key.Name != "string" {
+				return fmt.Errorf("configuration properties field %s.%s map key must be string", typeName, fieldName)
+			}
+			collectTypeImports(declaration.file, mapType.Value, imports)
+			properties.Fields = append(properties.Fields, annotationConfigurationPropertyField{
+				Target:       fieldTarget,
+				Name:         propertyName,
+				Type:         exprString(ctx.pkg.fset, field.Type),
+				MapValueType: exprString(ctx.pkg.fset, mapType.Value),
+			})
+			continue
 		}
 		collectTypeImports(declaration.file, field.Type, imports)
 		properties.Fields = append(properties.Fields, annotationConfigurationPropertyField{
