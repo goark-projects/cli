@@ -1272,8 +1272,8 @@ type UserMapper interface {
 					{Name: "mapper", Targets: []generate.AnnotationTarget{generate.AnnotationTargetType}},
 					{Name: "select", Targets: []generate.AnnotationTarget{generate.AnnotationTargetMethod}},
 				},
-				Binder:    ormTestBinder{},
-				Generator: ormTestGenerator{},
+				Binder:    interfaceMethodTestBinder{},
+				Generator: interfaceMethodTestGenerator{},
 			},
 		},
 	})
@@ -1285,12 +1285,12 @@ type UserMapper interface {
 	}
 	text := string(generated)
 	expected := []string{
-		"const goarkORMMapperUserMapper = \"UserMapper\"",
-		"const goarkORMSelectUserMapperFindByID = \"UserMapper.FindByID:select * from users where id = ?\"",
+		"const goarkExtensionMapperUserMapper = \"UserMapper\"",
+		"const goarkExtensionSelectUserMapperFindByID = \"UserMapper.FindByID:select * from users where id = ?\"",
 	}
 	for _, fragment := range expected {
 		if !strings.Contains(text, fragment) {
-			t.Fatalf("generated orm extension source missing %q:\n%s", fragment, text)
+			t.Fatalf("generated interface method extension source missing %q:\n%s", fragment, text)
 		}
 	}
 }
@@ -1383,19 +1383,19 @@ func (mapperTestGenerator) GenerateAnnotation(ctx *generate.AnnotationGeneration
 	return nil
 }
 
-type ormTestModel struct {
+type interfaceMethodTestModel struct {
 	mappers []string
 	selects []string
 }
 
-type ormTestBinder struct{}
+type interfaceMethodTestBinder struct{}
 
-func (ormTestBinder) BindAnnotation(ctx *generate.AnnotationBindingContext, item generate.AnnotationItem) error {
-	value, _ := ctx.Value("test.orm.model")
-	model, _ := value.(*ormTestModel)
+func (interfaceMethodTestBinder) BindAnnotation(ctx *generate.AnnotationBindingContext, item generate.AnnotationItem) error {
+	value, _ := ctx.Value("test.interface-method.model")
+	model, _ := value.(*interfaceMethodTestModel)
 	if model == nil {
-		model = &ormTestModel{}
-		ctx.SetValue("test.orm.model", model)
+		model = &interfaceMethodTestModel{}
+		ctx.SetValue("test.interface-method.model", model)
 	}
 	if item.HasAnnotation("mapper") {
 		model.mappers = append(model.mappers, item.TypeName())
@@ -1414,23 +1414,23 @@ func (ormTestBinder) BindAnnotation(ctx *generate.AnnotationBindingContext, item
 	return nil
 }
 
-type ormTestGenerator struct{}
+type interfaceMethodTestGenerator struct{}
 
-func (ormTestGenerator) GenerateAnnotation(ctx *generate.AnnotationGenerationContext) error {
-	value, _ := ctx.Value("test.orm.model")
-	model, _ := value.(*ormTestModel)
+func (interfaceMethodTestGenerator) GenerateAnnotation(ctx *generate.AnnotationGenerationContext) error {
+	value, _ := ctx.Value("test.interface-method.model")
+	model, _ := value.(*interfaceMethodTestModel)
 	if model == nil {
 		return nil
 	}
 	sort.Strings(model.mappers)
 	sort.Strings(model.selects)
 	for _, mapper := range model.mappers {
-		ctx.WriteString("const goarkORMMapper" + mapper + " = " + strconv.Quote(mapper) + "\n\n")
+		ctx.WriteString("const goarkExtensionMapper" + mapper + " = " + strconv.Quote(mapper) + "\n\n")
 	}
 	for _, query := range model.selects {
 		target, _, _ := strings.Cut(query, ":")
 		name := strings.ReplaceAll(target, ".", "")
-		ctx.WriteString("const goarkORMSelect" + name + " = " + strconv.Quote(query) + "\n\n")
+		ctx.WriteString("const goarkExtensionSelect" + name + " = " + strconv.Quote(query) + "\n\n")
 	}
 	return nil
 }

@@ -23,34 +23,34 @@ func (l *stringList) Set(value string) error {
 	return nil
 }
 
-func (c Command) runGenerate(args []string) int {
+func (c Command) runCodegen(args []string) int {
 	if len(args) == 0 {
-		c.printGenerateHelp(c.Err)
+		c.printCodegenHelp(c.Err)
 		return 2
 	}
 	switch args[0] {
 	case "help", "-h", "--help":
-		c.printGenerateHelp(c.Out)
+		c.printCodegenHelp(c.Out)
 		return 0
 	case "configuration":
-		return c.runGenerateConfiguration(args[1:])
+		return c.runCodegenConfiguration(args[1:])
 	case "registry":
-		return c.runGenerateRegistry(args[1:])
+		return c.runCodegenRegistry(args[1:])
 	case "annotations":
-		return c.runGenerateAnnotations(args[1:])
+		return c.runCodegenAnnotations(args[1:])
 	default:
 		_, _ = fmt.Fprintf(c.Err, "未知生成器: %s\n\n", args[0])
-		c.printGenerateHelp(c.Err)
+		c.printCodegenHelp(c.Err)
 		return 2
 	}
 }
 
-func (c Command) runGenerateConfiguration(args []string) int {
+func (c Command) runCodegenConfiguration(args []string) int {
 	var imports stringList
 	var beans stringList
 	var output string
 	spec := generate.ConfigurationSpec{}
-	flags := flag.NewFlagSet("goark generate configuration", flag.ContinueOnError)
+	flags := flag.NewFlagSet("goark codegen configuration", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&spec.ConfigurationName, "name", "", "配置名称")
 	flags.StringVar(&spec.PackageName, "package", "", "生成文件包名")
@@ -62,27 +62,27 @@ func (c Command) runGenerateConfiguration(args []string) int {
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printGenerateConfigurationHelp(c.Out)
+			c.printCodegenConfigurationHelp(c.Out)
 			return 0
 		}
 		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printGenerateConfigurationHelp(c.Err)
+		c.printCodegenConfigurationHelp(c.Err)
 		return 2
 	}
 	if flags.NArg() > 0 {
 		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printGenerateConfigurationHelp(c.Err)
+		c.printCodegenConfigurationHelp(c.Err)
 		return 2
 	}
 	if spec.ConfigurationName == "" || spec.PackageName == "" {
-		c.printGenerateConfigurationHelp(c.Err)
+		c.printCodegenConfigurationHelp(c.Err)
 		return 2
 	}
 	for _, rawImport := range imports {
 		item, err := parseImportSpec(rawImport)
 		if err != nil {
 			_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-			c.printGenerateConfigurationHelp(c.Err)
+			c.printCodegenConfigurationHelp(c.Err)
 			return 2
 		}
 		spec.Imports = append(spec.Imports, item)
@@ -91,7 +91,7 @@ func (c Command) runGenerateConfiguration(args []string) int {
 		item, err := parseBeanSpec(rawBean)
 		if err != nil {
 			_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-			c.printGenerateConfigurationHelp(c.Err)
+			c.printCodegenConfigurationHelp(c.Err)
 			return 2
 		}
 		spec.Beans = append(spec.Beans, item)
@@ -114,12 +114,12 @@ func (c Command) runGenerateConfiguration(args []string) int {
 	return 0
 }
 
-func (c Command) runGenerateRegistry(args []string) int {
+func (c Command) runCodegenRegistry(args []string) int {
 	var imports stringList
 	var configurations stringList
 	var output string
 	spec := generate.RegistrySpec{}
-	flags := flag.NewFlagSet("goark generate registry", flag.ContinueOnError)
+	flags := flag.NewFlagSet("goark codegen registry", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&spec.PackageName, "package", "", "生成文件包名")
 	flags.StringVar(&spec.FunctionName, "function", "", "注册函数名，默认 RegisterConfigurations")
@@ -129,27 +129,27 @@ func (c Command) runGenerateRegistry(args []string) int {
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printGenerateRegistryHelp(c.Out)
+			c.printCodegenRegistryHelp(c.Out)
 			return 0
 		}
 		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printGenerateRegistryHelp(c.Err)
+		c.printCodegenRegistryHelp(c.Err)
 		return 2
 	}
 	if flags.NArg() > 0 {
 		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printGenerateRegistryHelp(c.Err)
+		c.printCodegenRegistryHelp(c.Err)
 		return 2
 	}
 	if spec.PackageName == "" || len(configurations) == 0 {
-		c.printGenerateRegistryHelp(c.Err)
+		c.printCodegenRegistryHelp(c.Err)
 		return 2
 	}
 	for _, rawImport := range imports {
 		item, err := parseImportSpec(rawImport)
 		if err != nil {
 			_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-			c.printGenerateRegistryHelp(c.Err)
+			c.printCodegenRegistryHelp(c.Err)
 			return 2
 		}
 		spec.Imports = append(spec.Imports, item)
@@ -176,10 +176,10 @@ func (c Command) runGenerateRegistry(args []string) int {
 	return 0
 }
 
-func (c Command) runGenerateAnnotations(args []string) int {
+func (c Command) runCodegenAnnotations(args []string) int {
 	var output string
 	spec := generate.AnnotationScanSpec{Dir: "."}
-	flags := flag.NewFlagSet("goark generate annotations", flag.ContinueOnError)
+	flags := flag.NewFlagSet("goark codegen annotations", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&spec.Dir, "dir", ".", "待扫描 Go package 目录")
 	flags.StringVar(&spec.PackageName, "package", "", "待扫描 package 名称，默认自动推导")
@@ -189,16 +189,16 @@ func (c Command) runGenerateAnnotations(args []string) int {
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printGenerateAnnotationsHelp(c.Out)
+			c.printCodegenAnnotationsHelp(c.Out)
 			return 0
 		}
 		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printGenerateAnnotationsHelp(c.Err)
+		c.printCodegenAnnotationsHelp(c.Err)
 		return 2
 	}
 	if flags.NArg() > 0 {
 		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printGenerateAnnotationsHelp(c.Err)
+		c.printCodegenAnnotationsHelp(c.Err)
 		return 2
 	}
 
@@ -285,10 +285,9 @@ func writeFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func (c Command) printGenerateHelp(w io.Writer) {
+func (c Command) printCodegenHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
-  goark generate <generator> [flags]
-  goark gen <generator> [flags]
+  goark codegen <generator> [flags]
 
 Available generators:
   configuration     Generate a goark.Configuration source file.
@@ -298,9 +297,9 @@ Available generators:
 `)
 }
 
-func (c Command) printGenerateConfigurationHelp(w io.Writer) {
+func (c Command) printCodegenConfigurationHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
-  goark generate configuration --name <name> --package <package> [flags]
+  goark codegen configuration --name <name> --package <package> [flags]
 
 Flags:
   --name string       Required configuration name returned by Configuration.Name().
@@ -312,16 +311,16 @@ Flags:
   --bean value        Bean: name=provider[;deps=a,b][;scope=prototype][;lazy][;primary]. Repeatable.
 
 Examples:
-  goark generate configuration --name user --package generated
-  goark generate configuration --name user --package generated --type UserConfiguration --order 100 --output internal/generated/user_configuration.go
-  goark generate configuration --name user --package generated --bean "userRepository=NewUserRepository" --bean "userService=NewUserService;deps=userRepository"
+  goark codegen configuration --name user --package generated
+  goark codegen configuration --name user --package generated --type UserConfiguration --order 100 --output internal/generated/user_configuration.go
+  goark codegen configuration --name user --package generated --bean "userRepository=NewUserRepository" --bean "userService=NewUserService;deps=userRepository"
 
 `)
 }
 
-func (c Command) printGenerateRegistryHelp(w io.Writer) {
+func (c Command) printCodegenRegistryHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
-  goark generate registry --package <package> --configuration <type> [flags]
+  goark codegen registry --package <package> --configuration <type> [flags]
 
 Flags:
   --package string          Required generated Go package name.
@@ -331,16 +330,16 @@ Flags:
   --configuration value     Configuration type expression. Repeatable.
 
 Examples:
-  goark generate registry --package generated --configuration UserConfiguration
-  goark generate registry --package generated --configuration UserConfiguration --configuration HTTPConfiguration --output internal/generated/registry.go
-  goark generate registry --package generated --import cfg=example.com/app/internal/config --configuration cfg.AdminConfiguration
+  goark codegen registry --package generated --configuration UserConfiguration
+  goark codegen registry --package generated --configuration UserConfiguration --configuration HTTPConfiguration --output internal/generated/registry.go
+  goark codegen registry --package generated --import cfg=example.com/app/internal/config --configuration cfg.AdminConfiguration
 
 `)
 }
 
-func (c Command) printGenerateAnnotationsHelp(w io.Writer) {
+func (c Command) printCodegenAnnotationsHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
-  goark generate annotations --dir <package-dir> [flags]
+  goark codegen annotations --dir <package-dir> [flags]
 
 Flags:
   --dir path          Go package directory to scan. Defaults to current directory.
@@ -350,8 +349,8 @@ Flags:
   --output path       Output file path. Defaults to stdout.
 
 Examples:
-  goark generate annotations --dir .
-  goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
+  goark codegen annotations --dir .
+  goark codegen annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
 
 `)
 }

@@ -13,7 +13,7 @@ func TestCommand_whenGenerateConfigurationToStdout_shouldPrintGeneratedSource(t 
 	var stderr bytes.Buffer
 
 	code := Main([]string{
-		"generate", "configuration",
+		"codegen", "configuration",
 		"--name", "user",
 		"--package", "generated",
 		"--type", "UserConfiguration",
@@ -93,7 +93,7 @@ func TestCommand_whenGenerateConfigurationToFile_shouldWriteFileAndReportToStder
 	output := filepath.Join(t.TempDir(), "internal", "generated", "user_configuration.go")
 
 	code := Main([]string{
-		"gen", "configuration",
+		"codegen", "configuration",
 		"--name", "user",
 		"--package", "generated",
 		"--output", output,
@@ -121,7 +121,7 @@ func TestCommand_whenGenerateConfigurationMissingRequiredFlags_shouldReturnUsage
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Main([]string{"generate", "configuration", "--name", "user"}, &stdout, &stderr)
+	code := Main([]string{"codegen", "configuration", "--name", "user"}, &stdout, &stderr)
 
 	if code != 2 {
 		t.Fatalf("expected usage exit code 2, got %d", code)
@@ -138,12 +138,12 @@ func TestCommand_whenGenerateConfigurationHelpRequested_shouldReturnSuccess(t *t
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Main([]string{"generate", "configuration", "--help"}, &stdout, &stderr)
+	code := Main([]string{"codegen", "configuration", "--help"}, &stdout, &stderr)
 
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
-	if !strings.Contains(stdout.String(), "goark generate configuration --name <name> --package <package>") {
+	if !strings.Contains(stdout.String(), "goark codegen configuration --name <name> --package <package>") {
 		t.Fatalf("expected configuration help in stdout, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
@@ -156,7 +156,7 @@ func TestCommand_whenGenerateRegistryToStdout_shouldPrintGeneratedSource(t *test
 	var stderr bytes.Buffer
 
 	code := Main([]string{
-		"generate", "registry",
+		"codegen", "registry",
 		"--package", "generated",
 		"--function", "RegisterAdminConfigurations",
 		"--configuration", "UserConfiguration",
@@ -190,7 +190,7 @@ func TestCommand_whenGenerateRegistryToFile_shouldWriteFileAndReportToStderr(t *
 	output := filepath.Join(t.TempDir(), "internal", "generated", "registry.go")
 
 	code := Main([]string{
-		"gen", "registry",
+		"codegen", "registry",
 		"--package", "generated",
 		"--configuration", "AdminConfiguration",
 		"--output", output,
@@ -218,7 +218,7 @@ func TestCommand_whenGenerateRegistryMissingRequiredFlags_shouldReturnUsageError
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Main([]string{"generate", "registry", "--package", "generated"}, &stdout, &stderr)
+	code := Main([]string{"codegen", "registry", "--package", "generated"}, &stdout, &stderr)
 
 	if code != 2 {
 		t.Fatalf("expected usage exit code 2, got %d", code)
@@ -235,12 +235,12 @@ func TestCommand_whenGenerateRegistryHelpRequested_shouldReturnSuccess(t *testin
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Main([]string{"generate", "registry", "--help"}, &stdout, &stderr)
+	code := Main([]string{"codegen", "registry", "--help"}, &stdout, &stderr)
 
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
-	if !strings.Contains(stdout.String(), "goark generate registry --package <package> --configuration <type>") {
+	if !strings.Contains(stdout.String(), "goark codegen registry --package <package> --configuration <type>") {
 		t.Fatalf("expected registry help in stdout, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
@@ -261,7 +261,7 @@ type UserService struct{}
 	var stderr bytes.Buffer
 
 	code := Main([]string{
-		"generate", "annotations",
+		"codegen", "annotations",
 		"--dir", dir,
 	}, &stdout, &stderr)
 
@@ -298,7 +298,7 @@ type UserService struct{}
 	output := filepath.Join(dir, "zz_goark_app_gen.go")
 
 	code := Main([]string{
-		"gen", "annotations",
+		"codegen", "annotations",
 		"--dir", dir,
 		"--output", output,
 	}, &stdout, &stderr)
@@ -325,33 +325,16 @@ func TestCommand_whenGenerateAnnotationsHelpRequested_shouldReturnSuccess(t *tes
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Main([]string{"generate", "annotations", "--help"}, &stdout, &stderr)
+	code := Main([]string{"codegen", "annotations", "--help"}, &stdout, &stderr)
 
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
-	if !strings.Contains(stdout.String(), "goark generate annotations --dir <package-dir>") {
+	if !strings.Contains(stdout.String(), "goark codegen annotations --dir <package-dir>") {
 		t.Fatalf("expected annotations help in stdout, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr should be empty, got %q", stderr.String())
-	}
-}
-
-func TestCommand_whenGenerateORMRequested_shouldReturnUnknownGenerator(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	code := Main([]string{"generate", "orm", "--help"}, &stdout, &stderr)
-
-	if code != 2 {
-		t.Fatalf("expected usage exit code 2, got %d", code)
-	}
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout should be empty, got %q", stdout.String())
-	}
-	if !strings.Contains(stderr.String(), "未知生成器: orm") {
-		t.Fatalf("expected unknown generator error, got %q", stderr.String())
 	}
 }
 

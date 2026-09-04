@@ -39,6 +39,7 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		}
 	}
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "module example.com/admin")
+	assertFileContains(t, filepath.Join(dir, "README.md"), "goark run")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.0")
 	assertFileContains(t, filepath.Join(dir, "resource/app.yml"), "max-response-bytes")
 	assertFileContains(t, filepath.Join(dir, "resource/static/index.html"), "Goark Boot Web application is running.")

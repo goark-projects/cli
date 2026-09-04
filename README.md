@@ -2,239 +2,186 @@
 
 ![goark](assets/goark-readme-logo.png)
 
-`goark cli` is the command-line tooling repository for the Goark ecosystem. It is intended to provide project scaffolding and code generation for Goark applications, including support for annotation-driven dependency injection wiring, future AOP contracts, and application configuration templates.
+`goark` 是 Goark 项目的命令行入口。它在标准 Go 工具链前增加确定性的编译期代码生成，同时通过隔离的 `goark go ...` 命名空间完整代理本机 Go 命令。
 
-The project is in its early public stage. The current implementation provides explicit configuration generators and a Goark annotation scanner for core DI metadata. This module intentionally does not depend on any other Goark module; module-specific tools such as Goark ORM generation live in their own repositories.
-
-## Goals
-
-- Provide a Go-native scaffolding tool for Goark applications.
-- Generate deterministic source code for dependency injection wiring.
-- Support AOP-oriented metadata and contract generation without runtime-heavy reflection.
-- Keep generated code readable, explicit, and friendly to normal Go tooling.
-- Avoid hiding framework behavior behind magic global state.
-
-## Installation
+## 安装
 
 ```bash
 go install goark.dev/cli/cmd/goark@latest
 ```
 
-During local development:
+## 核心工作流
 
 ```bash
-go run ./cmd/goark help
-go run ./cmd/goark version
-go run ./cmd/goark new app --module example.com/admin --dir admin --web
-go run ./cmd/goark generate configuration --name user --package generated
-go run ./cmd/goark generate registry --package generated --configuration UserConfiguration
-go run ./cmd/goark generate annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
+# 自动发现 main package、生成代码并运行
+goark run
+
+# 生成后构建或测试
+goark build ./...
+goark test -race ./...
+
+# 只生成 Goark 编译期代码
+goark generate
+
+# 查看当前项目、工具链、入口和生成计划
+goark info
+goark info --json
+
+# 原样执行官方 Go 命令，不注入 Goark 行为
+goark go version
+goark go env GOMOD
+goark go generate ./...
+goark go build ./...
 ```
 
-## Current Commands
+## 命令
 
-| Command | Description |
+| 命令 | 说明 |
 | --- | --- |
-| `goark help` | Show command help. |
-| `goark version` | Print the CLI version. |
-| `goark new app` | Create a Goark application skeleton. |
-| `goark generate configuration` | Generate a `goark.Configuration` source file. |
-| `goark generate registry` | Generate a function that registers multiple `goark.Configuration` values. |
-| `goark generate annotations` | Scan `//goark:*` comments and generate core registration code. |
+| `goark run` | 生成代码并运行 Goark 应用，未指定入口时自动发现。 |
+| `goark build` | 生成代码并执行 `go build`。 |
+| `goark test` | 生成代码并执行 `go test`。 |
+| `goark install` | 生成代码并执行 `go install`。 |
+| `goark vet` | 生成代码并执行 `go vet`。 |
+| `goark list` | 生成代码并执行 `go list`。 |
+| `goark fix` | 生成代码并执行 `go fix`。 |
+| `goark generate` | 扫描项目并生成全部 Goark CLI 自有编译期代码。 |
+| `goark info` | 输出项目与生成诊断信息，不写文件。 |
+| `goark go ...` | 原样代理官方 Go 命令。 |
+| `goark codegen ...` | 执行低层显式代码生成器。 |
+| `goark new app` | 创建 Goark Boot 应用骨架。 |
+| `goark version` | 输出 Goark CLI 版本。 |
+| `goark completion <shell>` | 输出 Bash、Zsh、Fish 或 PowerShell 补全脚本。 |
 
-## Application Scaffolding
+## 运行参数
 
-`goark new app --web` creates a minimal Goark Boot Web application using
-`goark.dev/gbc-web`, which includes Arkhos as the default embedded web
-container.
-
-```bash
-goark new app \
-  --module example.com/admin \
-  --dir admin \
-  --web
-```
-
-Generated files include `go.mod`, `config/app.yml`, `cmd/server/main.go`, and a
-minimal MVC health endpoint under `internal/app`.
-
-## Configuration Generation
-
-`goark generate configuration` creates deterministic Go source that implements the core `goark.Configuration` contract structurally. The command is intentionally explicit in this phase: provider functions are supplied through flags, and future source scanners can produce the same internal generation spec.
+`goark run` 保留 Go 的构建参数，并把 Goark 属性放到 main package 后传给应用：
 
 ```bash
-goark generate configuration \
-  --name user \
-  --package generated \
-  --type UserConfiguration \
-  --order 100 \
-  --output internal/generated/user_configuration.go \
-  --bean "userRepository=NewUserRepository;lazy" \
-  --bean "userService=NewUserService;deps=userRepository;primary"
+goark run -race -tags=dev ./cmd/server
+goark run -Dserver.port=9090 -Dgoark.profiles.active=dev
+goark run --server.port=9090 --goark.profiles.active=dev
+goark run ./cmd/server -- --job=sync input.json
 ```
 
-Flags:
+配置优先级从高到低：
 
-| Flag | Description |
+1. `--key=value` 应用命令行属性。
+2. `-Dkey=value` 系统属性。
+3. 操作系统环境变量。
+4. Profile 配置文件。
+5. 基础配置文件。
+6. 框架默认值。
+
+环境变量支持松散名称映射，例如 `SERVER_PORT` 对应 `server.port`：
+
+```bash
+SERVER_PORT=9090 GOARK_PROFILES_ACTIVE=dev goark run
+```
+
+PowerShell：
+
+```powershell
+$env:SERVER_PORT = "9090"
+$env:GOARK_PROFILES_ACTIVE = "dev"
+goark run
+```
+
+Goark 控制参数：
+
+| 参数 | 说明 |
 | --- | --- |
-| `--name` | Required configuration name returned by `Configuration.Name()`. |
-| `--package` | Required generated Go package name. |
-| `--type` | Generated configuration type name. Defaults to PascalCase(`--name`) + `Configuration`. |
-| `--order` | Configuration ordering value. Defaults to `0`. |
-| `--output` | Output file path. Defaults to stdout. |
-| `--import` | Extra import in `path` or `alias=path` format. Repeatable. |
-| `--bean` | Bean registration spec. Repeatable. |
+| `--goark-no-generate` | 跳过编译期生成。 |
+| `--goark-generate-only` | 只生成，不执行对应 Go 命令。 |
+| `--goark-dry-run` | 输出生成和 Go 命令计划，不写文件、不执行。 |
 
-Bean format:
+`go test -args` 和 `goark run --` 之后的参数不会再被 Goark 解析。
 
-```text
-name=provider[;deps=a,b][;scope=prototype][;lazy][;primary]
-```
+`goark build/test/install/vet/list/fix` 接受对应 Go 子命令参数。Go 全局 `-C` 参数可直接使用，例如 `goark build -C services/admin ./...`；CLI 会按官方语法执行 `go -C services/admin build ./...`。`GOFLAGS`、`GOOS`、`GOARCH`、`GOWORK`、`GOTOOLCHAIN` 等环境变量由子进程原样继承。
 
-The generated `Register` method calls `container.Register(...)`; provider expressions must be visible from the generated package.
+## 项目发现
 
-## Registry Generation
+`goark run` 未指定 package 时按以下顺序解析入口：
 
-`goark generate registry` creates the explicit registration entrypoint that replaces Spring classpath scanning in the current core-only phase.
+1. 当前目录是 `package main` 时使用 `.`。
+2. `./cmd/...` 下唯一的 main package。
+3. 多入口时失败并列出全部候选项，要求显式指定运行目标。
 
-```bash
-goark generate registry \
-  --package generated \
-  --configuration UserConfiguration \
-  --configuration HTTPConfiguration \
-  --output internal/generated/registry.go
-```
+## 编译期生成
 
-Flags:
+项目级生成器基于 `go list` 的实际构建文件集运行，遵守 `-tags`、`-overlay`、`-mod` 和 `-modfile`。当前生成范围包括：
 
-| Flag | Description |
-| --- | --- |
-| `--package` | Required generated Go package name. |
-| `--function` | Generated registry function name. Defaults to `RegisterConfigurations`. |
-| `--output` | Output file path. Defaults to stdout. |
-| `--import` | Extra import in `path` or `alias=path` format. Repeatable. |
-| `--configuration` | Configuration type expression to instantiate and register. Repeatable. |
+- Component、Service、Repository、Configuration 和 Bean 注册。
+- Autowired、Inject、Qualifier、Named、Resource 和 Value 注入。
+- Profile、Conditional、Lazy、Scope、DependsOn、Order 和 Priority 元数据。
+- ConfigurationProperties 绑定元数据。
+- Web/MVC Controller、路由、参数绑定、返回值和 Advice 注册。
 
-## Annotation Scanning
+生成文件名为 `zz_goark_<package>_gen.go`。写入使用确定性格式和内容感知原子替换；内容未变化时不更新时间。源码移除相关注解后，CLI 只删除具有 Goark 生成文件头的对应陈旧文件。
 
-`goark generate annotations` scans a single Go package for `//goark:*` comments and emits same-package registration code. It supports the core annotation slice: component/service/repository, configuration/bean, autowired/qualifier/value, primary/lazy/scope/depends-on/order/priority, profile, and property-source. It also supports the current Goark Web MVC slice: controller/rest-controller/mvc-controller, request-mapping, cross-origin, GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS/TRACE method mappings, request-body, request-entity, multipart-body, response-body, response-status, validated, model-attribute, path-variable, request-param, request-header, cookie-value, request-attribute, session-attribute, matrix-variable, and request-part.
+同一项目上的并发 `run/build/test/generate` 使用跨进程项目锁串行化生成阶段，避免多个进程同时替换生成文件；锁只覆盖生成，不覆盖后续 Go 构建或应用运行。
+
+CLI 不会隐式执行 `go generate ./...` 或任意第三方命令。需要标准 Go 生成行为时显式使用：
 
 ```bash
-goark generate annotations \
-  --dir internal/app \
-  --output internal/app/zz_goark_app_gen.go
+goark go generate ./...
 ```
 
-Flags:
-
-| Flag | Description |
-| --- | --- |
-| `--dir` | Go package directory to scan. Defaults to the current directory. |
-| `--package` | Package name to scan when a directory contains multiple packages. |
-| `--name` | Generated configuration name when no `//goark:configuration` exists. |
-| `--type` | Generated configuration type when no `//goark:configuration` exists. |
-| `--output` | Output file path. Defaults to stdout. |
-
-Annotation handling is deliberately extension-based. The scanner only parses Go
-syntax, validates registered descriptors, and dispatches matching items. A new
-annotation family should add its own
-`AnnotationDescriptor` values, an `AnnotationBinder`, and an
-`AnnotationGenerator`; it should not require scanner changes or modifications to
-the core DI generator.
-
-MVC mapping annotations accept one or more path values, matching the Spring MVC
-model where a controller or handler can be registered under multiple concrete
-paths. `//goark:request-mapping` without a `method` argument expands to the
-standard MVC HTTP method set; `method="GET,POST"` narrows it explicitly.
-Type-level path sets, method-level path sets, and method sets are expanded
-deterministically into individual generated route registrations. Type-level
-`method` conditions are combined with handler-level method conditions, and a
-handler-level `request-mapping` without `method` inherits the type-level method
-set. Type-level `consumes`, `produces`, `params`, and `headers` conditions are
-emitted on the generated controller and merged with route-level conditions by
-Goark MVC.
-
-MVC handler parameters are explicit and generated statically. Use
-`//goark:request-body[input]` for a JSON request body, use
-`//goark:request-entity[request]` or a `goweb.RequestEntity[T]` parameter for a
-Spring-style request entity carrying body, headers, method, and URL metadata, and use
-`//goark:model-attribute[criteria]` for a query/form aggregate, and use
-`//goark:path-variable[id]`, `//goark:request-param[query]`,
-`//goark:request-header[requestID]`, or `//goark:cookie-value[theme]` for scalar
-request values. Model attributes bind into non-pointer struct value parameters.
-Scalar parameter binding currently supports `string`, `int`, `int64`, `bool`,
-`float64`, and `time.Time`; path variables, request parameters, headers,
-cookies, and matrix variables also support the corresponding slice forms.
-`defaultValue` or `required=false` can be supplied on request parameters,
-headers, and cookies.
-Use `//goark:validated("create")` on routes with request-body,
-request-entity, multipart-body, or model-attribute parameters to generate
-explicit validation group binding.
-Use `//goark:response-body` on a `controller` route when a normal return value
-must be written to the response body instead of applying the controller view
-resolution default. `rest-controller` already defaults normal return values to
-the response body; the annotation is accepted there to keep intent explicit.
-`//goark:controller-advice` and `//goark:rest-controller-advice` methods can
-use `//goark:exception-handler` to return `arkarta/web.Result`,
-`goark.dev/goark/web.ResponseEntity[T]`, or an ordinary value. Ordinary values
-use the advice default return strategy; add `//goark:response-body` on a normal
-controller advice method to force response-body output and
-`//goark:response-status(...)` to set the ordinary-value HTTP status.
-
-## ORM Generation
-
-ORM generation is provided by the standalone `goark-orm` command from the `goark.dev/orm` module. The main `goark` CLI does not wrap ORM generation because it must remain dependency-free from other Goark modules:
+## Shell 补全
 
 ```bash
-goark-orm generate orm --dir internal/user --output internal/user/zz_goark_orm_user_gen.go
+# Bash
+source <(goark completion bash)
+
+# Zsh
+source <(goark completion zsh)
+
+# Fish
+goark completion fish | source
 ```
 
-## Planned Generators
+PowerShell：
 
-| Generator | Purpose |
-| --- | --- |
-| `goark aop` | Generate AOP contracts and weaving metadata. |
+```powershell
+goark completion powershell | Out-String | Invoke-Expression
+```
 
-## Repository Status
+## 低层代码生成
 
-This repository is an early skeleton. Public commands and generated file formats should be treated as unstable until the first tagged release.
-
-## Development
-
-Requirements:
-
-- Go 1.25 or later
-- Git
-
-Useful commands:
+项目工作流通常只需要 `goark generate`。需要精确控制单个输出时可使用：
 
 ```bash
-go fmt ./...
+goark codegen annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
+goark codegen configuration --name user --package generated --output internal/generated/user_configuration.go
+goark codegen registry --package generated --configuration UserConfiguration --output internal/generated/registry.go
+```
+
+注解生成管线由 `AnnotationDescriptor`、`AnnotationBinder` 和 `AnnotationGenerator` 组成。新增注解族不修改主扫描器或其他生成器。
+
+## 项目骨架
+
+```bash
+goark new app --module example.com/admin --dir admin --web
+cd admin
+go mod tidy
+goark run
+```
+
+生成的项目包含 `go.mod`、`resource/app.yml`、`cmd/server/main.go` 和基础 Web 配置。
+
+## 开发验证
+
+```bash
+go test -count=1 ./...
+go test -race -count=1 ./...
+go vet ./...
 go list ./...
-go run ./cmd/goark help
+go run ./cmd/goark --help
+go run ./cmd/goark go version
 ```
 
-The dependency check should show no compile-time module dependency on `goark.dev/goark`, `goark.dev/boot`, `goark.dev/orm`, or any other Goark sibling module.
-
-## Repository Layout
-
-```text
-.
-├── assets/          # README and brand assets
-├── cmd/goark/       # CLI executable entrypoint
-├── internal/cli/    # Command dispatch and CLI boundaries
-├── internal/scaffold/ # Project skeleton generation
-├── go.mod           # Go module definition
-├── LICENSE          # Apache License 2.0
-└── README.md        # Project overview
-```
-
-## Related Repositories
-
-- [`goark.dev/goark`](https://goark.dev/goark): core framework contracts.
-- [`goark.dev/boot`](https://goark.dev/boot): application bootstrap and convention layer.
-- [`goark.dev/cli`](https://goark.dev/cli): scaffolding and code generation tooling.
+CLI 不编译依赖任何 Goark 运行时兄弟模块。代码和生成文件统一使用 UTF-8、LF。
 
 ## License
 
-`goark cli` is released under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+Apache License 2.0，见 [LICENSE](LICENSE)。
