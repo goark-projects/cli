@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	toml "github.com/pelletier/go-toml/v2"
+	"goark.dev/cli/internal/atomicfile"
 	"goark.dev/cli/internal/buildspec"
 )
 
@@ -53,7 +54,7 @@ func Write(root string, file File) error {
 	if bytes.ContainsRune(data.Bytes(), '\r') {
 		return fmt.Errorf("编码器生成了非 LF 换行")
 	}
-	return writeAtomic(filepath.Join(root, buildspec.LockFileName), data.Bytes())
+	return atomicfile.Write(filepath.Join(root, buildspec.LockFileName), data.Bytes(), 0o644)
 }
 
 // DigestFile 返回文件内容的小写 SHA-256。
@@ -64,40 +65,4 @@ func DigestFile(path string) (string, error) {
 	}
 	digest := sha256.Sum256(data)
 	return hex.EncodeToString(digest[:]), nil
-}
-
-func writeAtomic(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	temp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tempPath := temp.Name()
-	replaced := false
-	defer func() {
-		if !replaced {
-			_ = os.Remove(tempPath)
-		}
-	}()
-	if _, err := temp.Write(data); err != nil {
-		_ = temp.Close()
-		return err
-	}
-	if err := temp.Sync(); err != nil {
-		_ = temp.Close()
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tempPath, 0o644); err != nil {
-		return err
-	}
-	if err := replaceFile(tempPath, path); err != nil {
-		return err
-	}
-	replaced = true
-	return nil
 }
