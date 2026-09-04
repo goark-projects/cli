@@ -2,6 +2,8 @@
 
 package cli
 
-func signaledProcessExitCode(error) (int, bool) {
-	return 0, false
+import "goark.dev/cli/internal/processrun"
+
+func signaledProcessExitCode(err error) (int, bool) {
+	return processrun.ExitCode(err)
 }
