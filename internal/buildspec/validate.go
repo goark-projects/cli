@@ -9,6 +9,7 @@ import (
 )
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 var supportedCommands = map[string]struct{}{
 	"generate": {},
@@ -112,6 +113,9 @@ func validateTasks(tasks map[string]Task, tools map[string]Tool) error {
 			if len(task.Outputs) == 0 {
 				return fmt.Errorf("删除任务 %q 必须声明 outputs", name)
 			}
+			if task.Cache {
+				return fmt.Errorf("删除任务 %q 不能启用 cache", name)
+			}
 		case TaskTypeGroup:
 			if len(task.DependsOn) == 0 {
 				return fmt.Errorf("聚合任务 %q 必须声明 depends-on", name)
@@ -133,6 +137,21 @@ func validateTasks(tasks map[string]Task, tools map[string]Tool) error {
 		if task.WorkingDirectory != "" {
 			if err := validateProjectPath("tasks."+name+".working-directory", task.WorkingDirectory); err != nil {
 				return err
+			}
+		}
+		for _, input := range task.Inputs {
+			if err := validateProjectPath("tasks."+name+".inputs", input); err != nil {
+				return err
+			}
+		}
+		for _, output := range task.Outputs {
+			if err := validateProjectPath("tasks."+name+".outputs", output); err != nil {
+				return err
+			}
+		}
+		for _, environmentName := range task.EnvironmentInputs {
+			if !environmentNamePattern.MatchString(environmentName) {
+				return fmt.Errorf("任务 %q 的 environment-inputs 名称 %q 无效", name, environmentName)
 			}
 		}
 		for _, dependency := range task.DependsOn {

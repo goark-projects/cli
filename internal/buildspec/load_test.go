@@ -97,6 +97,8 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "cached task missing inputs", content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\noutputs = [\"build/out\"]\ncache = true\n", want: "inputs"},
 		{name: "cached task missing outputs", content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\ninputs = [\"**/*.go\"]\ncache = true\n", want: "outputs"},
 		{name: "unknown command task", content: "version = 1\n[commands.build]\nbefore = [\"missing\"]\n", want: "missing"},
+		{name: "task output escapes", content: "version = 1\n[tasks.one]\ntype = \"delete\"\noutputs = [\"../outside\"]\n", want: "项目根目录"},
+		{name: "delete task cache", content: "version = 1\n[tasks.one]\ntype = \"delete\"\ninputs = [\"input\"]\noutputs = [\"output\"]\ncache = true\n", want: "不能启用 cache"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
