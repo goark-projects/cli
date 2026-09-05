@@ -440,7 +440,7 @@ func (coreAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingCont
 		}
 		name := strings.TrimSpace(ctx.spec.ConfigurationName)
 		if name == "" {
-			name = ctx.PackageName()
+			name = "goark.package." + ctx.PackageName()
 		}
 		configuration := &annotationConfiguration{
 			TypeName:  typeName,

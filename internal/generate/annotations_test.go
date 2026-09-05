@@ -98,6 +98,26 @@ func (AppConfiguration) Repository(database *Database) *Repository {
 	}
 }
 
+func TestGenerateAnnotations_whenSyntheticConfigurationCreated_shouldUseReservedName(t *testing.T) {
+	dir := t.TempDir()
+	source := `package admin
+
+//goark:service("userService")
+type UserService struct{}
+`
+	if err := os.WriteFile(filepath.Join(dir, "service.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write source failed: %v", err)
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("generate annotations failed: %v", err)
+	}
+	if !strings.Contains(string(generated), `return "goark.package.admin"`) {
+		t.Fatalf("synthetic configuration should use reserved name:\n%s", generated)
+	}
+}
+
 func TestGenerateAnnotations_whenDependsOnHasMultipleValues_shouldGenerateAllManualDependencies(t *testing.T) {
 	dir := t.TempDir()
 	source := `package app
