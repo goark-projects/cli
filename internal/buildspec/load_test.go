@@ -104,6 +104,9 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "invalid command environment", content: "version = 1\n[commands.build.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
 		{name: "invalid profile environment", content: "version = 1\n[profiles.dev.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
 		{name: "case duplicate environment", content: "version = 1\n[commands.build.environment]\nPATH = \"first\"\nPath = \"second\"\n", want: "重复"},
+		{name: "generate pattern escapes", content: "version = 1\n[generate]\npatterns = [\"../outside/...\"]\n", want: "generate.patterns"},
+		{name: "generate pattern is external module", content: "version = 1\n[generate]\npatterns = [\"example.com/outside/...\"]\n", want: "generate.patterns"},
+		{name: "generate patterns empty", content: "version = 1\n[generate]\npatterns = []\n", want: "generate.patterns"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

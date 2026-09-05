@@ -2,6 +2,7 @@ package buildspec
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -38,6 +39,9 @@ func validateDocument(document Document) error {
 	if err := validateProject(document.Project); err != nil {
 		return err
 	}
+	if err := validateGenerate(document.Generate); err != nil {
+		return err
+	}
 	if err := validateTools(document.Tools); err != nil {
 		return err
 	}
@@ -48,6 +52,23 @@ func validateDocument(document Document) error {
 		return err
 	}
 	return validateProfiles(document.Profiles)
+}
+
+func validateGenerate(generate Generate) error {
+	if len(generate.Patterns) == 0 {
+		return fmt.Errorf("generate.patterns 至少需要一个项目内路径")
+	}
+	for _, pattern := range generate.Patterns {
+		normalized := strings.ReplaceAll(strings.TrimSpace(pattern), "\\", "/")
+		if normalized != "." && !strings.HasPrefix(normalized, "./") {
+			return fmt.Errorf("generate.patterns 必须使用 . 或 ./ 开头的项目内路径: %q", pattern)
+		}
+		clean := path.Clean(normalized)
+		if clean == ".." || strings.HasPrefix(clean, "../") {
+			return fmt.Errorf("generate.patterns 不能逃出项目根目录: %q", pattern)
+		}
+	}
+	return nil
 }
 
 func validateProject(project Project) error {
