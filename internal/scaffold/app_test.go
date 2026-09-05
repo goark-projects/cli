@@ -83,6 +83,11 @@ func TestCreateApp_whenTargetExistsWithoutForce_shouldReturnError(t *testing.T) 
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("expected existing file error, got %v", err)
 	}
+	for _, path := range []string{".gitignore", "README.md"} {
+		if _, statErr := os.Stat(filepath.Join(dir, path)); !os.IsNotExist(statErr) {
+			t.Fatalf("preflight failure must not leave partial file %s: %v", path, statErr)
+		}
+	}
 }
 
 func TestCreateApp_whenModuleMissing_shouldReturnError(t *testing.T) {

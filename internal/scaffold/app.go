@@ -41,6 +41,9 @@ func CreateApp(spec AppSpec) ([]File, error) {
 		return nil, err
 	}
 	files := appFiles(normalized)
+	if err := validateScaffoldTargets(normalized.dir, files, normalized.force); err != nil {
+		return nil, err
+	}
 	written := make([]File, 0, len(files))
 	for _, file := range files {
 		if err := writeScaffoldFile(normalized.dir, file, normalized.force); err != nil {
@@ -49,6 +52,21 @@ func CreateApp(spec AppSpec) ([]File, error) {
 		written = append(written, File{Path: filepath.Clean(file.path)})
 	}
 	return written, nil
+}
+
+func validateScaffoldTargets(root string, files []fileSpec, force bool) error {
+	if force {
+		return nil
+	}
+	for _, file := range files {
+		target := filepath.Join(root, filepath.Clean(file.path))
+		if _, err := os.Stat(target); err == nil {
+			return fmt.Errorf("file %s already exists", target)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func normalizeAppSpec(spec AppSpec) (appSpec, error) {
