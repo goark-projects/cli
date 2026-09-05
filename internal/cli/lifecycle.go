@@ -97,6 +97,9 @@ func (l *preparedLifecycle) executeFinally(names []string) error {
 	if err != nil {
 		return err
 	}
+	if err := l.taskRunner.ResetCompletion(order); err != nil {
+		return err
+	}
 	timeout := l.project.Build.Execution.DefaultTimeout.Duration
 	if timeout <= 0 {
 		timeout = 5 * time.Minute

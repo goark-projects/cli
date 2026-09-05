@@ -122,6 +122,21 @@ func (r *Runner) finish(name string, execution *taskExecution, err error) {
 	r.mu.Unlock()
 }
 
+// ResetCompletion 允许新的生命周期阶段重新执行已经成功完成的任务。
+func (r *Runner) ResetCompletion(names []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, name := range names {
+		if _, ok := r.running[name]; ok {
+			return fmt.Errorf("任务 %q 仍在运行，不能重置完成状态", name)
+		}
+	}
+	for _, name := range names {
+		delete(r.completed, name)
+	}
+	return nil
+}
+
 func (r *Runner) run(ctx context.Context, name string, task buildspec.Task) error {
 	environment, values, err := r.taskValues(task)
 	if err != nil {
