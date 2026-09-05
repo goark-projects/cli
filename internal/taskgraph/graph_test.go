@@ -89,6 +89,7 @@ func TestNew_whenOutputsMayOverlap_shouldReject(t *testing.T) {
 		{name: "same file", first: "build/app", second: "./build/app"},
 		{name: "parent directory", first: "build", second: "build/app"},
 		{name: "matching glob", first: "generated/**/*.go", second: "generated/app/*.go"},
+		{name: "glob matches fixed path", first: "generated/*/one.go", second: "generated/admin/one.go"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,12 +105,25 @@ func TestNew_whenOutputsMayOverlap_shouldReject(t *testing.T) {
 }
 
 func TestNew_whenOutputsAreDisjoint_shouldAccept(t *testing.T) {
-	_, err := New(map[string]buildspec.Task{
-		"first":  {Outputs: []string{"generated/first/*.go"}},
-		"second": {Outputs: []string{"generated/second/*.go"}},
-	})
-	if err != nil {
-		t.Fatalf("不相交输出被拒绝: %v", err)
+	tests := []struct {
+		name   string
+		first  string
+		second string
+	}{
+		{name: "different directories", first: "generated/first/*.go", second: "generated/second/*.go"},
+		{name: "different files below wildcard", first: "generated/*/one.go", second: "generated/*/two.go"},
+		{name: "glob excludes fixed path", first: "generated/*/one.go", second: "generated/admin/two.go"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := New(map[string]buildspec.Task{
+				"first":  {Outputs: []string{tt.first}},
+				"second": {Outputs: []string{tt.second}},
+			})
+			if err != nil {
+				t.Fatalf("不相交输出被拒绝: %v", err)
+			}
+		})
 	}
 }
 

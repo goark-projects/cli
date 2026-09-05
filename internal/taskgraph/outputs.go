@@ -37,7 +37,41 @@ func outputsMayOverlap(left string, right string) bool {
 	}
 	leftPrefix := staticPrefix(left)
 	rightPrefix := staticPrefix(right)
+	if patternsProvablyDisjoint(left, right) {
+		return false
+	}
 	return leftPrefix == rightPrefix || pathWithinOutput(leftPrefix, rightPrefix) || pathWithinOutput(rightPrefix, leftPrefix)
+}
+
+func patternsProvablyDisjoint(left string, right string) bool {
+	leftSegments := strings.Split(left, "/")
+	rightSegments := strings.Split(right, "/")
+	if len(leftSegments) != len(rightSegments) {
+		return false
+	}
+	for index, leftSegment := range leftSegments {
+		rightSegment := rightSegments[index]
+		if leftSegment == "**" || rightSegment == "**" {
+			return false
+		}
+		leftMeta := hasMeta(leftSegment)
+		rightMeta := hasMeta(rightSegment)
+		switch {
+		case !leftMeta && !rightMeta && leftSegment != rightSegment:
+			return true
+		case !leftMeta && rightMeta:
+			matched, err := path.Match(rightSegment, leftSegment)
+			if err == nil && !matched {
+				return true
+			}
+		case leftMeta && !rightMeta:
+			matched, err := path.Match(leftSegment, rightSegment)
+			if err == nil && !matched {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func normalizeOutput(value string) string {
