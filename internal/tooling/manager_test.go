@@ -24,7 +24,7 @@ func TestManagerResolve_whenSystemToolExists_shouldCreateVerifiableLockEntry(t *
 	if err != nil {
 		t.Fatalf("解析系统工具失败: %v", err)
 	}
-	if resolved.Path != executable || resolved.Entry.Name != "sha256" || resolved.Entry.Type != buildspec.ToolTypeSystem {
+	if !sameFile(t, resolved.Path, executable) || resolved.Entry.Name != "sha256" || resolved.Entry.Type != buildspec.ToolTypeSystem {
 		t.Fatalf("解析结果 = %#v", resolved)
 	}
 	if err := Verify(resolved, resolved.Entry); err != nil {
@@ -47,7 +47,7 @@ func TestManagerResolve_whenPathComesFromMergedEnvironment_shouldFindSystemTool(
 	if err != nil {
 		t.Fatalf("从合并环境解析工具失败: %v", err)
 	}
-	if filepath.Dir(resolved.Path) != directory {
+	if !sameFile(t, filepath.Dir(resolved.Path), directory) {
 		t.Fatalf("工具路径 = %q", resolved.Path)
 	}
 }
@@ -177,4 +177,17 @@ func writeExecutable(t *testing.T, root string, name string) string {
 		}
 	}
 	return path
+}
+
+func sameFile(t *testing.T, first string, second string) bool {
+	t.Helper()
+	firstInfo, err := os.Stat(first)
+	if err != nil {
+		t.Fatalf("读取 %s 失败: %v", first, err)
+	}
+	secondInfo, err := os.Stat(second)
+	if err != nil {
+		t.Fatalf("读取 %s 失败: %v", second, err)
+	}
+	return os.SameFile(firstInfo, secondInfo)
 }

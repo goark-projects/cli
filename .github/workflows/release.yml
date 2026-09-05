@@ -28,6 +28,9 @@ jobs:
           cache: true
       - name: Verify modules
         run: go mod verify
+      - name: Check out integration-test dependencies
+        shell: bash
+        run: bash scripts/checkout-test-dependencies.sh
       - name: Run tests
         run: go test ./... -count=1
       - name: Run vet
@@ -47,6 +50,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Check out integration-test dependencies
+        shell: bash
+        run: bash scripts/checkout-test-dependencies.sh
       - name: Run race detector
         run: go test -race ./... -count=1
 
