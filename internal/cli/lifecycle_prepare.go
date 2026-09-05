@@ -11,6 +11,7 @@ import (
 	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/buildspec"
 	"goark.dev/cli/internal/projectfs"
+	"goark.dev/cli/internal/projecttrust"
 	"goark.dev/cli/internal/taskcache"
 	"goark.dev/cli/internal/taskgraph"
 	"goark.dev/cli/internal/taskrunner"
@@ -79,6 +80,10 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 	if err := lock.VerifyBuild(digest); err != nil {
 		return nil, err
 	}
+	trusted := false
+	if trustStore, trustErr := projecttrust.Default(); trustErr == nil {
+		trusted = trustStore.Verify(project.Root, digest) == nil
+	}
 	cacheRoot, err := os.UserCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("解析用户缓存目录失败: %w", err)
@@ -93,8 +98,7 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		if !lockMatchesDeclaration(locked, tool) {
 			return nil, fmt.Errorf("工具 %q 的声明与锁定项不一致", name)
 		}
-		// 自动恢复必须等待项目信任记录；普通生命周期当前只消费已安装且锁定的工具。
-		allowInstall := false
+		allowInstall := tool.Type == buildspec.ToolTypeGo && tool.Install == "auto" && trusted && !plan.Control.DryRun && !plan.Control.Offline
 		item, err := manager.Resolve(c.Context, name, tool, tooling.ResolveOptions{AllowInstall: allowInstall, Offline: plan.Control.Offline})
 		if err != nil {
 			return nil, err
