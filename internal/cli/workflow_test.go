@@ -341,12 +341,18 @@ func TestCommand_whenInfoContainsSecretEnvironment_shouldRedactWithoutSideEffect
 	runner := &recordingProcessRunner{}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: runner, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
+	command := Command{
+		Dir: root, Out: &stdout, Err: &stderr, Runner: runner,
+		Env: []string{"UNDECLARED_PROCESS_VALUE=must-not-appear"}, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir(),
+	}
 	if code := command.Run([]string{"info", "--json"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
 	if strings.Contains(stdout.String(), "top-secret-value") || !strings.Contains(stdout.String(), `"API_TOKEN":"******"`) {
 		t.Fatalf("info 密钥脱敏错误: %s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "UNDECLARED_PROCESS_VALUE") || strings.Contains(stdout.String(), "must-not-appear") {
+		t.Fatalf("info 不应输出未声明的进程环境: %s", stdout.String())
 	}
 	if len(runner.requests) != 0 {
 		t.Fatalf("info 不应启动进程: %#v", runner.requests)

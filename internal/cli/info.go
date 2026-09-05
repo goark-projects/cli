@@ -204,7 +204,7 @@ func createInfoPlans(project goarkProject, environment []string) ([]infoPlan, er
 		plans = append(plans, infoPlan{
 			Command: name, GoArguments: arguments,
 			ApplicationArguments: append([]string(nil), plan.ApplicationArguments...),
-			Environment:          buildplan.RedactEnvironment(plan.Environment),
+			Environment:          buildplan.RedactEnvironment(lifecycleOverrides(project.Build, plan)),
 			Before:               append([]string(nil), configuration.Before...), After: append([]string(nil), configuration.After...),
 			Finally: append([]string(nil), configuration.Finally...), Output: plan.Output,
 		})
