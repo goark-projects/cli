@@ -147,6 +147,10 @@ func (c Command) projectToolService() (toolservice.Service, error) {
 	if err != nil {
 		return toolservice.Service{}, err
 	}
+	return c.newProjectToolService(project, plan.Environment)
+}
+
+func (c Command) newProjectToolService(project goarkProject, environment map[string]string) (toolservice.Service, error) {
 	cacheDirectory := c.ToolCacheDir
 	if cacheDirectory == "" {
 		userCache, err := os.UserCacheDir()
@@ -160,8 +164,8 @@ func (c Command) projectToolService() (toolservice.Service, error) {
 		return toolservice.Service{}, err
 	}
 	return toolservice.Service{
-		Root: project.Root, Document: project.Build, Environment: plan.Environment,
-		Manager: tooling.NewManager(project.Root, cacheDirectory, plan.Environment), Trust: trust,
+		Root: project.Root, Document: project.Build, Environment: environment,
+		Manager: tooling.NewManager(project.Root, cacheDirectory, environment), Trust: trust,
 		GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
 	}, nil
 }

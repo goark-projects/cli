@@ -69,20 +69,27 @@ func (c Command) runInfo(args []string) int {
 		c.printInfoHelp(c.Out)
 		return 0
 	}
-	jsonOutput := false
-	if len(args) > 0 {
-		if len(args) != 1 || args[0] != "--json" {
-			_, _ = fmt.Fprintf(c.Err, "goark info 仅支持 --json: %s\n", strings.Join(args, " "))
-			return 2
-		}
-		jsonOutput = true
+	jsonOutput, control, err := parseInfoArguments(args)
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
 	}
 	project, err := c.resolveProject(c.Dir, nil, nil, true)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	report, err := c.createInfoReport(project)
+	profilePlan, err := buildplan.Create(project.Build, "generate", control, nil, nil, nil, c.environment())
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
+	}
+	project, err = c.resolveProject(c.Dir, nil, discoveryBuildFlags(profilePlan.GoArguments), true)
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
+	}
+	report, err := c.createInfoReport(project, control)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 1
@@ -100,7 +107,32 @@ func (c Command) runInfo(args []string) int {
 	return 0
 }
 
-func (c Command) createInfoReport(project goarkProject) (infoReport, error) {
+func parseInfoArguments(args []string) (bool, buildplan.Control, error) {
+	control := buildplan.Control{}
+	jsonOutput := false
+	for _, argument := range args {
+		switch {
+		case argument == "--json":
+			if jsonOutput {
+				return false, buildplan.Control{}, fmt.Errorf("goark info 重复参数 --json")
+			}
+			jsonOutput = true
+		case strings.HasPrefix(argument, "--goark-profile="):
+			handled, err := buildplan.ApplyControlArgument(&control, argument)
+			if err != nil {
+				return false, buildplan.Control{}, err
+			}
+			if !handled {
+				return false, buildplan.Control{}, fmt.Errorf("无效 info 参数: %s", argument)
+			}
+		default:
+			return false, buildplan.Control{}, fmt.Errorf("goark info 不支持参数: %s", argument)
+		}
+	}
+	return jsonOutput, control, nil
+}
+
+func (c Command) createInfoReport(project goarkProject, control buildplan.Control) (infoReport, error) {
 	if err := validateProjectTaskGraph(project); err != nil {
 		return infoReport{}, err
 	}
@@ -120,11 +152,15 @@ func (c Command) createInfoReport(project goarkProject) (infoReport, error) {
 	if err != nil {
 		return infoReport{}, err
 	}
-	toolService, err := c.projectToolService()
+	toolPlan, err := buildplan.Create(project.Build, "tools", control, nil, nil, nil, c.environment())
 	if err != nil {
 		return infoReport{}, err
 	}
-	plans, err := createInfoPlans(project, c.environment())
+	toolService, err := c.newProjectToolService(project, toolPlan.Environment)
+	if err != nil {
+		return infoReport{}, err
+	}
+	plans, err := createInfoPlans(project, c.environment(), control)
 	if err != nil {
 		return infoReport{}, err
 	}
@@ -136,7 +172,7 @@ func (c Command) createInfoReport(project goarkProject) (infoReport, error) {
 		},
 		Tools: toolService.Statuses(c.Context), Tasks: taskview.Snapshot(project.Build.Tasks),
 		Generators: []infoGenerator{{Name: "annotations", Patterns: append([]string(nil), project.Build.Generate.Patterns...), Packages: len(generated)}},
-		Cache:      cache, Plans: plans,
+		Profile:    control.Profile, Cache: cache, Plans: plans,
 	}, nil
 }
 
@@ -188,11 +224,11 @@ func inspectCache(root string) (infoCache, error) {
 	return result, nil
 }
 
-func createInfoPlans(project goarkProject, environment []string) ([]infoPlan, error) {
+func createInfoPlans(project goarkProject, environment []string, control buildplan.Control) ([]infoPlan, error) {
 	commands := []string{"build", "fix", "generate", "install", "list", "run", "test", "vet"}
 	plans := make([]infoPlan, 0, len(commands))
 	for _, name := range commands {
-		plan, err := buildplan.Create(project.Build, name, buildplan.Control{}, nil, nil, nil, environment)
+		plan, err := buildplan.Create(project.Build, name, control, nil, nil, nil, environment)
 		if err != nil {
 			return nil, err
 		}

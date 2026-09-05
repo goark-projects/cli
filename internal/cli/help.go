@@ -204,7 +204,7 @@ Package loading flags:
 
 func (c Command) printInfoHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
-  goark info [--json]
+  goark info [--goark-profile=<name>] [--json]
 
 Shows read-only project, tool, task, generator, cache and execution-plan diagnostics.
 

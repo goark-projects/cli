@@ -385,6 +385,43 @@ func TestCommand_whenInfoContainsSecretEnvironment_shouldRedactWithoutSideEffect
 	}
 }
 
+func TestCommand_whenInfoProfileSelected_shouldApplyProfileToPlans(t *testing.T) {
+	root := writeTestModule(t, map[string]string{
+		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"cmd/server/main.go": "package main\nfunc main() {}\n",
+		"goark.build": `version = 1
+[project]
+main = "./cmd/server"
+[profiles.dev]
+go-args = ["-tags=dev"]
+[profiles.dev.environment]
+API_TOKEN = "profile-secret"
+`,
+	})
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: &recordingProcessRunner{}, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
+
+	if code := command.Run([]string{"info", "--goark-profile=dev", "--json"}); code != 0 {
+		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
+	}
+	var report infoReport
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("JSON 无效: %v\n%s", err, stdout.String())
+	}
+	if report.Profile != "dev" {
+		t.Fatalf("Profile = %q", report.Profile)
+	}
+	for _, plan := range report.Plans {
+		if !containsAll(strings.Join(plan.GoArguments, " "), "-tags=dev") {
+			t.Fatalf("计划未合并 Profile 参数: %#v", plan)
+		}
+		if plan.Environment["API_TOKEN"] != "******" {
+			t.Fatalf("计划未合并或脱敏 Profile 环境: %#v", plan.Environment)
+		}
+	}
+}
+
 func TestCommand_whenRunRequested_shouldPassPropertiesAndApplicationArguments(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
 		"go.mod": "module example.com/app\n\ngo 1.25\n",
