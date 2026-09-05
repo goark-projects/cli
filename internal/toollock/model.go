@@ -84,6 +84,18 @@ func validate(file File) error {
 		if !validDigest(entry.SHA256) {
 			return fmt.Errorf("工具 %q 的 sha256 必须是小写十六进制 SHA-256", entry.Name)
 		}
+		switch entry.Type {
+		case buildspec.ToolTypeGo:
+			if entry.Package == "" || entry.Version == "" || entry.Module == "" || entry.ModuleVersion == "" || entry.ModuleSum == "" {
+				return fmt.Errorf("Go 工具 %q 必须包含 package、version、module、module-version 和 module-sum", entry.Name)
+			}
+		case buildspec.ToolTypeSystem, buildspec.ToolTypeLocal:
+			if entry.Package != "" || entry.Version != "" || entry.Module != "" || entry.ModuleVersion != "" || entry.ModuleSum != "" {
+				return fmt.Errorf("%s 工具 %q 不能包含 package、version 或 Go module 元数据", entry.Type, entry.Name)
+			}
+		default:
+			return fmt.Errorf("工具 %q 的类型 %q 无效", entry.Name, entry.Type)
+		}
 	}
 	return nil
 }

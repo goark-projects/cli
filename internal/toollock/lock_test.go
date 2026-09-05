@@ -64,6 +64,9 @@ func TestRead_whenLockIsInvalid_shouldReject(t *testing.T) {
 		{name: "unknown field", content: "version = 1\nbuild-sha256 = '" + strings.Repeat("a", 64) + "'\nunknown = true\n", want: "未知字段"},
 		{name: "unsupported version", content: "version = 2\nbuild-sha256 = '" + strings.Repeat("a", 64) + "'\n", want: "version"},
 		{name: "invalid digest", content: "version = 1\nbuild-sha256 = 'short'\n", want: "SHA-256"},
+		{name: "unknown tool type", content: lockWithTool("unsupported", "", "", "", "", ""), want: "类型"},
+		{name: "Go tool missing module sum", content: lockWithTool("go", "example.com/tools/demo", "v1.0.0", "example.com/tools", "v1.0.0", ""), want: "module-sum"},
+		{name: "system tool has Go metadata", content: lockWithTool("system", "example.com/tools/demo", "v1.0.0", "", "", ""), want: "package"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,6 +80,13 @@ func TestRead_whenLockIsInvalid_shouldReject(t *testing.T) {
 			}
 		})
 	}
+}
+
+func lockWithTool(toolType string, packagePath string, version string, module string, moduleVersion string, moduleSum string) string {
+	return "version = 1\nbuild-sha256 = '" + strings.Repeat("a", 64) + "'\n[[tools]]\n" +
+		"name = 'demo'\ntype = '" + toolType + "'\ngoos = 'linux'\ngoarch = 'amd64'\n" +
+		"package = '" + packagePath + "'\nversion = '" + version + "'\nmodule = '" + module + "'\n" +
+		"module-version = '" + moduleVersion + "'\nmodule-sum = '" + moduleSum + "'\npath = '/tmp/demo'\nsha256 = '" + strings.Repeat("b", 64) + "'\n"
 }
 
 func TestDigestFile_shouldReturnContentSHA256(t *testing.T) {
