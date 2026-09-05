@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -153,6 +154,19 @@ func TestCommand_whenGoProcessExitsNonzero_shouldReturnChildExitCode(t *testing.
 
 	if code := command.Run([]string{"go", "test", "./..."}); code != 37 {
 		t.Fatalf("退出码 = %d", code)
+	}
+}
+
+func TestCommand_whenGoProcessCanceled_shouldReturnInterruptExitCode(t *testing.T) {
+	var stderr bytes.Buffer
+	runner := &recordingProcessRunner{err: context.Canceled}
+	command := Command{Out: io.Discard, Err: &stderr, Runner: runner}
+
+	if code := command.Run([]string{"go", "test", "./..."}); code != 130 {
+		t.Fatalf("退出码 = %d", code)
+	}
+	if strings.Contains(stderr.String(), "启动 go 失败") {
+		t.Fatalf("取消不应报告启动失败: %q", stderr.String())
 	}
 }
 

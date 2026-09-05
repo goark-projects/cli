@@ -147,6 +147,9 @@ func (c Command) runGo(args []string) int {
 	if err == nil {
 		return 0
 	}
+	if errors.Is(err, context.Canceled) {
+		return 130
+	}
 	var exitError interface{ ExitCode() int }
 	if errors.As(err, &exitError) {
 		if code := exitError.ExitCode(); code >= 0 {
