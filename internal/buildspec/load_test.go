@@ -114,6 +114,9 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "go tool has system command", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"v1.0.0\"\ncommand = \"demo\"\ninstall = \"auto\"\n", want: "command"},
 		{name: "system tool has Go package", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\npackage = \"example.com/tools/demo\"\ninstall = \"manual\"\n", want: "package"},
 		{name: "local tool has system command", content: "version = 1\n[tools.demo]\ntype = \"local\"\npath = \"./tools/demo\"\ncommand = \"demo\"\ninstall = \"manual\"\n", want: "command"},
+		{name: "go task has external tool", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"go\"\ntool = \"demo\"\nargs = [\"version\"]\n", want: "tool"},
+		{name: "delete task has external tool", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"delete\"\ntool = \"demo\"\noutputs = [\"build/out\"]\n", want: "tool"},
+		{name: "group task has external tool", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.base]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one]\ntype = \"group\"\ntool = \"demo\"\ndepends-on = [\"base\"]\n", want: "tool"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

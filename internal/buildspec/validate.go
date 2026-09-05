@@ -141,6 +141,9 @@ func validateTasks(tasks map[string]Task, tools map[string]Tool) error {
 		if !identifierPattern.MatchString(name) {
 			return fmt.Errorf("任务名称 %q 无效", name)
 		}
+		if task.Type != TaskTypeExec && task.Tool != "" {
+			return fmt.Errorf("任务 %q 的任务类型 %q 不能声明 tool", name, task.Type)
+		}
 		switch task.Type {
 		case TaskTypeExec:
 			if _, ok := tools[task.Tool]; !ok {
