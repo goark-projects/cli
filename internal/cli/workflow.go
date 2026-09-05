@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildplan"
+	"goark.dev/cli/internal/processrun"
 )
 
 type workflowControl = buildplan.Control
@@ -31,7 +34,7 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 	project, resolveErr := c.resolveProject(workingDir, nil, discoveryBuildFlags(goArguments), control.DryRun)
 	if resolveErr != nil {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
-		return 2
+		return projectResolutionExitCode(resolveErr)
 	}
 	plan, err := buildplan.Create(project.Build, command, control, goArguments, nil, nil, c.environment())
 	if err != nil {
@@ -41,7 +44,7 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 	project, resolveErr = c.resolveProject(workingDir, nil, discoveryBuildFlags(plan.GoArguments), control.DryRun)
 	if resolveErr != nil {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
-		return 2
+		return projectResolutionExitCode(resolveErr)
 	}
 	goArguments, err = applyDefaultBuildTarget(project, workingDir, command, plan.GoArguments)
 	if err != nil {
@@ -86,7 +89,7 @@ func (c Command) runApplication(args []string) int {
 	project, resolveErr := c.resolveProject(workingDir, nil, discoveryBuildFlags(plan.GoArguments), plan.Control.DryRun)
 	if resolveErr != nil {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
-		return 2
+		return projectResolutionExitCode(resolveErr)
 	}
 	if !plan.TargetExplicit {
 		target, targetErr := project.ResolveRunTarget(workingDir)
@@ -104,7 +107,7 @@ func (c Command) runApplication(args []string) int {
 	project, resolveErr = c.resolveProject(workingDir, nil, discoveryBuildFlags(commandPlan.GoArguments), plan.Control.DryRun)
 	if resolveErr != nil {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
-		return 2
+		return projectResolutionExitCode(resolveErr)
 	}
 	goArguments := composeEnhancedGoArguments("run", commandPlan.GoArguments)
 	goArguments = append(goArguments, commandPlan.PropertyArguments...)
@@ -130,7 +133,7 @@ func (c Command) runProjectGenerate(args []string) int {
 	project, err := c.resolveProject(workingDir, patterns, buildFlags, control.DryRun)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
-		return 2
+		return projectResolutionExitCode(err)
 	}
 	plan, err := buildplan.Create(project.Build, "generate", control, buildFlags, nil, nil, c.environment())
 	if err != nil {
@@ -140,7 +143,7 @@ func (c Command) runProjectGenerate(args []string) int {
 	project, err = c.resolveProject(workingDir, patterns, discoveryBuildFlags(plan.GoArguments), control.DryRun)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
-		return 2
+		return projectResolutionExitCode(err)
 	}
 	return c.executeGenerateLifecycle(project, plan)
 }
@@ -203,6 +206,16 @@ func (c Command) resolveProject(dir string, patterns []string, buildFlags []stri
 		BuildFlags: append([]string(nil), buildFlags...),
 		Static:     static,
 	}.Resolve()
+}
+
+func projectResolutionExitCode(err error) int {
+	if errors.Is(err, context.Canceled) {
+		return 130
+	}
+	if code, ok := processrun.ExitCode(err); ok {
+		return code
+	}
+	return 2
 }
 
 func applyCommandOutput(command string, arguments []string, output string) []string {

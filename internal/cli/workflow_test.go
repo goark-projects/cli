@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -10,6 +11,25 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestCommand_whenProjectDiscoveryFails_shouldPreserveExitSemantics(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "canceled", err: context.Canceled, want: 130},
+		{name: "Go process exit", err: processExitError{code: 23}, want: 23},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			command := Command{Dir: t.TempDir(), Out: io.Discard, Err: io.Discard, Runner: &recordingProcessRunner{err: test.err}}
+			if code := command.Run([]string{"build", "./..."}); code != test.want {
+				t.Fatalf("退出码 = %d, want %d", code, test.want)
+			}
+		})
+	}
+}
 
 func TestCommand_whenGenerateRequested_shouldGenerateAnnotatedPackages(t *testing.T) {
 	root := annotatedTestProject(t)
