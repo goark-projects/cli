@@ -89,6 +89,30 @@ func TestStoreSave_whenOutputDoesNotExist_shouldReject(t *testing.T) {
 	}
 }
 
+func TestStoreLookup_whenManifestIsCorrupted_shouldMissWithoutFailingTask(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "input/source.txt", "input")
+	writeFile(t, root, "output/result.txt", "result")
+	context := Context{
+		Root: root, TaskName: "copy",
+		Task: buildspec.Task{Inputs: []string{"input/*.txt"}, Outputs: []string{"output/*.txt"}},
+	}
+	store := NewStore(root)
+	fingerprint, err := Fingerprint(context)
+	if err != nil {
+		t.Fatalf("计算缓存指纹失败: %v", err)
+	}
+	writeFile(t, root, filepath.ToSlash(filepath.Join(".goark", "cache", "tasks", "copy", fingerprint+".json")), "{broken")
+
+	hit, err := store.Lookup(context)
+	if err != nil {
+		t.Fatalf("损坏缓存清单不应阻断任务: %v", err)
+	}
+	if hit {
+		t.Fatal("损坏缓存清单不应命中")
+	}
+}
+
 func TestOutputDigest_whenDirectoryContainsFiles_shouldBeStable(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "output/a.txt", "a")

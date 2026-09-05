@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -47,7 +47,11 @@ func (s Store) Lookup(context Context) (bool, error) {
 	decoder.DisallowUnknownFields()
 	var cached manifest
 	if err := decoder.Decode(&cached); err != nil {
-		return false, fmt.Errorf("解析任务缓存清单失败: %w", err)
+		return false, nil
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return false, nil
 	}
 	if cached.Version != manifestVersion || cached.Fingerprint != fingerprint {
 		return false, nil
