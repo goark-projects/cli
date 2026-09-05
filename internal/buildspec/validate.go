@@ -44,7 +44,10 @@ func validateDocument(document Document) error {
 	if err := validateTasks(document.Tasks, document.Tools); err != nil {
 		return err
 	}
-	return validateCommands(document.Commands, document.Tasks)
+	if err := validateCommands(document.Commands, document.Tasks); err != nil {
+		return err
+	}
+	return validateProfiles(document.Profiles)
 }
 
 func validateProject(project Project) error {
@@ -154,6 +157,9 @@ func validateTasks(tasks map[string]Task, tools map[string]Tool) error {
 				return fmt.Errorf("任务 %q 的 environment-inputs 名称 %q 无效", name, environmentName)
 			}
 		}
+		if err := validateEnvironment(fmt.Sprintf("任务 %q", name), task.Environment); err != nil {
+			return err
+		}
 		for _, dependency := range task.DependsOn {
 			if _, ok := tasks[dependency]; !ok {
 				return fmt.Errorf("任务 %q 依赖不存在的任务 %q", name, dependency)
@@ -178,6 +184,30 @@ func validateCommands(commands map[string]Command, tasks map[string]Task) error 
 			if err := validateProjectPath("commands."+name+".output", command.Output); err != nil {
 				return err
 			}
+		}
+		if err := validateEnvironment(fmt.Sprintf("命令 %q", name), command.Environment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateProfiles(profiles map[string]Profile) error {
+	for _, name := range sortedKeys(profiles) {
+		if !identifierPattern.MatchString(name) {
+			return fmt.Errorf("Profile 名称 %q 无效", name)
+		}
+		if err := validateEnvironment(fmt.Sprintf("Profile %q", name), profiles[name].Environment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateEnvironment(owner string, environment map[string]string) error {
+	for _, name := range sortedKeys(environment) {
+		if !environmentNamePattern.MatchString(name) {
+			return fmt.Errorf("%s 的 environment 名称 %q 无效", owner, name)
 		}
 	}
 	return nil

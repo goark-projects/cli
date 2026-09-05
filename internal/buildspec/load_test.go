@@ -99,6 +99,10 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "unknown command task", content: "version = 1\n[commands.build]\nbefore = [\"missing\"]\n", want: "missing"},
 		{name: "task output escapes", content: "version = 1\n[tasks.one]\ntype = \"delete\"\noutputs = [\"../outside\"]\n", want: "项目根目录"},
 		{name: "delete task cache", content: "version = 1\n[tasks.one]\ntype = \"delete\"\ninputs = [\"input\"]\noutputs = [\"output\"]\ncache = true\n", want: "不能启用 cache"},
+		{name: "invalid profile name", content: "version = 1\n[profiles.\"bad name\"]\ngo-args = []\n", want: "Profile 名称"},
+		{name: "invalid task environment", content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
+		{name: "invalid command environment", content: "version = 1\n[commands.build.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
+		{name: "invalid profile environment", content: "version = 1\n[profiles.dev.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
