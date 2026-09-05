@@ -7,11 +7,51 @@ func appFiles(spec appSpec) []fileSpec {
 		{path: ".gitignore", content: gitignoreTemplate()},
 		{path: "README.md", content: readmeTemplate(spec)},
 		{path: "go.mod", content: goModTemplate(spec)},
+		{path: "goark.build", content: goarkBuildTemplate(spec)},
 		{path: "resource/app.yml", content: appConfigTemplate(spec)},
 		{path: "resource/static/index.html", content: staticIndexTemplate(spec)},
 		{path: "cmd/server/main.go", content: mainTemplate(spec)},
 		{path: "internal/app/configuration.go", content: configurationTemplate()},
 	}
+}
+
+func goarkBuildTemplate(spec appSpec) string {
+	return `# Goark 项目构建描述文件
+version = 1
+
+[project]
+name = ` + strconv.Quote(spec.name) + `
+main = "./cmd/server"
+
+[execution]
+max-parallel = 4
+fail-fast = true
+default-timeout = "5m"
+
+[generate]
+patterns = ["./..."]
+clean-stale = true
+
+[commands.run]
+before = []
+after = []
+finally = []
+go-args = []
+application-args = []
+
+[commands.build]
+before = []
+after = []
+finally = []
+go-args = ["-trimpath"]
+output = "./build/` + spec.name + `"
+
+[commands.test]
+before = []
+after = []
+finally = []
+go-args = ["-count=1", "./..."]
+`
 }
 
 func gitignoreTemplate() string {

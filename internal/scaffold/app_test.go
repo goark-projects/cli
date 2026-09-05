@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"goark.dev/cli/internal/buildspec"
 )
 
 func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
@@ -25,6 +27,7 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		".gitignore",
 		"README.md",
 		"go.mod",
+		"goark.build",
 		"resource/app.yml",
 		"resource/static/index.html",
 		"cmd/server/main.go",
@@ -39,6 +42,9 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		}
 	}
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "module example.com/admin")
+	assertFileContains(t, filepath.Join(dir, "goark.build"), "name = \"admin\"")
+	assertFileContains(t, filepath.Join(dir, "goark.build"), "main = \"./cmd/server\"")
+	assertFileContains(t, filepath.Join(dir, ".gitignore"), "/.goark/")
 	assertFileContains(t, filepath.Join(dir, "README.md"), "goark run")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.0")
 	assertFileContains(t, filepath.Join(dir, "resource/app.yml"), "max-response-bytes")
@@ -46,6 +52,18 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	assertFileContains(t, filepath.Join(dir, "cmd/server/main.go"), `app "example.com/admin/internal/app"`)
 	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), `mvc.GET("/healthz"`)
 	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), `gbcweb.RegisterHTTPClientBuilderCustomizer`)
+	if _, err := buildspec.LoadFile(filepath.Join(dir, buildspec.FileName)); err != nil {
+		t.Fatalf("generated goark.build is invalid: %v", err)
+	}
+	for _, file := range files {
+		data, err := os.ReadFile(filepath.Join(dir, file.Path))
+		if err != nil {
+			t.Fatalf("read generated file %s failed: %v", file.Path, err)
+		}
+		if strings.HasPrefix(string(data), "\ufeff") || strings.ContainsRune(string(data), '\r') {
+			t.Fatalf("generated file %s is not UTF-8 without BOM and LF", file.Path)
+		}
+	}
 
 	writeLocalReplaces(t, dir)
 	assertGeneratedAppBuilds(t, dir)
