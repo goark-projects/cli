@@ -100,6 +100,36 @@ func TestManagerResolve_whenGoToolInstallationAllowed_shouldInstallOnce(t *testi
 	}
 }
 
+func TestManagerResolve_whenGoToolExecutableMissingFromExistingCache_shouldRestore(t *testing.T) {
+	cache := t.TempDir()
+	manager := NewManager(t.TempDir(), cache, nil)
+	installCount := 0
+	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+		installCount++
+		writeExecutable(t, destination, executableName("demo"))
+		return nil
+	}
+	manager.ReadBuild = func(string) (BuildMetadata, error) {
+		return BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:module-sum"}, nil
+	}
+	spec := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
+
+	first, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true})
+	if err != nil {
+		t.Fatalf("首次安装失败: %v", err)
+	}
+	if err := os.Remove(first.Path); err != nil {
+		t.Fatalf("模拟工具文件缺失失败: %v", err)
+	}
+	second, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true})
+	if err != nil {
+		t.Fatalf("恢复工具失败: %v", err)
+	}
+	if installCount != 2 || first.Path != second.Path {
+		t.Fatalf("安装次数 = %d, first=%q second=%q", installCount, first.Path, second.Path)
+	}
+}
+
 func writeExecutable(t *testing.T, root string, name string) string {
 	t.Helper()
 	if err := os.MkdirAll(root, 0o755); err != nil {

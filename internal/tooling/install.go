@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -50,8 +51,37 @@ func (m Manager) installGoCached(ctx context.Context, tool buildspec.Tool, key s
 	if _, err := canonicalExecutable(filepath.Join(destination, executableName(path.Base(tool.Package)))); err != nil {
 		return fmt.Errorf("安装结果缺少预期可执行文件: %w", err)
 	}
-	if err := os.Rename(temp, target); err != nil {
+	if err := publishGoToolCache(goCache, key, temp, target); err != nil {
 		return err
+	}
+	return nil
+}
+
+func publishGoToolCache(cacheRoot string, key string, source string, target string) error {
+	if _, err := os.Stat(target); errors.Is(err, os.ErrNotExist) {
+		return os.Rename(source, target)
+	} else if err != nil {
+		return err
+	}
+
+	backup, err := os.MkdirTemp(cacheRoot, "."+key+".stale-*")
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(backup); err != nil {
+		return err
+	}
+	if err := os.Rename(target, backup); err != nil {
+		return err
+	}
+	if err := os.Rename(source, target); err != nil {
+		if rollbackErr := os.Rename(backup, target); rollbackErr != nil {
+			return fmt.Errorf("发布工具缓存失败: %w；回滚旧缓存失败: %v", err, rollbackErr)
+		}
+		return err
+	}
+	if err := os.RemoveAll(backup); err != nil {
+		return fmt.Errorf("清理旧工具缓存失败: %w", err)
 	}
 	return nil
 }
