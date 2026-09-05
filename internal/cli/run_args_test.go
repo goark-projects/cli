@@ -139,10 +139,25 @@ func TestParseRunArguments_whenControlFlagsProvided_shouldSetExecutionMode(t *te
 	}
 }
 
+func TestParseRunArguments_whenControlFlagsFollowTarget_shouldKeepThemInGoarkControl(t *testing.T) {
+	plan, err := parseRunArguments([]string{"./cmd/server", "--goark-profile=dev", "--goark-env=PORT=9090"})
+	if err != nil {
+		t.Fatalf("解析 run 参数失败: %v", err)
+	}
+	if plan.Control.Profile != "dev" || plan.Control.Environment["PORT"] != "9090" {
+		t.Fatalf("目标后的控制参数解析错误: %#v", plan)
+	}
+	if len(plan.PropertyArguments) != 0 || len(plan.ApplicationArguments) != 0 {
+		t.Fatalf("Goark 控制参数不得传给应用: %#v", plan)
+	}
+}
+
 func TestParseRunArguments_whenRemovedControlFlagsProvided_shouldReject(t *testing.T) {
 	for _, argument := range []string{"--goark-generate-only", "--goark-no-generate"} {
-		if _, err := parseRunArguments([]string{argument}); err == nil {
-			t.Fatalf("已删除参数必须失败: %s", argument)
+		for _, input := range [][]string{{argument}, {"./cmd/server", argument}} {
+			if _, err := parseRunArguments(input); err == nil {
+				t.Fatalf("已删除参数必须失败: %#v", input)
+			}
 		}
 	}
 }

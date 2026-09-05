@@ -57,14 +57,12 @@ func parseRunArguments(args []string) (runArguments, error) {
 			applicationOnly = true
 			continue
 		}
-		if !afterTarget {
-			handled, err := applyRunControlArgument(&plan, arg)
-			if err != nil {
-				return runArguments{}, err
-			}
-			if handled {
-				continue
-			}
+		handled, err := applyRunControlArgument(&plan, arg)
+		if err != nil {
+			return runArguments{}, err
+		}
+		if handled {
+			continue
 		}
 		if strings.HasPrefix(arg, "-D") {
 			if err := validateSystemPropertyArgument(arg); err != nil {
