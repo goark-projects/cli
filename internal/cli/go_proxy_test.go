@@ -70,7 +70,7 @@ func TestCommand_whenCLIVersionRequested_shouldNotStartGo(t *testing.T) {
 	if code := command.Run([]string{"--version"}); code != 0 {
 		t.Fatalf("退出码 = %d", code)
 	}
-	if stdout.String() != "goark "+Version+"\n" {
+	if stdout.String() != "goark devel\n" {
 		t.Fatalf("版本输出 = %q", stdout.String())
 	}
 	if len(runner.requests) != 0 {

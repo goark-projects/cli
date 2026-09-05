@@ -9,10 +9,9 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-)
 
-// Version 是开发期版本号，正式发布时由构建流程通过 ldflags 覆盖。
-var Version = "0.1.0-dev"
+	"goark.dev/cli/internal/version"
+)
 
 // Command 封装命令执行所需的输入参数与输出边界。
 type Command struct {
@@ -54,7 +53,7 @@ func (c Command) Run(args []string) int {
 	case "help":
 		return c.runHelp(args[1:])
 	case "-v", "--version":
-		_, _ = fmt.Fprintf(c.Out, "goark %s\n", Version)
+		_, _ = fmt.Fprintf(c.Out, "goark %s\n", version.Current())
 		return 0
 	case "version":
 		return c.runVersion(args[1:])
@@ -99,7 +98,7 @@ func (c Command) Run(args []string) int {
 
 func (c Command) runVersion(args []string) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintf(c.Out, "goark %s\n", Version)
+		_, _ = fmt.Fprintf(c.Out, "goark %s\n", version.Current())
 		return 0
 	}
 	if isHelpOnly(args) {

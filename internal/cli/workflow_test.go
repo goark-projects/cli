@@ -406,7 +406,7 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
 		t.Fatalf("JSON 无效: %v\n%s", err, stdout.String())
 	}
-	if info.CLIVersion != Version || info.Project.Module != "example.com/app" || info.Project.Main != "./cmd/server" || info.Profile != "" {
+	if info.CLIVersion != "devel" || info.Project.Module != "example.com/app" || info.Project.Main != "./cmd/server" || info.Profile != "" {
 		t.Fatalf("诊断信息错误: %#v", info)
 	}
 	if len(info.Generators) != 1 || info.Generators[0].Packages != 1 || len(info.Generators[0].Patterns) != 1 || info.Generators[0].Patterns[0] != "./..." {

@@ -13,6 +13,7 @@ import (
 	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/taskview"
 	"goark.dev/cli/internal/toolservice"
+	"goark.dev/cli/internal/version"
 	"golang.org/x/mod/modfile"
 )
 
@@ -165,7 +166,7 @@ func (c Command) createInfoReport(project goarkProject, control buildplan.Contro
 		return infoReport{}, err
 	}
 	return infoReport{
-		CLIVersion: Version, Go: goMetadata,
+		CLIVersion: version.Current(), Go: goMetadata,
 		Project: infoProject{
 			Name: project.ProjectName(), Module: project.ModulePath, Root: project.Root,
 			Main: mainTarget, Description: project.Build.Project.Description,
