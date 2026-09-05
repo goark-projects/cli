@@ -48,7 +48,10 @@ func (c Command) prepareLifecycleTargets(project goarkProject, plan buildplan.Pl
 	overrides := lifecycleOverrides(project.Build, plan)
 	goVersion := "unavailable"
 	if !plan.Control.DryRun {
-		goVersion = c.captureGoVersion()
+		versionCommand := c
+		versionCommand.Dir = project.Root
+		versionCommand.Env = plan.EnvironmentList()
+		goVersion = versionCommand.captureGoVersion()
 	}
 	runner := taskrunner.New(taskrunner.Options{
 		Root: project.Root, ProjectName: project.ProjectName(), ProjectModule: project.ModulePath,

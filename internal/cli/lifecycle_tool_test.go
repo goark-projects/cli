@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"testing"
 
+	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/buildspec"
 	"goark.dev/cli/internal/tooling"
 )
@@ -93,6 +94,43 @@ func TestValidateTaskPaths_whenWorkingDirectoryContainsVariable_shouldDeferValid
 	if err := validateTaskPaths(project); err != nil {
 		t.Fatalf("变量工作目录应延后到展开后校验: %v", err)
 	}
+}
+
+func TestPrepareLifecycle_whenCapturingGoVersion_shouldUseProjectRootAndPlanEnvironment(t *testing.T) {
+	root := t.TempDir()
+	runner := &recordingProcessRunner{}
+	plan := buildplan.Plan{Environment: map[string]string{"GOTOOLCHAIN": "local", "GOENV": "off"}}
+	project := goarkProject{
+		Root: root,
+		Build: buildspec.Document{
+			Execution: buildspec.Execution{DefaultTimeout: buildspec.Duration{}},
+			Tasks:     map[string]buildspec.Task{},
+		},
+	}
+	command := Command{Context: context.Background(), Dir: t.TempDir(), Runner: runner}
+
+	if _, err := command.prepareLifecycleTargets(project, plan, nil); err != nil {
+		t.Fatalf("准备生命周期失败: %v", err)
+	}
+	if len(runner.requests) != 1 {
+		t.Fatalf("Go 版本探测请求数 = %d", len(runner.requests))
+	}
+	request := runner.requests[0]
+	if request.Dir != root {
+		t.Fatalf("Go 版本探测目录 = %q, want %q", request.Dir, root)
+	}
+	if !containsEnvironmentEntry(request.Env, "GOTOOLCHAIN=local") || !containsEnvironmentEntry(request.Env, "GOENV=off") {
+		t.Fatalf("Go 版本探测环境未使用最终计划: %#v", request.Env)
+	}
+}
+
+func containsEnvironmentEntry(environment []string, want string) bool {
+	for _, entry := range environment {
+		if entry == want {
+			return true
+		}
+	}
+	return false
 }
 
 func lifecycleToolExecutableName(name string) string {
