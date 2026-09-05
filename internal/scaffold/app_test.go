@@ -11,6 +11,27 @@ import (
 	"goark.dev/cli/internal/buildspec"
 )
 
+func TestGoarkBuildTemplate_shouldGenerateMinimalConfiguration(t *testing.T) {
+	want := `# Goark 项目构建描述文件
+version = 1
+
+[project]
+name = "acb"
+main = "./cmd/server"
+
+[commands.build]
+go-args = ["-trimpath"]
+output = "./build/acb"
+
+[commands.test]
+go-args = ["./..."]
+`
+
+	if got := goarkBuildTemplate(appSpec{name: "acb"}); got != want {
+		t.Fatalf("goark.build 模板不匹配:\n--- got ---\n%s--- want ---\n%s", got, want)
+	}
+}
+
 func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	dir := t.TempDir()
 

@@ -23,34 +23,12 @@ version = 1
 name = ` + strconv.Quote(spec.name) + `
 main = "./cmd/server"
 
-[execution]
-max-parallel = 4
-fail-fast = true
-default-timeout = "5m"
-
-[generate]
-patterns = ["./..."]
-clean-stale = true
-
-[commands.run]
-before = []
-after = []
-finally = []
-go-args = []
-application-args = []
-
 [commands.build]
-before = []
-after = []
-finally = []
 go-args = ["-trimpath"]
 output = "./build/` + spec.name + `"
 
 [commands.test]
-before = []
-after = []
-finally = []
-go-args = ["-count=1", "./..."]
+go-args = ["./..."]
 `
 }
 
