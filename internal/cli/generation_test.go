@@ -47,15 +47,15 @@ type UserService struct{}
 	if err != nil {
 		t.Fatalf("重复生成项目失败: %v", err)
 	}
-	if len(results) != 1 || results[0].Changed {
-		t.Fatalf("内容未变化时不应改写: %#v", results)
+	if len(results) != 1 || !results[0].Changed {
+		t.Fatalf("每次生成都应覆盖目标文件: %#v", results)
 	}
 	info, err := os.Stat(output)
 	if err != nil {
 		t.Fatalf("读取生成文件状态失败: %v", err)
 	}
-	if !info.ModTime().Equal(oldTime) {
-		t.Fatalf("生成文件时间发生变化: %v", info.ModTime())
+	if info.ModTime().Equal(oldTime) {
+		t.Fatalf("生成文件未被覆盖: %v", info.ModTime())
 	}
 }
 
@@ -149,6 +149,30 @@ type OrderService struct{}
 	}
 	if !strings.Contains(string(data), "orderService") || strings.Contains(string(data), "userService") {
 		t.Fatalf("生成内容未替换:\n%s", data)
+	}
+}
+
+func TestGenerateProject_whenTargetIsNotOwnedGeneratedFile_shouldRejectOverwrite(t *testing.T) {
+	root := writeTestModule(t, map[string]string{
+		"go.mod": "module example.com/app\n\ngo 1.25\n",
+		"app/wiring.go": `package app
+
+//goark:service
+type UserService struct{}
+`,
+		"app/zz_goark_app_gen.go": "package app\nconst Manual = true\n",
+	})
+	project, err := newTestProjectResolver(root).Resolve()
+	if err != nil {
+		t.Fatalf("发现项目失败: %v", err)
+	}
+
+	if _, err := generateProject(project, false); err == nil || !strings.Contains(err.Error(), "不是 Goark 生成文件") {
+		t.Fatalf("手写目标文件应阻止覆盖: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "app", "zz_goark_app_gen.go"))
+	if err != nil || !strings.Contains(string(data), "const Manual = true") {
+		t.Fatalf("手写目标文件被修改: %v\n%s", err, data)
 	}
 }
 
