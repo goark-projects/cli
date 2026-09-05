@@ -78,6 +78,22 @@ func TestCommand_whenGenerateHelpFlagRequested_shouldPrintProjectGenerationHelp(
 	}
 }
 
+func TestCommand_whenHelpCommandHelpFlagRequested_shouldPrintHelpUsage(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command := Command{Out: &stdout, Err: &stderr}
+
+	if code := command.Run([]string{"help", "--help"}); code != 0 {
+		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "goark help [command]") {
+		t.Fatalf("帮助输出错误:\n%s", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
 func TestCommand_whenLegacyGeneratorEntryRequested_shouldReject(t *testing.T) {
 	for _, args := range [][]string{{"gen"}, {"generate", "annotations"}} {
 		var stderr bytes.Buffer

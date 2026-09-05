@@ -20,6 +20,10 @@ func (c Command) runHelp(args []string) int {
 		c.printHelp(c.Out)
 		return 0
 	}
+	if isHelpOnly(args) {
+		c.printHelpHelp(c.Out)
+		return 0
+	}
 	if len(args) > 2 {
 		_, _ = fmt.Fprintf(c.Err, "help 参数过多: %s\n", strings.Join(args, " "))
 		return 2
