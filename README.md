@@ -61,7 +61,7 @@ goark go build ./...
 | `goark info` | 输出默认或指定 Profile 的项目与最终计划，不写文件。 |
 | `goark go ...` | 原样代理官方 Go 命令。 |
 | `goark codegen ...` | 执行低层显式代码生成器。 |
-| `goark new app` | 创建 Goark Boot 应用骨架。 |
+| `goark new [-type app|web] <name>` | 创建 Goark Boot 应用骨架。 |
 | `goark version` | 输出 Goark CLI 版本。 |
 | `goark completion <shell>` | 输出 Bash、Zsh、Fish 或 PowerShell 补全脚本。 |
 
@@ -198,13 +198,13 @@ goark codegen registry --package generated --configuration UserConfiguration --o
 ## 项目骨架
 
 ```bash
-goark new app --module example.com/admin --dir admin --web
+goark new -type web -module example.com/admin -dir admin admin
 cd admin
 go mod tidy
 goark run
 ```
 
-生成的项目包含 `go.mod`、`goark.build`、`resource/app.yml`、`cmd/server/main.go` 和基础 Web 配置。
+`-type` 默认为 `app`。`app` 生成不包含 HTTP 服务的 Boot、配置与依赖注入骨架；`web` 额外生成 Arkarta/Arkhos Web 服务、健康检查和静态资源。两类骨架都默认集成 `goark.dev/gbc-log`。`-dir` 默认当前目录，`-module` 默认使用项目名。
 
 ## 开发验证
 

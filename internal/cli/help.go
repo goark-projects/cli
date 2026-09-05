@@ -41,13 +41,10 @@ func (c Command) runHelp(args []string) int {
 		}
 		c.printVersionHelp(c.Out)
 	case "new":
-		if len(args) == 2 && args[1] == "app" {
-			c.printNewAppHelp(c.Out)
-		} else if len(args) == 1 {
-			c.printNewHelp(c.Out)
-		} else {
+		if len(args) != 1 {
 			return c.unknownHelpCommand(args)
 		}
+		c.printNewHelp(c.Out)
 	case "run":
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)

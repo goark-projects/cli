@@ -15,47 +15,62 @@ func (c Command) runNew(args []string) int {
 		c.printNewHelp(c.Err)
 		return 2
 	}
-	switch args[0] {
-	case "help", "-h", "--help":
+	if args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		c.printNewHelp(c.Out)
 		return 0
-	case "app":
-		return c.runNewApp(args[1:])
-	default:
-		_, _ = fmt.Fprintf(c.Err, "未知骨架: %s\n\n", args[0])
-		c.printNewHelp(c.Err)
-		return 2
 	}
-}
 
-func (c Command) runNewApp(args []string) int {
-	spec := scaffold.AppSpec{}
-	flags := flag.NewFlagSet("goark new app", flag.ContinueOnError)
+	outputDir := "."
+	if c.Dir != "" {
+		outputDir = c.Dir
+	}
+	spec := scaffold.AppSpec{Dir: outputDir}
+	projectType := "app"
+	flags := flag.NewFlagSet("goark new", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.StringVar(&projectType, "type", projectType, "Project type")
 	flags.StringVar(&spec.ModulePath, "module", "", "Go module path")
-	flags.StringVar(&spec.Dir, "dir", ".", "Output directory")
-	flags.StringVar(&spec.Name, "name", "", "Application name")
-	flags.BoolVar(&spec.Web, "web", false, "Generate a Goark Boot Web application")
+	flags.StringVar(&spec.Dir, "dir", spec.Dir, "Output directory")
 	flags.BoolVar(&spec.Force, "force", false, "Overwrite existing files")
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printNewAppHelp(c.Out)
+			c.printNewHelp(c.Out)
 			return 0
 		}
 		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printNewAppHelp(c.Err)
+		c.printNewHelp(c.Err)
 		return 2
 	}
-	if flags.NArg() > 0 {
+	if flags.NArg() > 1 {
 		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printNewAppHelp(c.Err)
+		c.printNewHelp(c.Err)
+		return 2
+	}
+	if flags.NArg() == 0 {
+		_, _ = fmt.Fprintln(c.Err, "缺少项目名")
+		c.printNewHelp(c.Err)
+		return 2
+	}
+	projectName := flags.Arg(0)
+	if spec.ModulePath == "" {
+		spec.ModulePath = projectName
+	}
+	spec.Name = projectName
+	switch projectType {
+	case "app":
+		spec.Type = scaffold.ProjectTypeApp
+	case "web":
+		spec.Type = scaffold.ProjectTypeWeb
+	default:
+		_, _ = fmt.Fprintf(c.Err, "不支持的项目类型 %q，仅支持 app 或 web\n\n", projectType)
+		c.printNewHelp(c.Err)
 		return 2
 	}
 	files, err := scaffold.CreateApp(spec)
 	if err != nil {
 		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printNewAppHelp(c.Err)
+		c.printNewHelp(c.Err)
 		return 2
 	}
 	_, _ = fmt.Fprintf(c.Err, "created %s\n", spec.Dir)
@@ -67,27 +82,18 @@ func (c Command) runNewApp(args []string) int {
 
 func (c Command) printNewHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
-  goark new <scaffold> [flags]
-
-Available scaffolds:
-  app               Create a Goark application skeleton.
-
-`)
-}
-
-func (c Command) printNewAppHelp(w io.Writer) {
-	_, _ = fmt.Fprint(w, `Usage:
-  goark new app --module <module-path> --web [flags]
+  goark new [-type app|web] [-module <module-path>] [-dir <path>] <name>
 
 Flags:
-  --module string    Required Go module path for the new application.
-  --dir path         Output directory. Defaults to current directory.
-  --name string      Application name. Defaults to the module path base name.
-  --web              Generate a Goark Boot Web application.
-  --force            Overwrite existing files.
+  -type string       Project type: app or web. Defaults to app.
+  -module string     Go module path. Defaults to the project name.
+  -dir path          Output directory. Defaults to the current directory.
+  -force             Overwrite existing files.
 
 Examples:
-  goark new app --module example.com/admin --dir admin --web
+  goark new abc
+  goark new -module github.com/abc/abc abc
+  goark new -type web -module github.com/abc/abc -dir abc abc
 
 `)
 }

@@ -52,7 +52,7 @@ func TestCommand_whenCompletionRequested_shouldIncludeNestedCommands(t *testing.
 		if code := command.Run([]string{"completion", shell}); code != 0 {
 			t.Fatalf("%s 退出码 = %d", shell, code)
 		}
-		for _, fragment := range []string{"configuration", "registry", "annotations", "app"} {
+		for _, fragment := range []string{"configuration", "registry", "annotations", "app", "web"} {
 			if !strings.Contains(stdout.String(), fragment) {
 				t.Fatalf("%s 补全缺少 %q", shell, fragment)
 			}

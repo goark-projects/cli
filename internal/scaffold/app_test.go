@@ -11,7 +11,7 @@ import (
 	"goark.dev/cli/internal/buildspec"
 )
 
-func TestGoarkBuildTemplate_shouldGenerateMinimalConfiguration(t *testing.T) {
+func TestGoarkBuildTemplate_whenWebEnabled_shouldGenerateMinimalConfiguration(t *testing.T) {
 	want := `# Goark 项目构建描述文件
 version = 1
 
@@ -27,9 +27,39 @@ output = "./build/acb"
 go-args = ["./..."]
 `
 
-	if got := goarkBuildTemplate(appSpec{name: "acb"}); got != want {
+	if got := goarkBuildTemplate(appSpec{name: "acb", projectType: ProjectTypeWeb}); got != want {
 		t.Fatalf("goark.build 模板不匹配:\n--- got ---\n%s--- want ---\n%s", got, want)
 	}
+}
+
+func TestCreateApp_whenWebDisabled_shouldWriteBootApplicationSkeleton(t *testing.T) {
+	dir := t.TempDir()
+
+	files, err := CreateApp(AppSpec{Dir: dir, ModulePath: "example.com/admin", Name: "worker"})
+	if err != nil {
+		t.Fatalf("create app failed: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("app scaffold should generate files")
+	}
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/boot v0.0.0")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.0")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/goark v0.0.0")
+	assertFileContains(t, filepath.Join(dir, "goark.build"), `main = "./cmd/app"`)
+	assertFileEquals(t, filepath.Join(dir, "cmd/app/main.go"), minimalMainSource)
+	assertFileContains(t, filepath.Join(dir, "cmd/app/goark.go"), "boot.Run")
+	assertFileContains(t, filepath.Join(dir, "cmd/app/goark.go"), "configdata.WithArgs(args...)")
+	assertFileContains(t, filepath.Join(dir, "cmd/app/goark.go"), "gbclog.AutoConfigure()")
+	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), "container.RegisterInstance")
+	for _, fragment := range []string{"goark.dev/arkarta", "goark.dev/arkhos", "goark.dev/gbc-web", "goark.dev/gbc-arkhos"} {
+		assertFileNotContains(t, filepath.Join(dir, "go.mod"), fragment)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "resource/static/index.html")); !os.IsNotExist(statErr) {
+		t.Fatalf("app scaffold should not generate static resources: %v", statErr)
+	}
+
+	writeLocalReplaces(t, dir)
+	assertGeneratedAppBuilds(t, dir)
 }
 
 func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
@@ -38,7 +68,7 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	files, err := CreateApp(AppSpec{
 		Dir:        dir,
 		ModulePath: "example.com/admin",
-		Web:        true,
+		Type:       ProjectTypeWeb,
 	})
 	if err != nil {
 		t.Fatalf("create app failed: %v", err)
@@ -52,6 +82,7 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		"resource/app.yml",
 		"resource/static/index.html",
 		"cmd/server/main.go",
+		"cmd/server/goark.go",
 		"internal/app/configuration.go",
 	}
 	if len(files) != len(expected) {
@@ -68,9 +99,13 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	assertFileContains(t, filepath.Join(dir, ".gitignore"), "/.goark/")
 	assertFileContains(t, filepath.Join(dir, "README.md"), "goark run")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.0")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.0")
 	assertFileContains(t, filepath.Join(dir, "resource/app.yml"), "max-response-bytes")
 	assertFileContains(t, filepath.Join(dir, "resource/static/index.html"), "Goark Boot Web application is running.")
-	assertFileContains(t, filepath.Join(dir, "cmd/server/main.go"), `app "example.com/admin/internal/app"`)
+	assertFileEquals(t, filepath.Join(dir, "cmd/server/main.go"), minimalMainSource)
+	assertFileContains(t, filepath.Join(dir, "cmd/server/goark.go"), `app "example.com/admin/internal/app"`)
+	assertFileContains(t, filepath.Join(dir, "cmd/server/goark.go"), "configdata.WithArgs(args...)")
+	assertFileContains(t, filepath.Join(dir, "cmd/server/goark.go"), "gbclog.AutoConfigure()")
 	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), `mvc.GET("/healthz"`)
 	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), `gbcweb.RegisterHTTPClientBuilderCustomizer`)
 	if _, err := buildspec.LoadFile(filepath.Join(dir, buildspec.FileName)); err != nil {
@@ -99,7 +134,7 @@ func TestCreateApp_whenTargetExistsWithoutForce_shouldReturnError(t *testing.T) 
 	_, err := CreateApp(AppSpec{
 		Dir:        dir,
 		ModulePath: "example.com/admin",
-		Web:        true,
+		Type:       ProjectTypeWeb,
 	})
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("expected existing file error, got %v", err)
@@ -112,7 +147,10 @@ func TestCreateApp_whenTargetExistsWithoutForce_shouldReturnError(t *testing.T) 
 }
 
 func TestCreateApp_whenModuleMissing_shouldReturnError(t *testing.T) {
-	_, err := CreateApp(AppSpec{Dir: t.TempDir(), Web: true})
+	_, err := CreateApp(AppSpec{
+		Dir:  t.TempDir(),
+		Type: ProjectTypeWeb,
+	})
 	if err == nil || !strings.Contains(err.Error(), "module path is required") {
 		t.Fatalf("expected module path error, got %v", err)
 	}
@@ -130,6 +168,39 @@ func assertFileContains(t *testing.T, path string, fragment string) {
 	}
 }
 
+func assertFileNotContains(t *testing.T, path string, fragment string) {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s failed: %v", path, err)
+	}
+	if strings.Contains(string(data), fragment) {
+		t.Fatalf("%s unexpectedly contains %q:\n%s", path, fragment, data)
+	}
+}
+
+const minimalMainSource = `package main
+
+import "os"
+
+func main() {
+	os.Exit(runGoark(os.Args[1:]))
+}
+`
+
+func assertFileEquals(t *testing.T, path string, want string) {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s failed: %v", path, err)
+	}
+	if string(data) != want {
+		t.Fatalf("%s content mismatch:\n--- got ---\n%s--- want ---\n%s", path, data, want)
+	}
+}
+
 func writeLocalReplaces(t *testing.T, dir string) {
 	t.Helper()
 
@@ -143,6 +214,7 @@ require (
 	goark.dev/arkhos v0.0.0
 	goark.dev/boot v0.0.0
 	goark.dev/gbc-arkhos v0.0.0
+	goark.dev/gbc-log v0.0.0
 	goark.dev/gbc-web v0.0.0
 	goark.dev/goark v0.0.0
 )
@@ -154,6 +226,8 @@ replace goark.dev/arkhos => ` + filepath.ToSlash(filepath.Join(root, "arkhos")) 
 replace goark.dev/boot => ` + filepath.ToSlash(filepath.Join(root, "goark-boot")) + `
 
 replace goark.dev/gbc-arkhos => ` + filepath.ToSlash(filepath.Join(root, "goark-boot-contrib-arkhos")) + `
+
+replace goark.dev/gbc-log => ` + filepath.ToSlash(filepath.Join(root, "goark-boot-contrib-log")) + `
 
 replace goark.dev/gbc-web => ` + filepath.ToSlash(filepath.Join(root, "goark-boot-contrib-web")) + `
 

@@ -7,12 +7,22 @@ import (
 	"strings"
 )
 
+// ProjectType 表示项目骨架类型。
+type ProjectType string
+
+const (
+	// ProjectTypeApp 表示不包含 HTTP 服务的 Goark Boot 应用。
+	ProjectTypeApp ProjectType = "app"
+	// ProjectTypeWeb 表示包含 Web 服务的 Goark Boot 应用。
+	ProjectTypeWeb ProjectType = "web"
+)
+
 // AppSpec 描述 Goark 应用骨架生成参数。
 type AppSpec struct {
 	Dir        string
 	ModulePath string
 	Name       string
-	Web        bool
+	Type       ProjectType
 	Force      bool
 }
 
@@ -22,11 +32,11 @@ type File struct {
 }
 
 type appSpec struct {
-	dir        string
-	modulePath string
-	name       string
-	web        bool
-	force      bool
+	dir         string
+	modulePath  string
+	name        string
+	projectType ProjectType
+	force       bool
 }
 
 type fileSpec struct {
@@ -78,19 +88,23 @@ func normalizeAppSpec(spec AppSpec) (appSpec, error) {
 	if err := validateModulePath(modulePath); err != nil {
 		return appSpec{}, err
 	}
-	if !spec.Web {
-		return appSpec{}, fmt.Errorf("goark new app currently requires --web")
-	}
 	name := strings.TrimSpace(spec.Name)
 	if name == "" {
 		name = defaultAppName(modulePath)
 	}
+	projectType := spec.Type
+	if projectType == "" {
+		projectType = ProjectTypeApp
+	}
+	if projectType != ProjectTypeApp && projectType != ProjectTypeWeb {
+		return appSpec{}, fmt.Errorf("unsupported project type %q", projectType)
+	}
 	return appSpec{
-		dir:        filepath.Clean(dir),
-		modulePath: modulePath,
-		name:       name,
-		web:        spec.Web,
-		force:      spec.Force,
+		dir:         filepath.Clean(dir),
+		modulePath:  modulePath,
+		name:        name,
+		projectType: projectType,
+		force:       spec.Force,
 	}, nil
 }
 

@@ -59,8 +59,12 @@ const bashCompletion = `_goark() {
     case "${COMP_WORDS[1]}" in
       completion) COMPREPLY=($(compgen -W "bash zsh fish powershell" -- "${current}")) ;;
       codegen) COMPREPLY=($(compgen -W "` + codegenCommands + `" -- "${current}")) ;;
-      new) COMPREPLY=($(compgen -W "app" -- "${current}")) ;;
+      new) COMPREPLY=($(compgen -W "-type -module -dir -force" -- "${current}")) ;;
     esac
+	elif [[ ${COMP_WORDS[1]} == new ]]; then
+		case "${COMP_WORDS[COMP_CWORD-1]}" in
+			-type|--type) COMPREPLY=($(compgen -W "app web" -- "${current}")) ;;
+		esac
   fi
 }
 complete -F _goark goark
@@ -76,9 +80,13 @@ _goark() {
 		_values 'shell' bash zsh fish powershell
 	elif (( CURRENT == 3 )) && [[ ${words[2]} == codegen ]]; then
 		_values 'generator' ` + codegenCommands + `
-	elif (( CURRENT == 3 )) && [[ ${words[2]} == new ]]; then
-		_values 'scaffold' app
-  fi
+	elif [[ ${words[2]} == new ]]; then
+		if [[ ${words[CURRENT-1]} == -type || ${words[CURRENT-1]} == --type ]]; then
+			_values 'type' app web
+		else
+			_values 'option' -type -module -dir -force
+		fi
+	fi
 }
 compdef _goark goark
 `
@@ -87,7 +95,8 @@ const fishCompletion = `complete -c goark -f
 complete -c goark -n '__fish_use_subcommand' -a '` + completionCommands + `'
 complete -c goark -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish powershell'
 complete -c goark -n '__fish_seen_subcommand_from codegen' -a '` + codegenCommands + `'
-complete -c goark -n '__fish_seen_subcommand_from new' -a 'app'
+complete -c goark -n '__fish_seen_subcommand_from new; and not __fish_prev_arg_in -type --type' -a '-type -module -dir -force'
+complete -c goark -n '__fish_seen_subcommand_from new; and __fish_prev_arg_in -type --type' -a 'app web'
 `
 
 const powershellCompletion = `Register-ArgumentCompleter -Native -CommandName goark -ScriptBlock {
@@ -99,8 +108,12 @@ const powershellCompletion = `Register-ArgumentCompleter -Native -CommandName go
 		'bash zsh fish powershell'.Split(' ')
 	} elseif ($elements.Count -eq 3 -and $elements[1].Value -eq 'codegen') {
 		'` + codegenCommands + `'.Split(' ')
-	} elseif ($elements.Count -eq 3 -and $elements[1].Value -eq 'new') {
-		'app'
+	} elseif ($elements.Count -ge 3 -and $elements[1].Value -eq 'new') {
+		if ($elements[$elements.Count - 2].Value -in @('-type', '--type')) {
+			'app web'.Split(' ')
+		} else {
+			'-type -module -dir -force'.Split(' ')
+		}
   } else {
     @()
   }

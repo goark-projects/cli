@@ -172,7 +172,7 @@ Usage:
 Available commands:
   help              Show command help.
   version           Print the CLI version.
-  new               Create project skeletons.
+  new               Create a Goark application.
   run               Generate code and run a Goark application.
   build             Generate code and build packages.
   test              Generate code and test packages.
@@ -193,9 +193,6 @@ Available commands:
   doctor            Diagnose the project, task graph, toolchain and tools.
   go                Run the official Go command without Goark extensions.
   completion        Generate shell completion scripts.
-
-Available scaffolds:
-  app               Create a Goark application skeleton.
 
 `)
 }
