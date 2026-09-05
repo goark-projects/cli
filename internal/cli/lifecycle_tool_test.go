@@ -83,6 +83,18 @@ func TestResolveVerifiedLifecycleTool_whenUntrustedToolDigestDrifts_shouldReject
 	}
 }
 
+func TestValidateTaskPaths_whenWorkingDirectoryContainsVariable_shouldDeferValidation(t *testing.T) {
+	project := goarkProject{
+		Root: t.TempDir(),
+		Build: buildspec.Document{Tasks: map[string]buildspec.Task{
+			"generate": {WorkingDirectory: "${env:WORKDIR}"},
+		}},
+	}
+	if err := validateTaskPaths(project); err != nil {
+		t.Fatalf("变量工作目录应延后到展开后校验: %v", err)
+	}
+}
+
 func lifecycleToolExecutableName(name string) string {
 	if runtime.GOOS == "windows" {
 		return name + ".exe"

@@ -104,6 +104,23 @@ func TestRunnerRun_whenWindowsEnvironmentNamesDifferOnlyByCase_shouldPreserveOve
 	}
 }
 
+func TestRunnerRun_whenWorkingDirectoryUsesEnvironmentVariable_shouldValidateExpandedPath(t *testing.T) {
+	root := t.TempDir()
+	workingDirectory := filepath.Join(root, "cmd")
+	if err := os.Mkdir(workingDirectory, 0o755); err != nil {
+		t.Fatalf("创建工作目录失败: %v", err)
+	}
+	process := &recordingRunner{}
+	runner := New(Options{Root: root, Environment: map[string]string{"WORKDIR": "cmd"}, Process: process})
+	task := buildspec.Task{Type: buildspec.TaskTypeGo, Args: []string{"version"}, WorkingDirectory: "${env:WORKDIR}"}
+	if err := runner.Run(context.Background(), "working-directory", task); err != nil {
+		t.Fatalf("执行任务失败: %v", err)
+	}
+	if len(process.requests) != 1 || process.requests[0].Dir != workingDirectory {
+		t.Fatalf("工作目录 = %#v", process.requests)
+	}
+}
+
 func TestRunnerRun_whenConditionIsFalse_shouldSkipProcess(t *testing.T) {
 	process := &recordingRunner{}
 	runner := New(Options{Root: t.TempDir(), Profile: "dev", Process: process})

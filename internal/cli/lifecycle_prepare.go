@@ -188,7 +188,7 @@ func appendLifecycleTasks(targets []string, command buildspec.Command) []string 
 func validateTaskPaths(project goarkProject) error {
 	resolver := projectfs.New(project.Root)
 	for name, task := range project.Build.Tasks {
-		if task.WorkingDirectory != "" {
+		if task.WorkingDirectory != "" && !strings.Contains(task.WorkingDirectory, "${") {
 			if _, err := resolver.Resolve(task.WorkingDirectory, projectfs.MustExist); err != nil {
 				return fmt.Errorf("任务 %q 的 working-directory 无效: %w", name, err)
 			}
