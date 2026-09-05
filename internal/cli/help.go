@@ -74,6 +74,21 @@ func (c Command) runHelp(args []string) int {
 			return c.unknownHelpCommand(args)
 		}
 		c.printGraphHelp(c.Out)
+	case "sync":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printSyncHelp(c.Out)
+	case "tools":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printToolsHelp(c.Out)
+	case "tool":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printToolHelp(c.Out)
 	case "go":
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)

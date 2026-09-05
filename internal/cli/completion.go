@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-const completionCommands = "help version new run build test install vet list fix generate tasks task graph codegen info go completion"
+const completionCommands = "help version new run build test install vet list fix generate tasks task graph sync tools tool codegen info go completion"
 const codegenCommands = "configuration registry annotations"
 
 func (c Command) runCompletion(args []string) int {

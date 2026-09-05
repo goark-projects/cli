@@ -81,7 +81,7 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		return nil, err
 	}
 	trusted := false
-	if trustStore, trustErr := projecttrust.Default(); trustErr == nil {
+	if trustStore, trustErr := c.projectTrustStore(); trustErr == nil {
 		trusted = trustStore.Verify(project.Root, digest) == nil
 	}
 	cacheRoot, err := os.UserCacheDir()
@@ -109,6 +109,13 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		resolved[name] = item
 	}
 	return resolved, nil
+}
+
+func (c Command) projectTrustStore() (projecttrust.Store, error) {
+	if c.TrustDir != "" {
+		return projecttrust.Store{Dir: c.TrustDir}, nil
+	}
+	return projecttrust.Default()
 }
 
 func requiredToolNames(graph *taskgraph.Graph, targets []string) ([]string, error) {
