@@ -25,6 +25,9 @@ func validateOutputConflicts(tasks map[string]buildspec.Task) error {
 }
 
 func outputsMayOverlap(left string, right string) bool {
+	if strings.Contains(left, "${") || strings.Contains(right, "${") {
+		return true
+	}
 	left = normalizeOutput(left)
 	right = normalizeOutput(right)
 	if left == right {

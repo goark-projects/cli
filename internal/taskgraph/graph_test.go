@@ -90,6 +90,7 @@ func TestNew_whenOutputsMayOverlap_shouldReject(t *testing.T) {
 		{name: "parent directory", first: "build", second: "build/app"},
 		{name: "matching glob", first: "generated/**/*.go", second: "generated/app/*.go"},
 		{name: "glob matches fixed path", first: "generated/*/one.go", second: "generated/admin/one.go"},
+		{name: "variable may match static output", first: "${env:OUTPUT}/*.go", second: "generated/*.go"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
