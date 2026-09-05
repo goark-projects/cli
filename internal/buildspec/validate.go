@@ -96,12 +96,18 @@ func validateTools(tools map[string]Tool) error {
 			if tool.Package == "" || tool.Version == "" {
 				return fmt.Errorf("Go 工具 %q 必须声明 package 和 version", name)
 			}
+			if tool.Command != "" || tool.Path != "" {
+				return fmt.Errorf("Go 工具 %q 不能声明 command 或 path", name)
+			}
 			if !semver.IsValid(tool.Version) {
 				return fmt.Errorf("Go 工具 %q 必须声明精确 version，不能使用 %q", name, tool.Version)
 			}
 		case ToolTypeSystem:
 			if tool.Command == "" {
 				return fmt.Errorf("系统工具 %q 必须声明 command", name)
+			}
+			if tool.Package != "" || tool.Version != "" || tool.Path != "" {
+				return fmt.Errorf("系统工具 %q 不能声明 package、version 或 path", name)
 			}
 			if tool.Command == "." || tool.Command == ".." || strings.ContainsAny(tool.Command, `/\:`) {
 				return fmt.Errorf("系统工具 %q 的 command 必须是从 PATH 查找的命令名", name)
@@ -112,6 +118,9 @@ func validateTools(tools map[string]Tool) error {
 		case ToolTypeLocal:
 			if tool.Path == "" {
 				return fmt.Errorf("本地工具 %q 必须声明 path", name)
+			}
+			if tool.Package != "" || tool.Version != "" || tool.Command != "" {
+				return fmt.Errorf("本地工具 %q 不能声明 package、version 或 command", name)
 			}
 			if err := validateProjectPath("tools."+name+".path", tool.Path); err != nil {
 				return err
