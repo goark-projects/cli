@@ -18,7 +18,7 @@ func TestWriteAndRead_whenLockIsValid_shouldRoundTripDeterministically(t *testin
 		BuildSHA256: strings.Repeat("a", 64),
 		Tools: []Entry{
 			{Name: "zeta", Type: buildspec.ToolTypeSystem, GOOS: "linux", GOARCH: "amd64", Path: "/usr/bin/zeta", SHA256: strings.Repeat("b", 64)},
-			{Name: "alpha", Type: buildspec.ToolTypeGo, GOOS: "linux", GOARCH: "amd64", Package: "example.com/tools/alpha", Version: "v1.2.3", Module: "example.com/tools", ModuleVersion: "v1.2.3", ModuleSum: "h1:sum", Path: "/cache/alpha", SHA256: strings.Repeat("c", 64)},
+			{Name: "alpha", Type: buildspec.ToolTypeGo, GOOS: "linux", GOARCH: "amd64", Package: "example.com/tools/alpha", Version: "v1.2.3", Module: "example.com/tools", ModuleVersion: "v1.2.3", ModuleSum: "h1:sum", Path: "go/" + strings.Repeat("d", 64) + "/bin/alpha", SHA256: strings.Repeat("c", 64)},
 		},
 	}
 	if err := Write(root, lock); err != nil {
@@ -64,9 +64,13 @@ func TestRead_whenLockIsInvalid_shouldReject(t *testing.T) {
 		{name: "unknown field", content: "version = 1\nbuild-sha256 = '" + strings.Repeat("a", 64) + "'\nunknown = true\n", want: "未知字段"},
 		{name: "unsupported version", content: "version = 2\nbuild-sha256 = '" + strings.Repeat("a", 64) + "'\n", want: "version"},
 		{name: "invalid digest", content: "version = 1\nbuild-sha256 = 'short'\n", want: "SHA-256"},
-		{name: "unknown tool type", content: lockWithTool("unsupported", "", "", "", "", ""), want: "类型"},
-		{name: "Go tool missing module sum", content: lockWithTool("go", "example.com/tools/demo", "v1.0.0", "example.com/tools", "v1.0.0", ""), want: "module-sum"},
-		{name: "system tool has Go metadata", content: lockWithTool("system", "example.com/tools/demo", "v1.0.0", "", "", ""), want: "package"},
+		{name: "unknown tool type", content: lockWithTool("unsupported", "", "", "", "", "", "/tmp/demo"), want: "类型"},
+		{name: "Go tool missing module sum", content: lockWithTool("go", "example.com/tools/demo", "v1.0.0", "example.com/tools", "v1.0.0", "", "go/"+strings.Repeat("c", 64)+"/bin/demo"), want: "module-sum"},
+		{name: "system tool has Go metadata", content: lockWithTool("system", "example.com/tools/demo", "v1.0.0", "", "", "", "/tmp/demo"), want: "package"},
+		{name: "Go tool uses absolute path", content: lockWithTool("go", "example.com/tools/demo", "v1.0.0", "example.com/tools", "v1.0.0", "h1:sum", "/tmp/demo"), want: "隔离缓存"},
+		{name: "local tool path escapes", content: lockWithTool("local", "", "", "", "", "", "../demo"), want: "项目内"},
+		{name: "system tool uses relative path", content: lockWithTool("system", "", "", "", "", "", "demo"), want: "绝对路径"},
+		{name: "system tool path is not canonical", content: lockWithTool("system", "", "", "", "", "", "/usr//bin/demo"), want: "绝对路径"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -82,11 +86,21 @@ func TestRead_whenLockIsInvalid_shouldReject(t *testing.T) {
 	}
 }
 
-func lockWithTool(toolType string, packagePath string, version string, module string, moduleVersion string, moduleSum string) string {
+func TestWrite_whenSystemPathUsesAnotherPlatform_shouldAcceptPortableAbsolutePath(t *testing.T) {
+	file := File{Version: CurrentVersion, BuildSHA256: strings.Repeat("a", 64), Tools: []Entry{
+		{Name: "windows", Type: buildspec.ToolTypeSystem, GOOS: "windows", GOARCH: "amd64", Path: "C:/Tools/demo.exe", SHA256: strings.Repeat("b", 64)},
+		{Name: "unc", Type: buildspec.ToolTypeSystem, GOOS: "windows", GOARCH: "arm64", Path: "//server/share/demo.exe", SHA256: strings.Repeat("c", 64)},
+	}}
+	if err := Write(t.TempDir(), file); err != nil {
+		t.Fatalf("跨平台绝对路径被拒绝: %v", err)
+	}
+}
+
+func lockWithTool(toolType string, packagePath string, version string, module string, moduleVersion string, moduleSum string, lockPath string) string {
 	return "version = 1\nbuild-sha256 = '" + strings.Repeat("a", 64) + "'\n[[tools]]\n" +
 		"name = 'demo'\ntype = '" + toolType + "'\ngoos = 'linux'\ngoarch = 'amd64'\n" +
 		"package = '" + packagePath + "'\nversion = '" + version + "'\nmodule = '" + module + "'\n" +
-		"module-version = '" + moduleVersion + "'\nmodule-sum = '" + moduleSum + "'\npath = '/tmp/demo'\nsha256 = '" + strings.Repeat("b", 64) + "'\n"
+		"module-version = '" + moduleVersion + "'\nmodule-sum = '" + moduleSum + "'\npath = '" + lockPath + "'\nsha256 = '" + strings.Repeat("b", 64) + "'\n"
 }
 
 func TestDigestFile_shouldReturnContentSHA256(t *testing.T) {

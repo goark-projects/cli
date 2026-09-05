@@ -2,6 +2,7 @@ package toollock
 
 import (
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 
@@ -89,15 +90,69 @@ func validate(file File) error {
 			if entry.Package == "" || entry.Version == "" || entry.Module == "" || entry.ModuleVersion == "" || entry.ModuleSum == "" {
 				return fmt.Errorf("Go 工具 %q 必须包含 package、version、module、module-version 和 module-sum", entry.Name)
 			}
+			if !validGoCachePath(entry.Path) {
+				return fmt.Errorf("Go 工具 %q 的 path 必须是 Goark 隔离缓存逻辑路径", entry.Name)
+			}
 		case buildspec.ToolTypeSystem, buildspec.ToolTypeLocal:
 			if entry.Package != "" || entry.Version != "" || entry.Module != "" || entry.ModuleVersion != "" || entry.ModuleSum != "" {
 				return fmt.Errorf("%s 工具 %q 不能包含 package、version 或 Go module 元数据", entry.Type, entry.Name)
+			}
+			if entry.Type == buildspec.ToolTypeSystem && !validSystemPath(entry.Path) {
+				return fmt.Errorf("system 工具 %q 的 path 必须是规范绝对路径", entry.Name)
+			}
+			if entry.Type == buildspec.ToolTypeLocal && !validLocalPath(entry.Path) {
+				return fmt.Errorf("local 工具 %q 的 path 必须是项目内规范相对路径", entry.Name)
 			}
 		default:
 			return fmt.Errorf("工具 %q 的类型 %q 无效", entry.Name, entry.Type)
 		}
 	}
 	return nil
+}
+
+func validGoCachePath(value string) bool {
+	if value == "" || strings.Contains(value, "\\") || path.Clean(value) != value {
+		return false
+	}
+	parts := strings.Split(value, "/")
+	return len(parts) == 4 && parts[0] == "go" && validDigest(parts[1]) && parts[2] == "bin" && parts[3] != ""
+}
+
+func validLocalPath(value string) bool {
+	return value != "" && value != "." && !strings.Contains(value, "\\") && !portableAbsolutePath(value) &&
+		path.Clean(value) == value && !containsParentSegment(value)
+}
+
+func validSystemPath(value string) bool {
+	return value != "" && !strings.Contains(value, "\\") && portableAbsolutePath(value) &&
+		!strings.HasSuffix(value, "/") && canonicalSystemPath(value) && !containsParentSegment(value)
+}
+
+func canonicalSystemPath(value string) bool {
+	if strings.HasPrefix(value, "//") {
+		return len(value) > 2 && path.Clean(value[1:]) == value[1:]
+	}
+	return path.Clean(value) == value
+}
+
+func portableAbsolutePath(value string) bool {
+	if strings.HasPrefix(value, "/") {
+		return true
+	}
+	return len(value) >= 3 && isASCIIAlpha(value[0]) && value[1] == ':' && value[2] == '/'
+}
+
+func containsParentSegment(value string) bool {
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "." || segment == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+func isASCIIAlpha(value byte) bool {
+	return value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z'
 }
 
 func validDigest(value string) bool {
