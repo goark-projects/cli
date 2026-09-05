@@ -109,6 +109,8 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "generate patterns empty", content: "version = 1\n[generate]\npatterns = []\n", want: "generate.patterns"},
 		{name: "go tool latest version", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"latest\"\ninstall = \"auto\"\n", want: "精确 version"},
 		{name: "go tool branch version", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"main\"\ninstall = \"auto\"\n", want: "精确 version"},
+		{name: "tool missing install", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\n", want: "install"},
+		{name: "system tool uses path", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"./demo\"\ninstall = \"manual\"\n", want: "PATH"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

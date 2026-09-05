@@ -88,6 +88,9 @@ func validateTools(tools map[string]Tool) error {
 		if !identifierPattern.MatchString(name) {
 			return fmt.Errorf("工具名称 %q 无效", name)
 		}
+		if tool.Install != "auto" && tool.Install != "manual" {
+			return fmt.Errorf("工具 %q 的 install 必须是 auto 或 manual", name)
+		}
 		switch tool.Type {
 		case ToolTypeGo:
 			if tool.Package == "" || tool.Version == "" {
@@ -96,14 +99,14 @@ func validateTools(tools map[string]Tool) error {
 			if !semver.IsValid(tool.Version) {
 				return fmt.Errorf("Go 工具 %q 必须声明精确 version，不能使用 %q", name, tool.Version)
 			}
-			if tool.Install != "" && tool.Install != "auto" && tool.Install != "manual" {
-				return fmt.Errorf("工具 %q 的 install 必须是 auto 或 manual", name)
-			}
 		case ToolTypeSystem:
 			if tool.Command == "" {
 				return fmt.Errorf("系统工具 %q 必须声明 command", name)
 			}
-			if tool.Install != "" && tool.Install != "manual" {
+			if tool.Command == "." || tool.Command == ".." || strings.ContainsAny(tool.Command, `/\:`) {
+				return fmt.Errorf("系统工具 %q 的 command 必须是从 PATH 查找的命令名", name)
+			}
+			if tool.Install != "manual" {
 				return fmt.Errorf("系统工具 %q 仅支持 install = \"manual\"", name)
 			}
 		case ToolTypeLocal:
@@ -113,7 +116,7 @@ func validateTools(tools map[string]Tool) error {
 			if err := validateProjectPath("tools."+name+".path", tool.Path); err != nil {
 				return err
 			}
-			if tool.Install != "" && tool.Install != "manual" {
+			if tool.Install != "manual" {
 				return fmt.Errorf("本地工具 %q 仅支持 install = \"manual\"", name)
 			}
 		default:
