@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -186,76 +185,6 @@ func parseProjectGenerationArguments(args []string) ([]string, []string, []strin
 		}
 	}
 	return patterns, buildFlags, directoryFlags, control, nil
-}
-
-func (c Command) runInfo(args []string) int {
-	jsonOutput := false
-	if len(args) > 0 {
-		if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
-			c.printInfoHelp(c.Out)
-			return 0
-		}
-		if len(args) == 1 && args[0] == "--json" {
-			jsonOutput = true
-		} else {
-			_, _ = fmt.Fprintf(c.Err, "goark info 不接受参数: %s\n", strings.Join(args, " "))
-			return 2
-		}
-	}
-	project, err := c.resolveProject(c.Dir, nil, nil, false)
-	if err != nil {
-		_, _ = fmt.Fprintln(c.Err, err)
-		return 2
-	}
-	results, err := generateProject(project, true)
-	if err != nil {
-		_, _ = fmt.Fprintln(c.Err, err)
-		return 1
-	}
-	mainTarget, mainErr := project.ResolveRunTarget(effectiveBaseDir(c.Dir))
-	if mainErr != nil {
-		mainTarget = "unresolved (" + mainErr.Error() + ")"
-	}
-	goVersion := c.captureGoVersion()
-	if jsonOutput {
-		info := projectInfo{
-			CLIVersion:         Version,
-			GoToolchain:        goVersion,
-			Module:             project.ModulePath,
-			Root:               project.Root,
-			Main:               mainTarget,
-			Generators:         []string{"annotations"},
-			GenerationPatterns: []string{"./..."},
-			GeneratedPackages:  len(results),
-		}
-		encoder := json.NewEncoder(c.Out)
-		encoder.SetEscapeHTML(false)
-		if err := encoder.Encode(info); err != nil {
-			_, _ = fmt.Fprintf(c.Err, "输出 info JSON 失败: %v\n", err)
-			return 1
-		}
-		return 0
-	}
-	_, _ = fmt.Fprintf(c.Out, "Goark CLI: %s\n", Version)
-	_, _ = fmt.Fprintf(c.Out, "Go toolchain: %s\n", goVersion)
-	_, _ = fmt.Fprintf(c.Out, "Module: %s\n", project.ModulePath)
-	_, _ = fmt.Fprintf(c.Out, "Root: %s\n", project.Root)
-	_, _ = fmt.Fprintf(c.Out, "Main: %s\n", mainTarget)
-	_, _ = fmt.Fprintln(c.Out, "Generators: annotations")
-	_, _ = fmt.Fprintln(c.Out, "Generation patterns: ./...")
-	_, _ = fmt.Fprintf(c.Out, "Generated packages: %d\n", len(results))
-	return 0
-}
-
-type projectInfo struct {
-	CLIVersion         string   `json:"cliVersion"`
-	GoToolchain        string   `json:"goToolchain"`
-	Module             string   `json:"module"`
-	Root               string   `json:"root"`
-	Main               string   `json:"main"`
-	Generators         []string `json:"generators"`
-	GenerationPatterns []string `json:"generationPatterns"`
-	GeneratedPackages  int      `json:"generatedPackages"`
 }
 
 func (c Command) resolveProject(dir string, patterns []string, buildFlags []string, static bool) (goarkProject, error) {

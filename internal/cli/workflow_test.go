@@ -275,15 +275,19 @@ func TestCommand_whenInfoRequested_shouldReportProjectAndGenerationPlan(t *testi
 	root := annotatedTestProject(t)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command := testOSCommand(root, &stdout, &stderr)
+	runner := &recordingProcessRunner{}
+	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: runner, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
 
 	if code := command.Run([]string{"info"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	for _, fragment := range []string{"Goark CLI:", "Go toolchain:", "Module: example.com/app", "Main: ./cmd/server", "Generators: annotations", "Generated packages: 1"} {
+	for _, fragment := range []string{"Goark CLI:", "Project: app", "Module: example.com/app", "Main: ./cmd/server", "Profile: (none)", "Generators: annotations", "Generated packages: 1", "Execution plans:"} {
 		if !strings.Contains(stdout.String(), fragment) {
 			t.Fatalf("info 缺少 %q:\n%s", fragment, stdout.String())
 		}
+	}
+	if len(runner.requests) != 0 {
+		t.Fatalf("info 不应启动任何进程: %#v", runner.requests)
 	}
 }
 
@@ -291,26 +295,64 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 	root := annotatedTestProject(t)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command := testOSCommand(root, &stdout, &stderr)
+	runner := &recordingProcessRunner{}
+	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: runner, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
 
 	if code := command.Run([]string{"info", "--json"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
 	var info struct {
-		CLIVersion         string   `json:"cliVersion"`
-		Module             string   `json:"module"`
-		Main               string   `json:"main"`
-		GenerationPatterns []string `json:"generationPatterns"`
-		GeneratedPackages  int      `json:"generatedPackages"`
+		CLIVersion string `json:"cliVersion"`
+		Project    struct {
+			Module string `json:"module"`
+			Main   string `json:"main"`
+		} `json:"project"`
+		Profile    string `json:"profile"`
+		Generators []struct {
+			Patterns []string `json:"patterns"`
+			Packages int      `json:"packages"`
+		} `json:"generators"`
+		Plans []struct {
+			Command string `json:"command"`
+		} `json:"plans"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
 		t.Fatalf("JSON 无效: %v\n%s", err, stdout.String())
 	}
-	if info.CLIVersion != Version || info.Module != "example.com/app" || info.Main != "./cmd/server" || info.GeneratedPackages != 1 {
+	if info.CLIVersion != Version || info.Project.Module != "example.com/app" || info.Project.Main != "./cmd/server" || info.Profile != "" {
 		t.Fatalf("诊断信息错误: %#v", info)
 	}
-	if len(info.GenerationPatterns) != 1 || info.GenerationPatterns[0] != "./..." {
-		t.Fatalf("生成范围错误: %#v", info.GenerationPatterns)
+	if len(info.Generators) != 1 || info.Generators[0].Packages != 1 || len(info.Generators[0].Patterns) != 1 || info.Generators[0].Patterns[0] != "./..." {
+		t.Fatalf("生成信息错误: %#v", info.Generators)
+	}
+	if len(info.Plans) != 8 || info.Plans[0].Command != "build" {
+		t.Fatalf("执行计划错误: %#v", info.Plans)
+	}
+	if len(runner.requests) != 0 {
+		t.Fatalf("info --json 不应启动任何进程: %#v", runner.requests)
+	}
+}
+
+func TestCommand_whenInfoContainsSecretEnvironment_shouldRedactWithoutSideEffects(t *testing.T) {
+	root := writeTestModule(t, map[string]string{
+		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"goark.build": "version = 1\n[commands.build.environment]\nAPI_TOKEN = \"top-secret-value\"\n",
+	})
+	runner := &recordingProcessRunner{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: runner, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
+	if code := command.Run([]string{"info", "--json"}); code != 0 {
+		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "top-secret-value") || !strings.Contains(stdout.String(), `"API_TOKEN":"******"`) {
+		t.Fatalf("info 密钥脱敏错误: %s", stdout.String())
+	}
+	if len(runner.requests) != 0 {
+		t.Fatalf("info 不应启动进程: %#v", runner.requests)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".goark")); !os.IsNotExist(err) {
+		t.Fatalf("info 不应创建项目状态目录: %v", err)
 	}
 }
 

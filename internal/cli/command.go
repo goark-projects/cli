@@ -84,6 +84,8 @@ func (c Command) Run(args []string) int {
 		return c.runTool(args[1:])
 	case "clean":
 		return c.runClean(args[1:])
+	case "doctor":
+		return c.runDoctor(args[1:])
 	case "codegen":
 		return c.runCodegen(args[1:])
 	case "completion":
@@ -185,6 +187,7 @@ Available commands:
   tools             Show declared tool status.
   tool              Install or verify project tools.
   clean             Remove declared outputs and task cache.
+  doctor            Diagnose the project, task graph, toolchain and tools.
   go                Run the official Go command without Goark extensions.
   completion        Generate shell completion scripts.
 

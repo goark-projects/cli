@@ -94,6 +94,11 @@ func (c Command) runHelp(args []string) int {
 			return c.unknownHelpCommand(args)
 		}
 		c.printCleanHelp(c.Out)
+	case "doctor":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printDoctorHelp(c.Out)
 	case "go":
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)
@@ -201,7 +206,7 @@ func (c Command) printInfoHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
   goark info [--json]
 
-Shows Goark CLI, Go toolchain, project and generation diagnostics.
+Shows read-only project, tool, task, generator, cache and execution-plan diagnostics.
 
 `)
 }

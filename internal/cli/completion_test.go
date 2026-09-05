@@ -57,7 +57,7 @@ func TestCommand_whenCompletionRequested_shouldIncludeNestedCommands(t *testing.
 				t.Fatalf("%s 补全缺少 %q", shell, fragment)
 			}
 		}
-		for _, commandName := range []string{"clean", "tasks", "task", "graph", "sync", "tools", "tool"} {
+		for _, commandName := range []string{"clean", "tasks", "task", "graph", "sync", "tools", "tool", "doctor"} {
 			if !strings.Contains(stdout.String(), commandName) {
 				t.Fatalf("%s 补全缺少命令 %q", shell, commandName)
 			}
