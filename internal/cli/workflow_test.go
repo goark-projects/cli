@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -336,7 +337,8 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 			Packages int      `json:"packages"`
 		} `json:"generators"`
 		Plans []struct {
-			Command string `json:"command"`
+			Command     string   `json:"command"`
+			GoArguments []string `json:"goArguments"`
 		} `json:"plans"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
@@ -350,6 +352,11 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 	}
 	if len(info.Plans) != 8 || info.Plans[0].Command != "build" {
 		t.Fatalf("执行计划错误: %#v", info.Plans)
+	}
+	for _, plan := range info.Plans {
+		if plan.Command == "run" && !reflect.DeepEqual(plan.GoArguments, []string{"run", "./cmd/server"}) {
+			t.Fatalf("run 最终执行计划错误: %#v", plan.GoArguments)
+		}
 	}
 	if len(runner.requests) != 0 {
 		t.Fatalf("info --json 不应启动任何进程: %#v", runner.requests)

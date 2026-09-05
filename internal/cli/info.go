@@ -160,7 +160,7 @@ func (c Command) createInfoReport(project goarkProject, control buildplan.Contro
 	if err != nil {
 		return infoReport{}, err
 	}
-	plans, err := createInfoPlans(project, c.environment(), control)
+	plans, err := createInfoPlans(project, effectiveBaseDir(c.Dir), c.environment(), control)
 	if err != nil {
 		return infoReport{}, err
 	}
@@ -224,7 +224,7 @@ func inspectCache(root string) (infoCache, error) {
 	return result, nil
 }
 
-func createInfoPlans(project goarkProject, environment []string, control buildplan.Control) ([]infoPlan, error) {
+func createInfoPlans(project goarkProject, workingDirectory string, environment []string, control buildplan.Control) ([]infoPlan, error) {
 	commands := []string{"build", "fix", "generate", "install", "list", "run", "test", "vet"}
 	plans := make([]infoPlan, 0, len(commands))
 	for _, name := range commands {
@@ -234,6 +234,11 @@ func createInfoPlans(project goarkProject, environment []string, control buildpl
 		}
 		configuration := project.Build.Commands[name]
 		arguments := append([]string(nil), plan.GoArguments...)
+		if name == "run" {
+			if target, targetErr := project.ResolveRunTarget(workingDirectory); targetErr == nil {
+				arguments = append(arguments, target)
+			}
+		}
 		if name != "generate" {
 			arguments, err = applyDefaultBuildTarget(project, project.Root, name, arguments)
 			if err != nil {
