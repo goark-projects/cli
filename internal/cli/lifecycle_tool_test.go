@@ -11,6 +11,7 @@ import (
 	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/buildspec"
 	"goark.dev/cli/internal/tooling"
+	"goark.dev/cli/internal/toollock"
 )
 
 func TestResolveVerifiedLifecycleTool_whenTrustedToolDigestDrifts_shouldRestoreAndVerify(t *testing.T) {
@@ -121,6 +122,21 @@ func TestPrepareLifecycle_whenCapturingGoVersion_shouldUseProjectRootAndPlanEnvi
 	}
 	if !containsEnvironmentEntry(request.Env, "GOTOOLCHAIN=local") || !containsEnvironmentEntry(request.Env, "GOENV=off") {
 		t.Fatalf("Go 版本探测环境未使用最终计划: %#v", request.Env)
+	}
+}
+
+func TestValidateLockedToolDeclarations_whenCurrentPlatformEntriesAreIncomplete_shouldReject(t *testing.T) {
+	tools := map[string]buildspec.Tool{
+		"demo": {Type: buildspec.ToolTypeSystem, Command: "demo", Install: "manual"},
+	}
+	if err := validateLockedToolDeclarations(toollock.File{}, tools, runtime.GOOS, runtime.GOARCH); err == nil {
+		t.Fatal("锁定模式必须拒绝缺少当前平台工具项的锁文件")
+	}
+	lock := toollock.File{Tools: []toollock.Entry{{
+		Name: "stale", Type: buildspec.ToolTypeSystem, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
+	}}}
+	if err := validateLockedToolDeclarations(lock, nil, runtime.GOOS, runtime.GOARCH); err == nil {
+		t.Fatal("锁定模式必须拒绝当前平台未声明的工具项")
 	}
 }
 

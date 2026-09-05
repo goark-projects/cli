@@ -71,7 +71,7 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		return nil, err
 	}
 	resolved := make(map[string]tooling.Resolved, len(names))
-	if len(names) == 0 {
+	if len(names) == 0 && !plan.Control.Locked {
 		return resolved, nil
 	}
 	lock, err := toollock.Read(project.Root)
@@ -84,6 +84,11 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 	}
 	if err := lock.VerifyBuild(digest); err != nil {
 		return nil, err
+	}
+	if plan.Control.Locked {
+		if err := validateLockedToolDeclarations(lock, project.Build.Tools, runtime.GOOS, runtime.GOARCH); err != nil {
+			return nil, err
+		}
 	}
 	trusted := false
 	if trustStore, trustErr := c.projectTrustStore(); trustErr == nil {
@@ -111,6 +116,36 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		resolved[name] = item
 	}
 	return resolved, nil
+}
+
+func validateLockedToolDeclarations(lock toollock.File, tools map[string]buildspec.Tool, goos string, goarch string) error {
+	for _, name := range sortedBuildToolNames(tools) {
+		entry, ok := lock.Find(name, goos, goarch)
+		if !ok {
+			return fmt.Errorf("工具 %q 缺少 %s/%s 锁定项", name, goos, goarch)
+		}
+		if !lockMatchesDeclaration(entry, tools[name]) {
+			return fmt.Errorf("工具 %q 的声明与锁定项不一致", name)
+		}
+	}
+	for _, entry := range lock.Tools {
+		if entry.GOOS != goos || entry.GOARCH != goarch {
+			continue
+		}
+		if _, ok := tools[entry.Name]; !ok {
+			return fmt.Errorf("锁文件包含未声明工具 %q 的 %s/%s 锁定项", entry.Name, goos, goarch)
+		}
+	}
+	return nil
+}
+
+func sortedBuildToolNames(tools map[string]buildspec.Tool) []string {
+	names := make([]string, 0, len(tools))
+	for name := range tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func resolveVerifiedLifecycleTool(

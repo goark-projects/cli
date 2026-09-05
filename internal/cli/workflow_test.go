@@ -207,6 +207,21 @@ func TestCommand_whenRunDryRunContainsSecretArguments_shouldRedactDiagnostic(t *
 	}
 }
 
+func TestCommand_whenLockedBuildHasNoLockFile_shouldRejectEvenWithoutTools(t *testing.T) {
+	root := writeTestModule(t, map[string]string{
+		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"cmd/server/main.go": "package main\nfunc main() {}\n",
+	})
+	var stderr bytes.Buffer
+	command := testOSCommand(root, io.Discard, &stderr)
+	if code := command.Run([]string{"build", "--goark-locked", "--goark-dry-run", "./..."}); code == 0 {
+		t.Fatalf("锁文件缺失时 --goark-locked 必须失败: %s", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "goark.build.lock") {
+		t.Fatalf("错误未说明锁文件缺失: %s", stderr.String())
+	}
+}
+
 func TestCommand_whenBuildLifecycleConfigured_shouldPlanHooksInFixedOrder(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
 		"go.mod":             "module example.com/app\n\ngo 1.25\n",
