@@ -2,7 +2,7 @@
 
 ![goark](assets/goark-readme-logo.png)
 
-`goark` 是 Goark 项目的命令行入口。它在标准 Go 工具链前增加确定性的编译期代码生成，同时通过隔离的 `goark go ...` 命名空间完整代理本机 Go 命令。
+`goark` 是 Goark 项目的命令行入口。`goark.build` 是唯一项目描述文件，用于统一工具、任务图、生命周期、Profile、环境、缓存和锁文件。CLI 在标准 Go 工具链前执行确定性的编译期代码生成，同时通过隔离的 `goark go ...` 命名空间完整代理本机 Go 命令。
 
 ## 安装
 
@@ -13,6 +13,9 @@ go install goark.dev/cli/cmd/goark@latest
 ## 核心工作流
 
 ```bash
+# 校验并同步项目工具锁文件
+goark sync
+
 # 自动发现 main package、生成代码并运行
 goark run
 
@@ -44,8 +47,16 @@ goark go build ./...
 | `goark install` | 生成代码并执行 `go install`。 |
 | `goark vet` | 生成代码并执行 `go vet`。 |
 | `goark list` | 生成代码并执行 `go list`。 |
-| `goark fix` | 生成代码并执行 `go fix`。 |
+| `goark fix` | 执行 `go fix`，成功后重新生成代码。 |
 | `goark generate` | 扫描项目并生成全部 Goark CLI 自有编译期代码。 |
+| `goark clean` | 删除声明的项目输出和任务缓存。 |
+| `goark tasks [--json]` | 列出任务。 |
+| `goark task <name>` | 执行指定任务及其依赖。 |
+| `goark graph` | 以 text、JSON 或 DOT 输出任务图。 |
+| `goark sync` | 解析工具并更新或校验 `goark.build.lock`。 |
+| `goark tools` | 查看工具状态。 |
+| `goark tool install/verify` | 安装单个 Go 工具或校验全部工具。 |
+| `goark doctor` | 诊断描述文件、任务图、Go 工具链和外部工具。 |
 | `goark info` | 输出项目与生成诊断信息，不写文件。 |
 | `goark go ...` | 原样代理官方 Go 命令。 |
 | `goark codegen ...` | 执行低层显式代码生成器。 |
@@ -87,17 +98,42 @@ $env:GOARK_PROFILES_ACTIVE = "dev"
 goark run
 ```
 
-Goark 控制参数：
+Goark 增强命令的控制参数：
 
 | 参数 | 说明 |
 | --- | --- |
-| `--goark-no-generate` | 跳过编译期生成。 |
-| `--goark-generate-only` | 只生成，不执行对应 Go 命令。 |
+| `--goark-profile=<name>` | 选择 `goark.build` 中声明的 Profile。 |
 | `--goark-dry-run` | 输出生成和 Go 命令计划，不写文件、不执行。 |
+| `--goark-offline` | 禁止网络和自动恢复工具。 |
+| `--goark-locked` | 要求现有锁文件完整匹配。 |
+| `--goark-env=KEY=VALUE` | 覆盖一个执行环境变量，可重复。 |
+
+固定生命周期不能跳过生成。需要完全原始的 Go 行为时使用 `goark go ...`。
 
 `go test -args` 和 `goark run --` 之后的参数不会再被 Goark 解析。
 
 `goark build/test/install/vet/list/fix` 接受对应 Go 子命令参数。Go 全局 `-C` 参数可直接使用，例如 `goark build -C services/admin ./...`；CLI 会按官方语法执行 `go -C services/admin build ./...`。`GOFLAGS`、`GOOS`、`GOARCH`、`GOWORK`、`GOTOOLCHAIN` 等环境变量由子进程原样继承。
+
+## 项目描述
+
+增强命令要求模块根目录存在 UTF-8 无 BOM、LF 换行的 `goark.build`：
+
+```toml
+version = 1
+
+[project]
+name = "admin-minimal"
+main = "./cmd/admin"
+
+[commands.build]
+go-args = ["-trimpath"]
+output = "./build/admin-minimal"
+
+[commands.test]
+go-args = ["-count=1", "./..."]
+```
+
+未知字段、重复字段、非法路径和无效引用直接失败。module、Go 版本和 toolchain 只读取同级 `go.mod`，不支持 `goark.toml`。完整规范见 [goark.build V1](docs/spec/goark-build-v1.md) 和 [English specification](docs/spec/goark-build-v1.en.md)。
 
 ## 项目发现
 
@@ -117,7 +153,7 @@ Goark 控制参数：
 - ConfigurationProperties 绑定元数据。
 - Web/MVC Controller、路由、参数绑定、返回值和 Advice 注册。
 
-生成文件名为 `zz_goark_<package>_gen.go`。写入使用确定性格式和内容感知原子替换；内容未变化时不更新时间。源码移除相关注解后，CLI 只删除具有 Goark 生成文件头的对应陈旧文件。
+生成文件名为 `zz_goark_<package>_gen.go`。每次生成都通过同目录临时文件原子覆盖具有 Goark 标准生成头的目标文件，确保旧生成结果不会残留；同名手写文件会阻止覆盖。源码移除相关注解后，CLI 只删除具有 Goark 生成文件头的对应陈旧文件。
 
 同一项目上的并发 `run/build/test/generate` 使用跨进程项目锁串行化生成阶段，避免多个进程同时替换生成文件；锁只覆盖生成，不覆盖后续 Go 构建或应用运行。
 
@@ -167,7 +203,7 @@ go mod tidy
 goark run
 ```
 
-生成的项目包含 `go.mod`、`resource/app.yml`、`cmd/server/main.go` 和基础 Web 配置。
+生成的项目包含 `go.mod`、`goark.build`、`resource/app.yml`、`cmd/server/main.go` 和基础 Web 配置。
 
 ## 开发验证
 

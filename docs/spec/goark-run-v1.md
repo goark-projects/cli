@@ -60,13 +60,17 @@ goark go version
 
 CLI 控制参数使用 `--goark-` 前缀：
 
-- `--goark-no-generate`：跳过编译期生成。
-- `--goark-generate-only`：只生成，不启动应用。
-- `--goark-dry-run`：显示执行计划，不写文件、不启动应用。
+- `--goark-profile=<name>`：选择 `goark.build` Profile。
+- `--goark-dry-run`：显示执行计划，不写文件、不安装工具、不启动进程。
+- `--goark-offline`：禁止网络访问和自动工具恢复。
+- `--goark-locked`：要求锁文件完整匹配。
+- `--goark-env=KEY=VALUE`：覆盖执行环境变量，可重复。
+
+固定生命周期不能跳过生成；需要原始 Go 行为时使用 `goark go ...`。
 
 ## 项目发现
 
-项目根目录通过 `go env GOMOD` 解析。未显式指定 main package 时按以下顺序选择：
+项目根目录由包含 `goark.build` 的本地 Go 模块确定。未显式指定 main package 时优先使用 `[project].main`，未配置时按以下顺序选择：
 
 1. 当前目录为 `package main` 时使用 `.`。
 2. `./cmd/...` 下只有一个 main package 时使用该包。
@@ -85,7 +89,7 @@ V1 生成范围：
 - ConfigurationProperties 绑定元数据。
 - Web/MVC Controller、路由、参数绑定、返回值和 Advice 注册。
 
-生成文件使用 `zz_goark_<package>_gen.go`，必须 UTF-8、LF、确定性排序、原子替换；内容未变化时不得更新时间。生成器只处理自身协议，不隐式执行 `go generate ./...` 或任意第三方命令。
+生成文件使用 `zz_goark_<package>_gen.go`，必须 UTF-8、LF、确定性排序。每次生成都原子覆盖带 Goark 标准生成头的目标文件；同名手写文件拒绝覆盖。生成器只处理自身协议，不隐式执行 `go generate ./...` 或任意第三方命令。
 
 ## 配置优先级
 
