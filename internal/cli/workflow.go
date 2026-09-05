@@ -43,7 +43,12 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
 		return 2
 	}
-	goCommand := composeEnhancedGoArguments(command, applyCommandOutput(command, plan.GoArguments, plan.Output))
+	goArguments, err = applyDefaultBuildTarget(project, workingDir, command, plan.GoArguments)
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
+	}
+	goCommand := composeEnhancedGoArguments(command, applyCommandOutput(command, goArguments, plan.Output))
 	return c.executeEnhancedLifecycle(command, project, plan, goCommand)
 }
 
@@ -205,6 +210,32 @@ func applyCommandOutput(command string, arguments []string, output string) []str
 		return result
 	}
 	return append([]string{"-o", output}, result...)
+}
+
+func applyDefaultBuildTarget(project goarkProject, workingDir string, command string, arguments []string) ([]string, error) {
+	result := append([]string(nil), arguments...)
+	if command != "build" || project.Build.Project.Main == "" || hasBuildTarget(result) {
+		return result, nil
+	}
+	target, err := project.ResolveRunTarget(workingDir)
+	if err != nil {
+		return nil, err
+	}
+	return append(result, target), nil
+}
+
+func hasBuildTarget(arguments []string) bool {
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		if strings.HasPrefix(argument, "-") {
+			if goBuildFlagConsumesValue(argument) && index+1 < len(arguments) {
+				index++
+			}
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func hasGoOutputFlag(arguments []string) bool {

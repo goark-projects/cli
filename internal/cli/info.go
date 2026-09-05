@@ -199,6 +199,10 @@ func createInfoPlans(project goarkProject, environment []string) ([]infoPlan, er
 		configuration := project.Build.Commands[name]
 		arguments := append([]string(nil), plan.GoArguments...)
 		if name != "generate" {
+			arguments, err = applyDefaultBuildTarget(project, project.Root, name, arguments)
+			if err != nil {
+				return nil, err
+			}
 			arguments = composeEnhancedGoArguments(name, applyCommandOutput(name, arguments, plan.Output))
 		}
 		plans = append(plans, infoPlan{

@@ -143,6 +143,29 @@ func TestCommand_whenBuildOutputConfigured_shouldPassOutputToGoBuild(t *testing.
 	}
 }
 
+func TestCommand_whenBuildTargetOmitted_shouldUseConfiguredProjectMain(t *testing.T) {
+	root := writeTestModule(t, map[string]string{
+		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"cmd/server/main.go": "package main\nfunc main() {}\n",
+		"goark.build": `version = 1
+[project]
+main = "./cmd/server"
+[commands.build]
+go-args = ["-trimpath"]
+output = "./build/app"
+`,
+	})
+	var stderr bytes.Buffer
+	command := testOSCommand(root, io.Discard, &stderr)
+
+	if code := command.Run([]string{"build", "--goark-dry-run"}); code != 0 {
+		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "go build -o ./build/app -trimpath ./cmd/server") {
+		t.Fatalf("构建计划未使用 project.main: %q", stderr.String())
+	}
+}
+
 func TestCommand_whenBuildOutputProvidedByCLI_shouldOverrideConfiguredOutput(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
 		"go.mod":             "module example.com/app\n\ngo 1.25\n",

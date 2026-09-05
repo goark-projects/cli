@@ -32,6 +32,7 @@ var goBuildFlagsWithValue = map[string]struct{}{
 	"-ldflags":       {},
 	"-mod":           {},
 	"-modfile":       {},
+	"-o":             {},
 	"-overlay":       {},
 	"-p":             {},
 	"-pkgdir":        {},
