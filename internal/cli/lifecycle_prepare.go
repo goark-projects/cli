@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,16 +100,41 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 			return nil, fmt.Errorf("工具 %q 的声明与锁定项不一致", name)
 		}
 		allowInstall := tool.Type == buildspec.ToolTypeGo && tool.Install == "auto" && trusted && !plan.Control.DryRun && !plan.Control.Offline
-		item, err := manager.Resolve(c.Context, name, tool, tooling.ResolveOptions{AllowInstall: allowInstall, Offline: plan.Control.Offline})
+		item, err := resolveVerifiedLifecycleTool(c.Context, manager, name, tool, locked, allowInstall, plan.Control.Offline)
 		if err != nil {
-			return nil, err
-		}
-		if err := tooling.Verify(item, locked); err != nil {
 			return nil, err
 		}
 		resolved[name] = item
 	}
 	return resolved, nil
+}
+
+func resolveVerifiedLifecycleTool(
+	ctx context.Context,
+	manager tooling.Manager,
+	name string,
+	tool buildspec.Tool,
+	locked toollock.Entry,
+	allowRestore bool,
+	offline bool,
+) (tooling.Resolved, error) {
+	item, err := manager.Resolve(ctx, name, tool, tooling.ResolveOptions{AllowInstall: allowRestore, Offline: offline})
+	if err != nil {
+		return tooling.Resolved{}, err
+	}
+	if err := tooling.Verify(item, locked); err == nil {
+		return item, nil
+	} else if !allowRestore {
+		return tooling.Resolved{}, err
+	}
+	item, err = manager.Resolve(ctx, name, tool, tooling.ResolveOptions{AllowInstall: true, ForceInstall: true})
+	if err != nil {
+		return tooling.Resolved{}, err
+	}
+	if err := tooling.Verify(item, locked); err != nil {
+		return tooling.Resolved{}, err
+	}
+	return item, nil
 }
 
 func (c Command) projectTrustStore() (projecttrust.Store, error) {

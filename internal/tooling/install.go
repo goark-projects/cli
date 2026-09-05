@@ -16,7 +16,7 @@ import (
 	"goark.dev/cli/internal/buildspec"
 )
 
-func (m Manager) installGoCached(ctx context.Context, tool buildspec.Tool, key string) error {
+func (m Manager) installGoCached(ctx context.Context, tool buildspec.Tool, key string, force bool) error {
 	goCache := filepath.Join(m.CacheDir, "go")
 	if err := os.MkdirAll(goCache, 0o755); err != nil {
 		return err
@@ -33,7 +33,7 @@ func (m Manager) installGoCached(ctx context.Context, tool buildspec.Tool, key s
 
 	target := filepath.Join(goCache, key)
 	executable := filepath.Join(target, "bin", executableName(path.Base(tool.Package)))
-	if _, err := os.Stat(executable); err == nil {
+	if _, err := os.Stat(executable); err == nil && !force {
 		return nil
 	}
 	temp, err := os.MkdirTemp(goCache, "."+key+"-*")

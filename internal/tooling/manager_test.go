@@ -2,6 +2,7 @@ package tooling
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -127,6 +128,37 @@ func TestManagerResolve_whenGoToolExecutableMissingFromExistingCache_shouldResto
 	}
 	if installCount != 2 || first.Path != second.Path {
 		t.Fatalf("安装次数 = %d, first=%q second=%q", installCount, first.Path, second.Path)
+	}
+}
+
+func TestManagerResolve_whenForceInstallRequested_shouldReplaceExistingTool(t *testing.T) {
+	cache := t.TempDir()
+	manager := NewManager(t.TempDir(), cache, nil)
+	installCount := 0
+	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+		installCount++
+		path := writeExecutable(t, destination, executableName("demo"))
+		return os.WriteFile(path, []byte(fmt.Sprintf("tool-%d\n", installCount)), 0o755)
+	}
+	manager.ReadBuild = func(string) (BuildMetadata, error) {
+		return BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:module-sum"}, nil
+	}
+	spec := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
+
+	first, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true})
+	if err != nil {
+		t.Fatalf("首次安装失败: %v", err)
+	}
+	second, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true, ForceInstall: true})
+	if err != nil {
+		t.Fatalf("强制重装失败: %v", err)
+	}
+	data, err := os.ReadFile(second.Path)
+	if err != nil {
+		t.Fatalf("读取重装工具失败: %v", err)
+	}
+	if installCount != 2 || first.Entry.SHA256 == second.Entry.SHA256 || string(data) != "tool-2\n" {
+		t.Fatalf("强制重装结果错误: count=%d first=%#v second=%#v data=%q", installCount, first.Entry, second.Entry, data)
 	}
 }
 

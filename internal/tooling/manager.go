@@ -28,6 +28,7 @@ type BuildMetadata struct {
 // ResolveOptions 控制工具解析时允许的副作用。
 type ResolveOptions struct {
 	AllowInstall bool
+	ForceInstall bool
 	Offline      bool
 }
 
@@ -106,7 +107,17 @@ func (m Manager) resolveGo(ctx context.Context, name string, tool buildspec.Tool
 	key := toolCacheKey(tool.Package, tool.Version, m.GOOS, m.GOARCH)
 	logicalPath := path.Join("go", key, "bin", executableName(path.Base(tool.Package)))
 	resolvedPath := filepath.Join(m.CacheDir, filepath.FromSlash(logicalPath))
-	if _, err := os.Stat(resolvedPath); err != nil {
+	if options.ForceInstall {
+		if options.Offline {
+			return Resolved{}, fmt.Errorf("离线模式下不能重装 Go 工具 %q", name)
+		}
+		if !options.AllowInstall {
+			return Resolved{}, fmt.Errorf("Go 工具 %q 不允许重装", name)
+		}
+		if err := m.installGoCached(ctx, tool, key, true); err != nil {
+			return Resolved{}, fmt.Errorf("安装 Go 工具 %q 失败: %w", name, err)
+		}
+	} else if _, err := os.Stat(resolvedPath); err != nil {
 		if !os.IsNotExist(err) {
 			return Resolved{}, fmt.Errorf("检查 Go 工具 %q 失败: %w", name, err)
 		}
@@ -116,7 +127,7 @@ func (m Manager) resolveGo(ctx context.Context, name string, tool buildspec.Tool
 		if !options.AllowInstall {
 			return Resolved{}, fmt.Errorf("Go 工具 %q 尚未安装，请执行 goark sync 或 goark tool install %s", name, name)
 		}
-		if err := m.installGoCached(ctx, tool, key); err != nil {
+		if err := m.installGoCached(ctx, tool, key, false); err != nil {
 			return Resolved{}, fmt.Errorf("安装 Go 工具 %q 失败: %w", name, err)
 		}
 	}

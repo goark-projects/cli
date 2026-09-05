@@ -221,7 +221,7 @@ func (s Service) resolve(ctx context.Context, names []string, allowAutoInstall b
 	for _, name := range names {
 		tool := s.Document.Tools[name]
 		item, err := manager.Resolve(ctx, name, tool, tooling.ResolveOptions{
-			AllowInstall: forceInstall || allowAutoInstall && tool.Install == "auto", Offline: offline,
+			AllowInstall: forceInstall || allowAutoInstall && tool.Install == "auto", ForceInstall: forceInstall, Offline: offline,
 		})
 		if err != nil {
 			return nil, err
