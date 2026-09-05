@@ -29,6 +29,7 @@ goark generate
 # 查看当前项目、工具链、入口和生成计划
 goark info
 goark info --json
+goark info --goark-profile=production --json
 
 # 原样执行官方 Go 命令，不注入 Goark 行为
 goark go version
@@ -57,7 +58,7 @@ goark go build ./...
 | `goark tools` | 查看工具状态。 |
 | `goark tool install/verify` | 安装单个 Go 工具或校验全部工具。 |
 | `goark doctor` | 诊断描述文件、任务图、Go 工具链和外部工具。 |
-| `goark info` | 输出项目与生成诊断信息，不写文件。 |
+| `goark info` | 输出默认或指定 Profile 的项目与最终计划，不写文件。 |
 | `goark go ...` | 原样代理官方 Go 命令。 |
 | `goark codegen ...` | 执行低层显式代码生成器。 |
 | `goark new app` | 创建 Goark Boot 应用骨架。 |

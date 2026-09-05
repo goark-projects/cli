@@ -304,7 +304,7 @@ goark tools
 goark tool install <name>
 goark tool verify
 goark doctor
-goark info [--json]
+goark info [--goark-profile=<name>] [--json]
 goark go ...
 goark new/codegen/version/help/completion
 ```

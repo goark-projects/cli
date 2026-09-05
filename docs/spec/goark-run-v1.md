@@ -21,7 +21,7 @@ goark go [go-global-flags] <go-command> [arguments]
 goark run [go-build-flags] [package-or-go-files] [goark-properties] [-- application-arguments]
 goark generate [package-patterns]
 goark codegen <generator> [arguments]
-goark info [--json]
+goark info [--goark-profile=<name>] [--json]
 goark completion <bash|zsh|fish|powershell>
 ```
 

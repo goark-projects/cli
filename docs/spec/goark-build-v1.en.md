@@ -180,9 +180,9 @@ goark tools
 goark tool install <name>
 goark tool verify
 goark doctor
-goark info [--json]
+goark info [--goark-profile=<name>] [--json]
 goark go ...
 goark new/codegen/version/help/completion
 ```
 
-`goark info` is a read-only human report. `--json` emits a stable structure containing project metadata, Profile, tool status, tasks, generators, cache state, and final execution plans without installing tools or generating code.
+`goark info` is a read-only human report. `--goark-profile` selects the Profile used to construct its plans. `--json` emits a stable structure containing project metadata, Profile, tool status, tasks, generators, cache state, and final execution plans without installing tools or generating code.
