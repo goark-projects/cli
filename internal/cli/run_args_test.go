@@ -130,18 +130,20 @@ func TestParseRunArguments_whenLongPropertyUsesSeparateValue_shouldNotTreatValue
 }
 
 func TestParseRunArguments_whenControlFlagsProvided_shouldSetExecutionMode(t *testing.T) {
-	plan, err := parseRunArguments([]string{"--goark-generate-only", "--goark-dry-run", "."})
+	plan, err := parseRunArguments([]string{"--goark-profile=dev", "--goark-env=PORT=9090", "--goark-offline", "--goark-locked", "--goark-dry-run", "."})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
-	if !plan.GenerateOnly || !plan.DryRun || plan.SkipGenerate {
+	if plan.Control.Profile != "dev" || !plan.Control.DryRun || !plan.Control.Offline || !plan.Control.Locked || plan.Control.Environment["PORT"] != "9090" {
 		t.Fatalf("控制参数解析错误: %#v", plan)
 	}
 }
 
-func TestParseRunArguments_whenConflictingControlFlagsProvided_shouldReject(t *testing.T) {
-	if _, err := parseRunArguments([]string{"--goark-generate-only", "--goark-no-generate"}); err == nil {
-		t.Fatal("冲突的生成控制参数必须失败")
+func TestParseRunArguments_whenRemovedControlFlagsProvided_shouldReject(t *testing.T) {
+	for _, argument := range []string{"--goark-generate-only", "--goark-no-generate"} {
+		if _, err := parseRunArguments([]string{argument}); err == nil {
+			t.Fatalf("已删除参数必须失败: %s", argument)
+		}
 	}
 }
 

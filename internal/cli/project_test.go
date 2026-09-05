@@ -32,6 +32,34 @@ func TestProjectResolver_whenSingleCommandExists_shouldResolveModuleAndMain(t *t
 	}
 }
 
+func TestProjectResolver_whenBuildFileMissing_shouldReject(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n\ngo 1.25\n"), 0o644); err != nil {
+		t.Fatalf("写入 go.mod 失败: %v", err)
+	}
+	_, err := newTestProjectResolver(root).Resolve()
+	if err == nil || !strings.Contains(err.Error(), "goark.build") {
+		t.Fatalf("错误 = %v", err)
+	}
+}
+
+func TestProjectResolver_whenConfiguredMainExists_shouldUseIt(t *testing.T) {
+	root := writeTestModule(t, map[string]string{
+		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"goark.build":        "version = 1\n[project]\nmain = \"./cmd/admin\"\n",
+		"cmd/admin/main.go":  "package main\nfunc main() {}\n",
+		"cmd/worker/main.go": "package main\nfunc main() {}\n",
+	})
+	project, err := newTestProjectResolver(root).Resolve()
+	if err != nil {
+		t.Fatalf("发现项目失败: %v", err)
+	}
+	target, err := project.ResolveRunTarget(root)
+	if err != nil || target != "./cmd/admin" {
+		t.Fatalf("入口 = %q, err=%v", target, err)
+	}
+}
+
 func TestProjectResolver_whenCurrentPackageIsMain_shouldPreferCurrentDirectory(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
 		"go.mod":            "module example.com/app\n\ngo 1.25\n",
@@ -118,6 +146,9 @@ func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingM
 		if err := os.WriteFile(filepath.Join(item.dir, "go.mod"), []byte("module "+item.module+"\n\ngo 1.25\n"), 0o644); err != nil {
 			t.Fatalf("写入 go.mod 失败: %v", err)
 		}
+		if err := os.WriteFile(filepath.Join(item.dir, "goark.build"), []byte("version = 1\n"), 0o644); err != nil {
+			t.Fatalf("写入 goark.build 失败: %v", err)
+		}
 		if err := os.WriteFile(filepath.Join(item.dir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644); err != nil {
 			t.Fatalf("写入 main.go 失败: %v", err)
 		}
@@ -155,6 +186,9 @@ func newTestProjectResolver(dir string) projectResolver {
 func writeTestModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
+	if _, exists := files["goark.build"]; !exists {
+		files["goark.build"] = "version = 1\n"
+	}
 	for name, content := range files {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

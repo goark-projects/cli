@@ -44,9 +44,16 @@ type Options struct {
 
 // Runner 将任务定义适配到进程、文件系统和缓存边界。
 type Runner struct {
-	options  Options
-	mu       sync.Mutex
-	upstream map[string]string
+	options   Options
+	mu        sync.Mutex
+	upstream  map[string]string
+	completed map[string]bool
+	running   map[string]*taskExecution
+}
+
+type taskExecution struct {
+	done chan struct{}
+	err  error
 }
 
 // New 创建任务运行器。
@@ -66,11 +73,56 @@ func New(options Options) *Runner {
 	if options.GOARCH == "" {
 		options.GOARCH = runtime.GOARCH
 	}
-	return &Runner{options: options, upstream: make(map[string]string)}
+	return &Runner{
+		options: options, upstream: make(map[string]string),
+		completed: make(map[string]bool), running: make(map[string]*taskExecution),
+	}
 }
 
 // Run 执行单个任务并更新供下游指纹使用的输出摘要。
 func (r *Runner) Run(ctx context.Context, name string, task buildspec.Task) error {
+	execution, leader := r.begin(name)
+	if !leader {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-execution.done:
+			return execution.err
+		}
+	}
+	err := r.run(ctx, name, task)
+	r.finish(name, execution, err)
+	return err
+}
+
+func (r *Runner) begin(name string) (*taskExecution, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.completed[name] {
+		execution := &taskExecution{done: make(chan struct{})}
+		close(execution.done)
+		return execution, false
+	}
+	if execution, ok := r.running[name]; ok {
+		return execution, false
+	}
+	execution := &taskExecution{done: make(chan struct{})}
+	r.running[name] = execution
+	return execution, true
+}
+
+func (r *Runner) finish(name string, execution *taskExecution, err error) {
+	r.mu.Lock()
+	execution.err = err
+	if err == nil {
+		r.completed[name] = true
+	}
+	delete(r.running, name)
+	close(execution.done)
+	r.mu.Unlock()
+}
+
+func (r *Runner) run(ctx context.Context, name string, task buildspec.Task) error {
 	environment, values, err := r.taskValues(task)
 	if err != nil {
 		return err
@@ -122,7 +174,10 @@ func (r *Runner) Run(ctx context.Context, name string, task buildspec.Task) erro
 			return err
 		}
 	}
-	return r.recordOutput(name, task, cacheContext)
+	if err := r.recordOutput(name, task, cacheContext); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *Runner) execute(ctx context.Context, task buildspec.Task, args []string, workingDirectory string, environment map[string]string) error {

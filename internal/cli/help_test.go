@@ -38,6 +38,25 @@ func TestCommand_whenCommandHelpRequested_shouldPrintCommandSpecificHelp(t *test
 	}
 }
 
+func TestCommand_whenLifecycleHelpRequested_shouldDescribeCurrentControlFlags(t *testing.T) {
+	var stdout bytes.Buffer
+	command := Command{Out: &stdout, Err: &bytes.Buffer{}, Runner: &recordingProcessRunner{}}
+	if code := command.Run([]string{"help", "build"}); code != 0 {
+		t.Fatalf("退出码 = %d", code)
+	}
+	output := stdout.String()
+	for _, flag := range []string{"--goark-profile", "--goark-dry-run", "--goark-offline", "--goark-locked", "--goark-env"} {
+		if !strings.Contains(output, flag) {
+			t.Fatalf("帮助缺少 %s:\n%s", flag, output)
+		}
+	}
+	for _, removed := range []string{"--goark-no-generate", "--goark-generate-only"} {
+		if strings.Contains(output, removed) {
+			t.Fatalf("帮助仍包含已删除参数 %s:\n%s", removed, output)
+		}
+	}
+}
+
 func TestCommand_whenGenerateHelpFlagRequested_shouldPrintProjectGenerationHelp(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

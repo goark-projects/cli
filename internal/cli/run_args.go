@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"strings"
+
+	"goark.dev/cli/internal/buildplan"
 )
 
 // runArguments 保存 go run 与 Goark 编译前阶段的参数边界。
@@ -12,9 +14,7 @@ type runArguments struct {
 	ApplicationArguments []string
 	Target               string
 	TargetExplicit       bool
-	SkipGenerate         bool
-	GenerateOnly         bool
-	DryRun               bool
+	Control              buildplan.Control
 }
 
 var goBuildFlagsWithValue = map[string]struct{}{
@@ -106,29 +106,11 @@ func parseRunArguments(args []string) (runArguments, error) {
 		plan.ApplicationArguments = append(plan.ApplicationArguments, arg)
 	}
 
-	if plan.SkipGenerate && plan.GenerateOnly {
-		return runArguments{}, fmt.Errorf("--goark-no-generate 不能与 --goark-generate-only 同时使用")
-	}
 	return plan, nil
 }
 
 func applyRunControlArgument(plan *runArguments, arg string) (bool, error) {
-	switch arg {
-	case "--goark-no-generate":
-		plan.SkipGenerate = true
-		return true, nil
-	case "--goark-generate-only":
-		plan.GenerateOnly = true
-		return true, nil
-	case "--goark-dry-run":
-		plan.DryRun = true
-		return true, nil
-	default:
-		if strings.HasPrefix(arg, "--goark-") {
-			return false, fmt.Errorf("未知 Goark run 参数: %s", arg)
-		}
-		return false, nil
-	}
+	return buildplan.ApplyControlArgument(&plan.Control, arg)
 }
 
 func validateSystemPropertyArgument(arg string) error {

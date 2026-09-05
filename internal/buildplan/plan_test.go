@@ -8,6 +8,16 @@ import (
 	"goark.dev/cli/internal/buildspec"
 )
 
+func TestRedactArguments_whenSecretsProvided_shouldPreserveNamesAndHideValues(t *testing.T) {
+	arguments := []string{"build", "-Ddb.password=property-secret", "--token=argument-secret", "plain-secret", "value with spaces"}
+	environment := map[string]string{"API_TOKEN": "plain-secret"}
+	want := []string{"build", "-Ddb.password=******", "--token=******", "******", "value with spaces"}
+	got := RedactArguments(arguments, environment)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("脱敏参数 = %#v, want %#v", got, want)
+	}
+}
+
 func TestParseControlArguments_whenValid_shouldSeparateWithoutReorderingGoArguments(t *testing.T) {
 	remaining, control, err := ParseControlArguments([]string{
 		"-race",

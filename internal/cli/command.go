@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 // Version 是开发期版本号，正式发布时由构建流程通过 ldflags 覆盖。
@@ -12,19 +16,23 @@ var Version = "0.1.0-dev"
 
 // Command 封装命令执行所需的输入参数与输出边界。
 type Command struct {
-	In     io.Reader
-	Out    io.Writer
-	Err    io.Writer
-	Dir    string
-	Env    []string
-	Runner ProcessRunner
+	Context context.Context
+	In      io.Reader
+	Out     io.Writer
+	Err     io.Writer
+	Dir     string
+	Env     []string
+	Runner  ProcessRunner
 }
 
 // Main 执行 CLI 主流程，并返回进程退出码。
 func Main(args []string, stdout io.Writer, stderr io.Writer) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	cmd := Command{
-		Out: stdout,
-		Err: stderr,
+		Context: ctx,
+		Out:     stdout,
+		Err:     stderr,
 	}
 	return cmd.Run(args)
 }
@@ -85,6 +93,9 @@ func (c Command) runVersion(args []string) int {
 }
 
 func (c Command) withDefaults() Command {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	if c.Out == nil {
 		c.Out = io.Discard
 	}
@@ -97,15 +108,23 @@ func (c Command) withDefaults() Command {
 	return c
 }
 
+func (c Command) environment() []string {
+	if len(c.Env) > 0 {
+		return append([]string(nil), c.Env...)
+	}
+	return os.Environ()
+}
+
 func (c Command) runGo(args []string) int {
 	err := c.Runner.Run(ProcessRequest{
-		Name: "go",
-		Args: append([]string(nil), args...),
-		Dir:  c.Dir,
-		Env:  append([]string(nil), c.Env...),
-		In:   c.In,
-		Out:  c.Out,
-		Err:  c.Err,
+		Context: c.Context,
+		Name:    "go",
+		Args:    append([]string(nil), args...),
+		Dir:     c.Dir,
+		Env:     append([]string(nil), c.Env...),
+		In:      c.In,
+		Out:     c.Out,
+		Err:     c.Err,
 	})
 	if err == nil {
 		return 0
@@ -139,7 +158,7 @@ Available commands:
   install           Generate code and install packages.
   vet               Generate code and report package problems.
   list              Generate code and list packages.
-  fix               Generate code and update packages.
+  fix               Run go fix, then regenerate project code.
   generate          Generate all Goark compile-time code.
   codegen           Run a low-level Goark code generator.
   info              Show the current Goark project diagnostics.

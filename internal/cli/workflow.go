@@ -8,13 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"goark.dev/cli/internal/buildplan"
 )
 
-type workflowControl struct {
-	SkipGenerate bool
-	GenerateOnly bool
-	DryRun       bool
-}
+type workflowControl = buildplan.Control
 
 func (c Command) runEnhancedGo(command string, args []string) int {
 	if isHelpOnly(args) {
@@ -31,30 +29,23 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	remoteInstall := command == "install" && containsVersionedPackage(goArguments)
-	if remoteInstall && control.GenerateOnly {
-		_, _ = fmt.Fprintln(c.Err, "远程版本化 package 不支持 --goark-generate-only")
+	project, resolveErr := c.resolveProject(workingDir, nil, discoveryBuildFlags(goArguments), control.DryRun)
+	if resolveErr != nil {
+		_, _ = fmt.Fprintln(c.Err, resolveErr)
 		return 2
 	}
-	if !control.SkipGenerate && !remoteInstall {
-		project, resolveErr := c.resolveProject(workingDir, nil, discoveryBuildFlags(goArguments))
-		if resolveErr != nil {
-			_, _ = fmt.Fprintln(c.Err, resolveErr)
-			return 2
-		}
-		if code := c.generateAndReport(project, control.DryRun); code != 0 {
-			return code
-		}
+	plan, err := buildplan.Create(project.Build, command, control, goArguments, nil, nil, c.environment())
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
 	}
-	goCommand := composeEnhancedGoArguments(command, goArguments)
-	if control.DryRun {
-		_, _ = fmt.Fprintf(c.Err, "would run: go %s\n", strings.Join(goCommand, " "))
-		return 0
+	project, resolveErr = c.resolveProject(workingDir, nil, discoveryBuildFlags(plan.GoArguments), control.DryRun)
+	if resolveErr != nil {
+		_, _ = fmt.Fprintln(c.Err, resolveErr)
+		return 2
 	}
-	if control.GenerateOnly {
-		return 0
-	}
-	return c.runGo(goCommand)
+	goCommand := composeEnhancedGoArguments(command, applyCommandOutput(command, plan.GoArguments, plan.Output))
+	return c.executeEnhancedLifecycle(command, project, plan, goCommand)
 }
 
 func containsVersionedPackage(args []string) bool {
@@ -88,43 +79,33 @@ func (c Command) runApplication(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	remoteTarget := plan.TargetExplicit && strings.Contains(plan.Target, "@")
-	if remoteTarget && plan.GenerateOnly {
-		_, _ = fmt.Fprintln(c.Err, "远程版本化 package 不支持 --goark-generate-only")
+	project, resolveErr := c.resolveProject(workingDir, nil, discoveryBuildFlags(plan.GoArguments), plan.Control.DryRun)
+	if resolveErr != nil {
+		_, _ = fmt.Fprintln(c.Err, resolveErr)
 		return 2
 	}
-	needsProject := !plan.SkipGenerate || !plan.TargetExplicit
-	if needsProject && !remoteTarget {
-		project, resolveErr := c.resolveProject(workingDir, nil, discoveryBuildFlags(plan.GoArguments))
-		if resolveErr != nil {
-			_, _ = fmt.Fprintln(c.Err, resolveErr)
+	if !plan.TargetExplicit {
+		target, targetErr := project.ResolveRunTarget(workingDir)
+		if targetErr != nil {
+			_, _ = fmt.Fprintln(c.Err, targetErr)
 			return 2
 		}
-		if !plan.TargetExplicit {
-			target, targetErr := project.ResolveRunTarget(workingDir)
-			if targetErr != nil {
-				_, _ = fmt.Fprintln(c.Err, targetErr)
-				return 2
-			}
-			plan = plan.WithResolvedTarget(target)
-		}
-		if !plan.SkipGenerate {
-			if code := c.generateAndReport(project, plan.DryRun); code != 0 {
-				return code
-			}
-		}
+		plan = plan.WithResolvedTarget(target)
 	}
-	goArguments := composeEnhancedGoArguments("run", plan.GoArguments)
-	goArguments = append(goArguments, plan.PropertyArguments...)
-	goArguments = append(goArguments, plan.ApplicationArguments...)
-	if plan.DryRun {
-		_, _ = fmt.Fprintf(c.Err, "would run: go %s\n", strings.Join(goArguments, " "))
-		return 0
+	commandPlan, err := buildplan.Create(project.Build, "run", plan.Control, plan.GoArguments, plan.PropertyArguments, plan.ApplicationArguments, c.environment())
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
 	}
-	if plan.GenerateOnly {
-		return 0
+	project, resolveErr = c.resolveProject(workingDir, nil, discoveryBuildFlags(commandPlan.GoArguments), plan.Control.DryRun)
+	if resolveErr != nil {
+		_, _ = fmt.Fprintln(c.Err, resolveErr)
+		return 2
 	}
-	return c.runGo(goArguments)
+	goArguments := composeEnhancedGoArguments("run", commandPlan.GoArguments)
+	goArguments = append(goArguments, commandPlan.PropertyArguments...)
+	goArguments = append(goArguments, commandPlan.ApplicationArguments...)
+	return c.executeEnhancedLifecycle("run", project, commandPlan, goArguments)
 }
 
 func (c Command) runProjectGenerate(args []string) int {
@@ -137,21 +118,27 @@ func (c Command) runProjectGenerate(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	if control.SkipGenerate || control.GenerateOnly {
-		_, _ = fmt.Fprintln(c.Err, "goark generate 不支持 --goark-no-generate 或 --goark-generate-only")
-		return 2
-	}
 	workingDir, err := effectiveGoWorkingDir(c.Dir, directoryFlags)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	project, err := c.resolveProject(workingDir, patterns, buildFlags)
+	project, err := c.resolveProject(workingDir, patterns, buildFlags, control.DryRun)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	return c.generateAndReport(project, control.DryRun)
+	plan, err := buildplan.Create(project.Build, "generate", control, buildFlags, nil, nil, c.environment())
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
+	}
+	project, err = c.resolveProject(workingDir, patterns, discoveryBuildFlags(plan.GoArguments), control.DryRun)
+	if err != nil {
+		_, _ = fmt.Fprintln(c.Err, err)
+		return 2
+	}
+	return c.executeGenerateLifecycle(project, plan)
 }
 
 func parseProjectGenerationArguments(args []string) ([]string, []string, []string, workflowControl, error) {
@@ -215,7 +202,7 @@ func (c Command) runInfo(args []string) int {
 			return 2
 		}
 	}
-	project, err := c.resolveProject(c.Dir, nil, nil)
+	project, err := c.resolveProject(c.Dir, nil, nil, false)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
@@ -271,7 +258,7 @@ type projectInfo struct {
 	GeneratedPackages  int      `json:"generatedPackages"`
 }
 
-func (c Command) resolveProject(dir string, patterns []string, buildFlags []string) (goarkProject, error) {
+func (c Command) resolveProject(dir string, patterns []string, buildFlags []string, static bool) (goarkProject, error) {
 	return projectResolver{
 		Dir:        effectiveBaseDir(dir),
 		Env:        append([]string(nil), c.Env...),
@@ -279,7 +266,25 @@ func (c Command) resolveProject(dir string, patterns []string, buildFlags []stri
 		Err:        c.Err,
 		Patterns:   append([]string(nil), patterns...),
 		BuildFlags: append([]string(nil), buildFlags...),
+		Static:     static,
 	}.Resolve()
+}
+
+func applyCommandOutput(command string, arguments []string, output string) []string {
+	result := append([]string(nil), arguments...)
+	if command != "build" || output == "" || hasGoOutputFlag(result) {
+		return result
+	}
+	return append([]string{"-o", output}, result...)
+}
+
+func hasGoOutputFlag(arguments []string) bool {
+	for _, argument := range arguments {
+		if argument == "-o" || strings.HasPrefix(argument, "-o=") {
+			return true
+		}
+	}
+	return false
 }
 
 func discoveryBuildFlags(args []string) []string {
@@ -343,12 +348,13 @@ func (c Command) generateAndReport(project goarkProject, dryRun bool) int {
 func (c Command) captureGoVersion() string {
 	var output bytes.Buffer
 	err := c.Runner.Run(ProcessRequest{
-		Name: "go",
-		Args: []string{"version"},
-		Dir:  c.Dir,
-		Env:  append([]string(nil), c.Env...),
-		Out:  &output,
-		Err:  io.Discard,
+		Context: c.Context,
+		Name:    "go",
+		Args:    []string{"version"},
+		Dir:     c.Dir,
+		Env:     append([]string(nil), c.Env...),
+		Out:     &output,
+		Err:     io.Discard,
 	})
 	if err != nil {
 		return "unavailable"
@@ -357,37 +363,7 @@ func (c Command) captureGoVersion() string {
 }
 
 func parseWorkflowArguments(args []string) ([]string, workflowControl, error) {
-	control := workflowControl{}
-	goArguments := make([]string, 0, len(args))
-	passthrough := false
-	for _, arg := range args {
-		if passthrough {
-			goArguments = append(goArguments, arg)
-			continue
-		}
-		if arg == "--" || arg == "-args" {
-			passthrough = true
-			goArguments = append(goArguments, arg)
-			continue
-		}
-		switch arg {
-		case "--goark-no-generate":
-			control.SkipGenerate = true
-		case "--goark-generate-only":
-			control.GenerateOnly = true
-		case "--goark-dry-run":
-			control.DryRun = true
-		default:
-			if strings.HasPrefix(arg, "--goark-") {
-				return nil, workflowControl{}, fmt.Errorf("未知 Goark 参数: %s", arg)
-			}
-			goArguments = append(goArguments, arg)
-		}
-	}
-	if control.SkipGenerate && control.GenerateOnly {
-		return nil, workflowControl{}, fmt.Errorf("--goark-no-generate 不能与 --goark-generate-only 同时使用")
-	}
-	return goArguments, control, nil
+	return buildplan.ParseControlArguments(args)
 }
 
 func effectiveGoWorkingDir(base string, args []string) (string, error) {
@@ -470,9 +446,11 @@ func (c Command) printRunHelp(w io.Writer) {
   goark run [go-build-flags] [package-or-go-files] [properties] [-- application-arguments]
 
 Goark flags:
-  --goark-no-generate     Skip compile-time generation.
-  --goark-generate-only   Generate code without running the application.
-  --goark-dry-run         Print the generation and Go command plan.
+  --goark-profile=<name>  Select a declared build Profile.
+  --goark-dry-run         Print the complete plan without side effects or processes.
+  --goark-offline         Forbid network access and automatic tool restoration.
+  --goark-locked          Require the existing lock file without updating it.
+  --goark-env=KEY=VALUE   Override one environment variable; repeat as needed.
 
 `)
 }

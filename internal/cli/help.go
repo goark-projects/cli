@@ -127,9 +127,11 @@ func (c Command) printEnhancedGoHelp(w io.Writer, command string) {
 Generates Goark compile-time code, then runs "go %s" with the original Go arguments.
 
 Goark flags:
-  --goark-no-generate     Skip compile-time generation.
-  --goark-generate-only   Generate code without running Go.
-  --goark-dry-run         Print the generation and Go command plan.
+  --goark-profile=<name>  Select a declared build Profile.
+  --goark-dry-run         Print the complete plan without side effects or processes.
+  --goark-offline         Forbid network access and automatic tool restoration.
+  --goark-locked          Require the existing lock file without updating it.
+  --goark-env=KEY=VALUE   Override one environment variable; repeat as needed.
 
 All other arguments are passed to the official Go command.
 
@@ -142,6 +144,13 @@ func (c Command) printProjectGenerateHelp(w io.Writer) {
 
 Generates all enabled Goark compile-time code for local package patterns.
 Patterns default to ./....
+
+Goark flags:
+  --goark-profile=<name>  Select a declared build Profile.
+  --goark-dry-run         Print the complete plan without side effects or processes.
+  --goark-offline         Forbid network access and automatic tool restoration.
+  --goark-locked          Require the existing lock file without updating it.
+  --goark-env=KEY=VALUE   Override one environment variable; repeat as needed.
 
 Package loading flags:
   -C <directory>   Run from another directory.

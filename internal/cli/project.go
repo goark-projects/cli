@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"goark.dev/cli/internal/buildspec"
 )
 
 type projectResolver struct {
@@ -18,12 +20,14 @@ type projectResolver struct {
 	Err        io.Writer
 	Patterns   []string
 	BuildFlags []string
+	Static     bool
 }
 
 type goarkProject struct {
 	Root       string
 	ModulePath string
 	Packages   []goPackage
+	Build      buildspec.Document
 }
 
 type goPackage struct {
@@ -42,15 +46,30 @@ type goModule struct {
 
 func (r projectResolver) Resolve() (goarkProject, error) {
 	r = r.withDefaults()
-	module, err := r.resolveModule()
+	var module goModule
+	var err error
+	if r.Static {
+		module, err = r.resolveModuleStatic()
+	} else {
+		module, err = r.resolveModule()
+	}
 	if err != nil {
 		return goarkProject{}, err
 	}
-	patterns := []string{"./..."}
+	document, err := buildspec.LoadFile(filepath.Join(module.Dir, buildspec.FileName))
+	if err != nil {
+		return goarkProject{}, err
+	}
+	patterns := append([]string(nil), document.Generate.Patterns...)
 	if len(r.Patterns) > 0 {
 		patterns = append([]string(nil), r.Patterns...)
 	}
-	packages, err := r.listPackages(module.Dir, patterns)
+	var packages []goPackage
+	if r.Static {
+		packages, err = r.listPackagesStatic(module.Dir, module.Path, patterns)
+	} else {
+		packages, err = r.listPackages(module.Dir, patterns)
+	}
 	if err != nil {
 		return goarkProject{}, err
 	}
@@ -58,6 +77,7 @@ func (r projectResolver) Resolve() (goarkProject, error) {
 		Root:       filepath.Clean(module.Dir),
 		ModulePath: module.Path,
 		Packages:   packages,
+		Build:      document,
 	}, nil
 }
 
@@ -167,6 +187,15 @@ func (r projectResolver) listPackages(root string, patterns []string) ([]goPacka
 }
 
 func (p goarkProject) ResolveRunTarget(workingDir string) (string, error) {
+	if p.Build.Project.Main != "" {
+		targetDirectory := filepath.Join(p.Root, filepath.FromSlash(p.Build.Project.Main))
+		for _, item := range p.Packages {
+			if item.Name == "main" && samePath(item.Dir, targetDirectory) {
+				return p.Build.Project.Main, nil
+			}
+		}
+		return "", fmt.Errorf("project.main %q 不是可运行的 main package", p.Build.Project.Main)
+	}
 	if p.isMainPackage(workingDir) {
 		return ".", nil
 	}
@@ -192,6 +221,17 @@ func (p goarkProject) ResolveRunTarget(workingDir string) (string, error) {
 	default:
 		return "", fmt.Errorf("发现多个 main package，请显式指定运行目标: %s", strings.Join(candidates, ", "))
 	}
+}
+
+func (p goarkProject) ProjectName() string {
+	if strings.TrimSpace(p.Build.Project.Name) != "" {
+		return p.Build.Project.Name
+	}
+	module := strings.Trim(p.ModulePath, "/")
+	if index := strings.LastIndexByte(module, '/'); index >= 0 {
+		return module[index+1:]
+	}
+	return module
 }
 
 func (p goarkProject) isMainPackage(dir string) bool {

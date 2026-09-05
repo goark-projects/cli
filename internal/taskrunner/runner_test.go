@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +23,19 @@ import (
 type recordingRunner struct {
 	requests []processrun.Request
 	err      error
+}
+
+type blockingRunner struct {
+	calls   atomic.Int32
+	started chan struct{}
+	release chan struct{}
+}
+
+func (r *blockingRunner) Run(processrun.Request) error {
+	r.calls.Add(1)
+	r.started <- struct{}{}
+	<-r.release
+	return nil
 }
 
 func (r *recordingRunner) Run(request processrun.Request) error {
@@ -138,6 +153,41 @@ func TestRunnerRun_whenDryRunRequested_shouldNotStartProcessOrDelete(t *testing.
 	}
 	if !strings.Contains(diagnostic.String(), "would run task delete") {
 		t.Fatalf("模拟执行诊断缺失: %q", diagnostic.String())
+	}
+}
+
+func TestRunnerRun_whenSameTaskStartsConcurrently_shouldExecuteOnlyOnce(t *testing.T) {
+	process := &blockingRunner{started: make(chan struct{}, 2), release: make(chan struct{})}
+	runner := New(Options{Root: t.TempDir(), Process: process})
+	task := buildspec.Task{Type: buildspec.TaskTypeGo, Args: []string{"version"}}
+	start := make(chan struct{})
+	errors := make(chan error, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+	for range 2 {
+		go func() {
+			ready.Done()
+			<-start
+			errors <- runner.Run(context.Background(), "once", task)
+		}()
+	}
+	ready.Wait()
+	close(start)
+	<-process.started
+	select {
+	case <-process.started:
+		close(process.release)
+		t.Fatal("同一任务被并发执行了多次")
+	case <-time.After(100 * time.Millisecond):
+		close(process.release)
+	}
+	for range 2 {
+		if err := <-errors; err != nil {
+			t.Fatalf("执行任务失败: %v", err)
+		}
+	}
+	if process.calls.Load() != 1 {
+		t.Fatalf("进程执行次数 = %d", process.calls.Load())
 	}
 }
 

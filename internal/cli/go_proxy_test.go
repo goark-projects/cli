@@ -103,43 +103,48 @@ func TestCommand_whenEnvironmentProvided_shouldDelegateWithoutModification(t *te
 }
 
 func TestCommand_whenEnhancedBuildUsesGlobalDirectoryFlag_shouldPlaceFlagBeforeGoCommand(t *testing.T) {
-	runner := &recordingProcessRunner{}
-	command := Command{Out: io.Discard, Err: io.Discard, Runner: runner}
-
-	if code := command.Run([]string{"build", "--goark-no-generate", "-C", "service", "./..."}); code != 0 {
-		t.Fatalf("退出码 = %d", code)
+	got := composeEnhancedGoArguments("build", []string{"-C", "service", "./..."})
+	want := []string{"-C", "service", "build", "./..."}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("参数 = %#v, want %#v", got, want)
 	}
-	assertSingleGoRequest(t, runner, []string{"-C", "service", "build", "./..."})
 }
 
-func TestCommand_whenInstallingVersionedPackageOutsideProject_shouldSkipLocalGeneration(t *testing.T) {
+func TestCommand_whenInstallingVersionedPackageOutsideProject_shouldRequireBuildFile(t *testing.T) {
+	var stderr bytes.Buffer
 	runner := &recordingProcessRunner{}
-	command := Command{Out: io.Discard, Err: io.Discard, Runner: runner}
+	command := Command{Out: io.Discard, Err: &stderr, Runner: runner}
 
-	if code := command.Run([]string{"install", "example.com/tool@latest"}); code != 0 {
+	if code := command.Run([]string{"install", "example.com/tool@latest"}); code != 2 {
 		t.Fatalf("退出码 = %d", code)
 	}
-	assertSingleGoRequest(t, runner, []string{"install", "example.com/tool@latest"})
+	if len(runner.requests) != 1 || runner.requests[0].Args[0] != "list" || !strings.Contains(stderr.String(), "本地 Go 模块") {
+		t.Fatalf("请求 = %#v, stderr=%q", runner.requests, stderr.String())
+	}
 }
 
 func TestCommand_whenEnhancedTestApplicationUsesDirectoryFlag_shouldKeepItAfterArgsBoundary(t *testing.T) {
-	runner := &recordingProcessRunner{}
-	command := Command{Out: io.Discard, Err: io.Discard, Runner: runner}
-
-	if code := command.Run([]string{"test", "--goark-no-generate", "./...", "-args", "-C", "test-value"}); code != 0 {
-		t.Fatalf("退出码 = %d", code)
+	remaining, _, err := parseWorkflowArguments([]string{"./...", "-args", "-C", "test-value"})
+	if err != nil {
+		t.Fatalf("解析参数失败: %v", err)
 	}
-	assertSingleGoRequest(t, runner, []string{"test", "./...", "-args", "-C", "test-value"})
+	got := composeEnhancedGoArguments("test", remaining)
+	want := []string{"test", "./...", "-args", "-C", "test-value"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("参数 = %#v, want %#v", got, want)
+	}
 }
 
 func TestCommand_whenEnhancedTestApplicationRequestsHelp_shouldPassThroughAfterArgsBoundary(t *testing.T) {
-	runner := &recordingProcessRunner{}
-	command := Command{Out: io.Discard, Err: io.Discard, Runner: runner}
-
-	if code := command.Run([]string{"test", "--goark-no-generate", "./...", "-args", "--help"}); code != 0 {
-		t.Fatalf("退出码 = %d", code)
+	remaining, _, err := parseWorkflowArguments([]string{"./...", "-args", "--help"})
+	if err != nil {
+		t.Fatalf("解析参数失败: %v", err)
 	}
-	assertSingleGoRequest(t, runner, []string{"test", "./...", "-args", "--help"})
+	got := composeEnhancedGoArguments("test", remaining)
+	want := []string{"test", "./...", "-args", "--help"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("参数 = %#v, want %#v", got, want)
+	}
 }
 
 func TestCommand_whenGoProcessExitsNonzero_shouldReturnChildExitCode(t *testing.T) {
