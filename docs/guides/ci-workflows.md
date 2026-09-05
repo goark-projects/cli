@@ -57,7 +57,7 @@ jobs:
       - run: goark build --goark-locked
 ```
 
-Pin the Goark CLI version instead of using `@latest` in release pipelines.
+The general example tracks `@latest`. For a reproducible release pipeline, replace it with the exact approved tag, such as `@v0.0.1`.
 
 ## Generated Source Drift
 

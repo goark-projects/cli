@@ -9,6 +9,7 @@ This documentation describes the behavior implemented by the current Goark CLI. 
 1. [Getting started](getting-started.md) explains installation, project layout, first run, and the standard development loop.
 2. [Application creation](guides/project-creation.md) covers the `app` and `web` scaffolds and every `goark new` option.
 3. [CI and offline workflows](guides/ci-workflows.md) provides reproducible automation patterns.
+4. [Versioning and releases](versioning-and-releases.md) defines compatibility, artifacts, checksums, and the release pipeline.
 
 ## Reference
 
@@ -18,6 +19,7 @@ This documentation describes the behavior implemented by the current Goark CLI. 
 - [Lifecycle and tasks](lifecycle-and-tasks.md): generation ordering, task types, DAG validation, concurrency, conditions, and shutdown.
 - [Tools, lock file, trust, and cache](tools-lock-cache.md): tool sources, synchronization, verification, restoration, fingerprints, and cleanup.
 - [Troubleshooting](troubleshooting.md): common failures and deterministic recovery steps.
+- [V0.0.1 release notes](releases/v0.0.1.md): installation, highlights, artifacts, compatibility, and boundaries.
 
 ## Architecture Decisions
 

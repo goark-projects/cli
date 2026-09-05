@@ -101,6 +101,8 @@ All sections except `version` are optional and have safe defaults. Unknown field
 - [Application creation guide](docs/guides/project-creation.md)
 - [CI and offline workflows](docs/guides/ci-workflows.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Versioning and releases](docs/versioning-and-releases.md)
+- [Changelog](CHANGELOG.md)
 
 ## Design Boundaries
 

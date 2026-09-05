@@ -9,6 +9,7 @@
 1. [快速入门](getting-started.zh-CN.md)：安装、项目结构、首次运行和标准开发循环。
 2. [项目创建](guides/project-creation.zh-CN.md)：`app`、`web` 骨架和 `goark new` 的全部参数。
 3. [CI 与离线工作流](guides/ci-workflows.zh-CN.md)：可复现的自动化用法。
+4. [版本与发布](versioning-and-releases.zh-CN.md)：兼容性、产物、校验和与发布流水线。
 
 ## 参考手册
 
@@ -18,6 +19,7 @@
 - [生命周期与任务](lifecycle-and-tasks.zh-CN.md)：生成顺序、任务类型、DAG 校验、并发、条件和关闭流程。
 - [工具、锁文件、信任与缓存](tools-lock-cache.zh-CN.md)：工具来源、同步、验证、恢复、缓存指纹和清理。
 - [故障排查](troubleshooting.zh-CN.md)：常见错误和确定性恢复步骤。
+- [V0.0.1 发行说明](releases/v0.0.1.zh-CN.md)：安装、核心能力、发布产物、兼容性和边界。
 
 ## 架构决策
 

@@ -57,7 +57,7 @@ jobs:
       - run: goark build --goark-locked
 ```
 
-发布流水线应锁定 Goark CLI 版本，不应使用 `@latest`。
+通用示例跟随 `@latest`。需要可复现的发布流水线时，应替换为已经批准的精确标签，例如 `@v0.0.1`。
 
 ## 生成源码漂移
 

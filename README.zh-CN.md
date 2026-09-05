@@ -101,6 +101,8 @@ go-args = ["./..."]
 - [项目创建指南](docs/guides/project-creation.zh-CN.md)
 - [CI 与离线工作流](docs/guides/ci-workflows.zh-CN.md)
 - [故障排查](docs/troubleshooting.zh-CN.md)
+- [版本与发布](docs/versioning-and-releases.zh-CN.md)
+- [变更日志](CHANGELOG.zh-CN.md)
 
 ## 设计边界
 
