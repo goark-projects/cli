@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 )
 
 type projectResolver struct {
+	Context      context.Context
 	Dir          string
 	Env          []string
 	Runner       ProcessRunner
@@ -86,6 +88,9 @@ func (r projectResolver) Resolve() (goarkProject, error) {
 }
 
 func (r projectResolver) withDefaults() projectResolver {
+	if r.Context == nil {
+		r.Context = context.Background()
+	}
 	if r.Dir == "" {
 		r.Dir, _ = os.Getwd()
 	}
@@ -104,12 +109,13 @@ func (r projectResolver) resolveModule() (goModule, error) {
 	args := []string{"list", "-m", "-json"}
 	args = append(args, r.BuildFlags...)
 	err := r.Runner.Run(ProcessRequest{
-		Name: "go",
-		Args: args,
-		Dir:  r.Dir,
-		Env:  append([]string(nil), r.Env...),
-		Out:  &output,
-		Err:  &diagnostic,
+		Context: r.Context,
+		Name:    "go",
+		Args:    args,
+		Dir:     r.Dir,
+		Env:     append([]string(nil), r.Env...),
+		Out:     &output,
+		Err:     &diagnostic,
 	})
 	if err != nil {
 		return goModule{}, commandFailure("发现 Go 模块", err, diagnostic.String())
@@ -152,12 +158,13 @@ func (r projectResolver) listPackages(root string, patterns []string) ([]goPacka
 	var output bytes.Buffer
 	var diagnostic bytes.Buffer
 	err := r.Runner.Run(ProcessRequest{
-		Name: "go",
-		Args: args,
-		Dir:  root,
-		Env:  append([]string(nil), r.Env...),
-		Out:  &output,
-		Err:  &diagnostic,
+		Context: r.Context,
+		Name:    "go",
+		Args:    args,
+		Dir:     root,
+		Env:     append([]string(nil), r.Env...),
+		Out:     &output,
+		Err:     &diagnostic,
 	})
 	if err != nil {
 		return nil, commandFailure("发现 Go package", err, diagnostic.String())

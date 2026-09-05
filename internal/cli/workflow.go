@@ -194,6 +194,7 @@ func parseProjectGenerationArguments(args []string) ([]string, []string, []strin
 
 func (c Command) resolveProject(dir string, patterns []string, buildFlags []string, static bool) (goarkProject, error) {
 	return projectResolver{
+		Context:    c.Context,
 		Dir:        effectiveBaseDir(dir),
 		Env:        append([]string(nil), c.Env...),
 		Runner:     c.Runner,

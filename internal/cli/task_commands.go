@@ -126,7 +126,7 @@ func validateProjectTaskGraph(project goarkProject) error {
 
 func (c Command) resolveProjectMetadata(dir string) (goarkProject, error) {
 	return projectResolver{
-		Dir: effectiveBaseDir(dir), Env: append([]string(nil), c.Env...), Runner: c.Runner,
+		Context: c.Context, Dir: effectiveBaseDir(dir), Env: append([]string(nil), c.Env...), Runner: c.Runner,
 		Err: c.Err, Static: true, MetadataOnly: true,
 	}.Resolve()
 }

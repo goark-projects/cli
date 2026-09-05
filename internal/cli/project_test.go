@@ -1,12 +1,26 @@
 package cli
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestProjectResolver_whenContextCanceled_shouldPropagateCancellationToGoDiscovery(t *testing.T) {
+	runner := &recordingProcessRunner{err: context.Canceled}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	resolver := projectResolver{Dir: t.TempDir(), Context: ctx, Runner: runner, Err: io.Discard}
+
+	_, _ = resolver.Resolve()
+
+	if len(runner.requests) != 1 || runner.requests[0].Context != ctx {
+		t.Fatalf("项目发现未传播取消上下文: %#v", runner.requests)
+	}
+}
 
 func TestProjectResolver_whenSingleCommandExists_shouldResolveModuleAndMain(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
