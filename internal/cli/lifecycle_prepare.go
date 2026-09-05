@@ -11,6 +11,7 @@ import (
 
 	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/buildspec"
+	"goark.dev/cli/internal/envutil"
 	"goark.dev/cli/internal/projectfs"
 	"goark.dev/cli/internal/projecttrust"
 	"goark.dev/cli/internal/taskcache"
@@ -207,11 +208,11 @@ func validateTaskPaths(project goarkProject) error {
 
 func lifecycleOverrides(document buildspec.Document, plan buildplan.Plan) map[string]string {
 	result := make(map[string]string)
-	buildplan.OverlayEnvironment(result, document.Commands[plan.Command].Environment)
+	envutil.Overlay(result, document.Commands[plan.Command].Environment)
 	if profile, ok := document.Profiles[plan.Profile]; ok {
-		buildplan.OverlayEnvironment(result, profile.Environment)
+		envutil.Overlay(result, profile.Environment)
 	}
-	buildplan.OverlayEnvironment(result, plan.Control.Environment)
+	envutil.Overlay(result, plan.Control.Environment)
 	return result
 }
 

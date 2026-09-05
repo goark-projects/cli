@@ -3,6 +3,8 @@ package condition
 import (
 	"fmt"
 	"strings"
+
+	"goark.dev/cli/internal/envutil"
 )
 
 // Values 是 when 表达式允许访问的只读值。
@@ -171,7 +173,7 @@ func (p *expressionParser) resolveIdentifier(current token) (string, error) {
 		return p.values.GOARCH, nil
 	}
 	if name, ok := strings.CutPrefix(current.text, "env."); ok && name != "" {
-		value, exists := p.values.Environment[name]
+		value, exists := envutil.Lookup(p.values.Environment, name)
 		if !exists {
 			return "", syntaxError(current.position, fmt.Sprintf("环境变量 %q 未定义", name))
 		}

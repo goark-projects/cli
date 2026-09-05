@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"goark.dev/cli/internal/envutil"
 )
 
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -75,7 +77,7 @@ func ApplyControlArgument(control *Control, argument string) (bool, error) {
 		if !ok || !environmentNamePattern.MatchString(name) {
 			return false, fmt.Errorf("Goark 环境变量必须使用 --goark-env=KEY=VALUE 格式: %s", argument)
 		}
-		SetEnvironment(control.Environment, name, value)
+		envutil.Set(control.Environment, name, value)
 		return true, nil
 	}
 	if strings.HasPrefix(argument, "--goark-") {

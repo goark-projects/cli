@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"goark.dev/cli/internal/buildspec"
+	"goark.dev/cli/internal/envutil"
 	"goark.dev/cli/internal/toollock"
 )
 
@@ -54,7 +55,7 @@ func Fingerprint(context Context) (string, error) {
 	}
 	environment := make([]environmentHash, 0, len(context.Task.EnvironmentInputs))
 	for _, name := range context.Task.EnvironmentInputs {
-		value, present := context.Environment[name]
+		value, present := envutil.Lookup(context.Environment, name)
 		environment = append(environment, environmentHash{Name: name, Present: present, SHA256: hashBytes([]byte(value))})
 	}
 	sort.Slice(environment, func(left int, right int) bool { return environment[left].Name < environment[right].Name })

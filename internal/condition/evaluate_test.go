@@ -66,3 +66,13 @@ func TestEvaluate_whenSyntaxFails_shouldIncludePosition(t *testing.T) {
 		t.Fatalf("错误 = %v", err)
 	}
 }
+
+func TestEvaluate_whenWindowsEnvironmentNameUsesDifferentCase_shouldResolve(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("仅适用于 Windows 环境名语义")
+	}
+	got, err := Evaluate(`env.PATH == "configured"`, Values{Environment: map[string]string{"Path": "configured"}})
+	if err != nil || !got {
+		t.Fatalf("条件结果 = %t, err=%v", got, err)
+	}
+}

@@ -3,6 +3,7 @@ package taskcache
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -46,6 +47,29 @@ func TestFingerprint_whenDeclaredInputChanges_shouldChange(t *testing.T) {
 	}
 	if second == third {
 		t.Fatal("声明环境变化后指纹未变化")
+	}
+}
+
+func TestFingerprint_whenWindowsEnvironmentNameUsesDifferentCase_shouldTrackValue(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("仅适用于 Windows 环境名语义")
+	}
+	context := Context{
+		Root: t.TempDir(), TaskName: "environment",
+		Task:        buildspec.Task{EnvironmentInputs: []string{"PATH"}},
+		Environment: map[string]string{"Path": "first"},
+	}
+	first, err := Fingerprint(context)
+	if err != nil {
+		t.Fatalf("计算初始指纹失败: %v", err)
+	}
+	context.Environment["Path"] = "second"
+	second, err := Fingerprint(context)
+	if err != nil {
+		t.Fatalf("计算变更指纹失败: %v", err)
+	}
+	if first == second {
+		t.Fatal("Windows 环境值变化后指纹未变化")
 	}
 }
 

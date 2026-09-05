@@ -6,19 +6,21 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"goark.dev/cli/internal/envutil"
 )
 
 func lookPath(command string, environment map[string]string) (string, error) {
 	if command == "" || strings.ContainsAny(command, `/\\`) {
 		return "", fmt.Errorf("系统工具 command 必须是不含路径分隔符的命令名")
 	}
-	pathValue := environmentValue(environment, "PATH")
+	pathValue, _ := envutil.Lookup(environment, "PATH")
 	if pathValue == "" {
 		pathValue = os.Getenv("PATH")
 	}
 	extensions := []string{""}
 	if runtime.GOOS == "windows" && filepath.Ext(command) == "" {
-		pathExt := environmentValue(environment, "PATHEXT")
+		pathExt, _ := envutil.Lookup(environment, "PATHEXT")
 		if pathExt == "" {
 			pathExt = ".COM;.EXE;.BAT;.CMD"
 		}
@@ -36,20 +38,6 @@ func lookPath(command string, environment map[string]string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("在 PATH 中找不到 %q", command)
-}
-
-func environmentValue(environment map[string]string, name string) string {
-	if value, ok := environment[name]; ok {
-		return value
-	}
-	if runtime.GOOS == "windows" {
-		for candidate, value := range environment {
-			if strings.EqualFold(candidate, name) {
-				return value
-			}
-		}
-	}
-	return ""
 }
 
 func canonicalExecutable(file string) (string, error) {

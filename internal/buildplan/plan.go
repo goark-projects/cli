@@ -2,11 +2,11 @@ package buildplan
 
 import (
 	"fmt"
-	"runtime"
 	"sort"
 	"strings"
 
 	"goark.dev/cli/internal/buildspec"
+	"goark.dev/cli/internal/envutil"
 )
 
 const RedactedValue = "******"
@@ -79,43 +79,19 @@ func buildEnvironment(process []string, layers ...map[string]string) map[string]
 	for _, entry := range process {
 		name, value, ok := strings.Cut(entry, "=")
 		if ok && name != "" {
-			SetEnvironment(values, name, value)
+			envutil.Set(values, name, value)
 		}
 	}
 	for _, layer := range layers {
-		OverlayEnvironment(values, layer)
+		envutil.Overlay(values, layer)
 	}
 	return values
-}
-
-// SetEnvironment 按当前平台的环境名规则设置一个值。
-func SetEnvironment(environment map[string]string, name string, value string) {
-	if runtime.GOOS == "windows" {
-		for existing := range environment {
-			if existing != name && strings.EqualFold(existing, name) {
-				delete(environment, existing)
-			}
-		}
-	}
-	environment[name] = value
-}
-
-// OverlayEnvironment 以稳定顺序将一层环境覆盖到目标环境。
-func OverlayEnvironment(target map[string]string, source map[string]string) {
-	names := make([]string, 0, len(source))
-	for name := range source {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		SetEnvironment(target, name, source[name])
-	}
 }
 
 func cloneControl(control Control) Control {
 	cloned := control
 	cloned.Environment = make(map[string]string, len(control.Environment))
-	OverlayEnvironment(cloned.Environment, control.Environment)
+	envutil.Overlay(cloned.Environment, control.Environment)
 	return cloned
 }
 

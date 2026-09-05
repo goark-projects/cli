@@ -2,8 +2,9 @@ package expand
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
+
+	"goark.dev/cli/internal/envutil"
 )
 
 // Values 保存白名单变量的解析上下文。
@@ -89,24 +90,11 @@ func resolve(expression string, values Values) (string, error) {
 		return value, nil
 	}
 	if name, ok := strings.CutPrefix(expression, "env:"); ok {
-		value, exists := environmentValue(values.Environment, name)
+		value, exists := envutil.Lookup(values.Environment, name)
 		if !exists || name == "" {
 			return "", fmt.Errorf("环境变量 %q 未定义", name)
 		}
 		return value, nil
 	}
 	return "", fmt.Errorf("不支持变量 ${%s}", expression)
-}
-
-func environmentValue(environment map[string]string, name string) (string, bool) {
-	value, ok := environment[name]
-	if ok || runtime.GOOS != "windows" {
-		return value, ok
-	}
-	for candidate, candidateValue := range environment {
-		if strings.EqualFold(candidate, name) {
-			return candidateValue, true
-		}
-	}
-	return "", false
 }
