@@ -261,10 +261,6 @@ func pathWithin(root string, target string) bool {
 	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
-func samePath(left string, right string) bool {
-	return strings.EqualFold(filepath.Clean(left), filepath.Clean(right))
-}
-
 func validateLocalProjectPattern(value string) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
