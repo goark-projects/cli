@@ -82,6 +82,8 @@ func (c Command) Run(args []string) int {
 		return c.runTools(args[1:])
 	case "tool":
 		return c.runTool(args[1:])
+	case "clean":
+		return c.runClean(args[1:])
 	case "codegen":
 		return c.runCodegen(args[1:])
 	case "completion":
@@ -182,6 +184,7 @@ Available commands:
   sync              Resolve tools and update or verify the lock file.
   tools             Show declared tool status.
   tool              Install or verify project tools.
+  clean             Remove declared outputs and task cache.
   go                Run the official Go command without Goark extensions.
   completion        Generate shell completion scripts.
 

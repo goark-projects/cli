@@ -89,6 +89,11 @@ func (c Command) runHelp(args []string) int {
 			return c.unknownHelpCommand(args)
 		}
 		c.printToolHelp(c.Out)
+	case "clean":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printCleanHelp(c.Out)
 	case "go":
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)
