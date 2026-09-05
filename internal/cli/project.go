@@ -14,13 +14,14 @@ import (
 )
 
 type projectResolver struct {
-	Dir        string
-	Env        []string
-	Runner     ProcessRunner
-	Err        io.Writer
-	Patterns   []string
-	BuildFlags []string
-	Static     bool
+	Dir          string
+	Env          []string
+	Runner       ProcessRunner
+	Err          io.Writer
+	Patterns     []string
+	BuildFlags   []string
+	Static       bool
+	MetadataOnly bool
 }
 
 type goarkProject struct {
@@ -59,6 +60,9 @@ func (r projectResolver) Resolve() (goarkProject, error) {
 	document, err := buildspec.LoadFile(filepath.Join(module.Dir, buildspec.FileName))
 	if err != nil {
 		return goarkProject{}, err
+	}
+	if r.MetadataOnly {
+		return goarkProject{Root: filepath.Clean(module.Dir), ModulePath: module.Path, Build: document}, nil
 	}
 	patterns := append([]string(nil), document.Generate.Patterns...)
 	if len(r.Patterns) > 0 {

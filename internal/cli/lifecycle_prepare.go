@@ -27,6 +27,10 @@ type preparedLifecycle struct {
 }
 
 func (c Command) prepareLifecycle(project goarkProject, plan buildplan.Plan) (*preparedLifecycle, error) {
+	return c.prepareLifecycleTargets(project, plan, lifecycleTaskTargets(project.Build, plan.Command))
+}
+
+func (c Command) prepareLifecycleTargets(project goarkProject, plan buildplan.Plan, targets []string) (*preparedLifecycle, error) {
 	graph, err := taskgraph.New(project.Build.Tasks)
 	if err != nil {
 		return nil, err
@@ -34,7 +38,7 @@ func (c Command) prepareLifecycle(project goarkProject, plan buildplan.Plan) (*p
 	if err := validateTaskPaths(project); err != nil {
 		return nil, err
 	}
-	tools, err := c.resolveLifecycleTools(project, plan)
+	tools, err := c.resolveLifecycleTools(project, plan, graph, targets)
 	if err != nil {
 		return nil, err
 	}
@@ -55,9 +59,13 @@ func (c Command) prepareLifecycle(project goarkProject, plan buildplan.Plan) (*p
 	return &preparedLifecycle{command: c, project: project, plan: plan, graph: graph, taskRunner: runner}, nil
 }
 
-func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan) (map[string]tooling.Resolved, error) {
-	resolved := make(map[string]tooling.Resolved, len(project.Build.Tools))
-	if len(project.Build.Tools) == 0 {
+func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan, graph *taskgraph.Graph, targets []string) (map[string]tooling.Resolved, error) {
+	names, err := requiredToolNames(graph, targets)
+	if err != nil {
+		return nil, err
+	}
+	resolved := make(map[string]tooling.Resolved, len(names))
+	if len(names) == 0 {
 		return resolved, nil
 	}
 	lock, err := toollock.Read(project.Root)
@@ -76,11 +84,6 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		return nil, fmt.Errorf("解析用户缓存目录失败: %w", err)
 	}
 	manager := tooling.NewManager(project.Root, filepath.Join(cacheRoot, "goark", "tools"), plan.Environment)
-	names := make([]string, 0, len(project.Build.Tools))
-	for name := range project.Build.Tools {
-		names = append(names, name)
-	}
-	sort.Strings(names)
 	for _, name := range names {
 		tool := project.Build.Tools[name]
 		locked, ok := lock.Find(name, runtime.GOOS, runtime.GOARCH)
@@ -102,6 +105,41 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		resolved[name] = item
 	}
 	return resolved, nil
+}
+
+func requiredToolNames(graph *taskgraph.Graph, targets []string) ([]string, error) {
+	order, err := graph.Order(targets)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{})
+	for _, name := range order {
+		task, _ := graph.Task(name)
+		if task.Type == buildspec.TaskTypeExec {
+			seen[task.Tool] = struct{}{}
+		}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func lifecycleTaskTargets(document buildspec.Document, command string) []string {
+	configuration := document.Commands[command]
+	targets := appendLifecycleTasks(nil, configuration)
+	if command != "generate" {
+		targets = appendLifecycleTasks(targets, document.Commands["generate"])
+	}
+	return targets
+}
+
+func appendLifecycleTasks(targets []string, command buildspec.Command) []string {
+	targets = append(targets, command.Before...)
+	targets = append(targets, command.After...)
+	return append(targets, command.Finally...)
 }
 
 func validateTaskPaths(project goarkProject) error {

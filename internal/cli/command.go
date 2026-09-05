@@ -68,6 +68,12 @@ func (c Command) Run(args []string) int {
 		return c.runProjectGenerate(args[1:])
 	case "info":
 		return c.runInfo(args[1:])
+	case "tasks":
+		return c.runTasks(args[1:])
+	case "task":
+		return c.runTask(args[1:])
+	case "graph":
+		return c.runGraph(args[1:])
 	case "codegen":
 		return c.runCodegen(args[1:])
 	case "completion":
@@ -162,6 +168,9 @@ Available commands:
   generate          Generate all Goark compile-time code.
   codegen           Run a low-level Goark code generator.
   info              Show the current Goark project diagnostics.
+  tasks             List declared project tasks.
+  task              Execute one declared project task.
+  graph             Show the validated task dependency graph.
   go                Run the official Go command without Goark extensions.
   completion        Generate shell completion scripts.
 

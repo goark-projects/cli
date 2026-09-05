@@ -16,6 +16,9 @@ func TestCommand_whenCommandHelpRequested_shouldPrintCommandSpecificHelp(t *test
 		{command: "generate", want: "goark generate"},
 		{command: "go", want: "goark go <go-arguments>"},
 		{command: "info", want: "goark info"},
+		{command: "tasks", want: "goark tasks"},
+		{command: "task", want: "goark task <name>"},
+		{command: "graph", want: "goark graph"},
 		{command: "completion", want: "goark completion"},
 	}
 

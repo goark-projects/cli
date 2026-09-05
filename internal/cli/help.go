@@ -59,6 +59,21 @@ func (c Command) runHelp(args []string) int {
 			return c.unknownHelpCommand(args)
 		}
 		c.printInfoHelp(c.Out)
+	case "tasks":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printTasksHelp(c.Out)
+	case "task":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printTaskHelp(c.Out)
+	case "graph":
+		if len(args) != 1 {
+			return c.unknownHelpCommand(args)
+		}
+		c.printGraphHelp(c.Out)
 	case "go":
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)
