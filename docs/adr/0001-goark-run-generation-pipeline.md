@@ -1,50 +1,61 @@
-# ADR-0001：以生成管线增强标准 Go 命令
+# ADR-0001: Fixed Generation and Command Lifecycle
 
-## 状态
+English | [简体中文](0001-goark-run-generation-pipeline.zh-CN.md)
 
-已接受并完成 Windows、Debian 与 Go 1.27 验证。
+## Status
 
-## 背景
+Accepted.
 
-Goark 应用依赖确定性的编译期注册代码替代 Java 风格的运行时扫描。现有 CLI 只能手工对单个 package 执行生成命令，随后再执行 `go run`、`go build` 或 `go test`，容易产生遗漏和陈旧代码。
+## Context
 
-CLI 必须保持 Go 原生工具链语义，同时支持 Spring Boot 风格的系统属性、命令行属性和环境变量优先级。
+Goark uses deterministic compile-time registration instead of Java-style runtime scanning. Requiring users to run individual generators before `go run`, `go build`, or `go test` allows stale generated source and creates different local and CI behavior.
 
-## 决策
+The CLI must preserve official Go toolchain semantics while adding project-owned generation, lifecycle hooks, locked external tools, Profiles, and Spring Boot-style runtime argument forwarding.
 
-- `goark go ...` 为标准 Go 命令提供隔离且透明的代理；Goark 自有的编译命令负责编排“项目发现、代码生成、标准 Go 命令”三个阶段。
-- Go 编译和执行始终委托本机 `go` 命令，不复制 Go 工具链行为。
-- 使用专用参数分类器，避免通用 CLI 框架拦截未知 Go 参数。
-- 生成器通过内部窄接口接入，现有 `Descriptor + Binder + Generator` 注解扩展管线保持不变。
-- V1 只执行 Goark CLI 自身拥有的生成器，不扫描或执行任意外部命令。
-- `generate` 提供项目级自动生成，`codegen` 提供低层显式生成；标准 `go generate` 通过 `goark go generate` 使用，不保留旧入口或兼容分支。
-- `goark.build` 是增强命令的唯一项目描述文件；module、Go 版本和 toolchain 仍以同级 `go.mod` 为唯一来源。
-- 固定生命周期不可通过参数跳过；需要原始 Go 行为时使用 `goark go ...`。
-- 每次生成都原子覆盖 CLI 自有且带标准生成头的目标文件；同一项目使用跨进程文件锁串行化生成阶段，避免保留旧生成结果并保证并发完整性。
+## Decision
 
-## 结果
+- `goark.build` is the only project orchestration file; `go.mod` remains the only source for module path, Go version, and toolchain.
+- Enhanced commands own a fixed lifecycle of validation, tool verification, generation, tasks, and an official Go subprocess.
+- `run`, `build`, `test`, `install`, `vet`, and `list` generate before the Go command. `fix` executes `go fix` before regeneration.
+- The lifecycle cannot skip generation. Users select raw behavior explicitly with `goark go ...`.
+- `goark generate` runs only Goark-owned compile-time generators and never implicitly executes `go generate` or arbitrary directives.
+- `goark codegen` remains a low-level explicit generator surface.
+- A dedicated argument classifier preserves Go flags, the main target, Boot properties, application arguments, and Goark controls as separate categories.
+- External tools are declared, locked, verified, and executed as an executable plus an argument array without a shell.
+- Generated targets are rebuilt completely and atomically replaced only when the Goark ownership header is present.
+- A cross-process project lock covers the complete lifecycle so hooks, generation, the Go subprocess, cache publication, and finalization observe one consistent project state.
 
-### 正面
+## Consequences
 
-- 用户只需执行一次 `goark run`。
-- Go 构建参数、模块、工作区和缓存行为仍由官方 Go 工具链决定。
-- 编译前失败可阻止陈旧生成代码进入运行阶段。
-- 后续 AOP 或其他 CLI 自有生成器可加入统一规划器。
+### Positive
 
-### 负面
+- One `goark run` or `goark test` command cannot accidentally consume stale Goark-generated source.
+- Go compilation, module, workspace, and build cache behavior remain owned by the official Go executable.
+- Configuration, graph, path, tool, and lock failures occur before the main Go command starts.
+- Raw Go behavior remains clear and available rather than being approximated by bypass flags.
+- The same declared lifecycle can be inspected with dry-run and `info`.
 
-- 启动前需要一次 package 发现和源码扫描。
-- 参数分类器必须持续跟进 Go 官方构建参数。
-- 多入口项目需要显式包参数，不能无条件猜测。
+### Negative
 
-### 中性
+- Enhanced commands incur project discovery, validation, and source scanning before the Go subprocess.
+- The complete lifecycle lock serializes concurrent Goark commands in the same project.
+- The run argument classifier must track Go build flags that consume a following value.
+- Multi-main projects require `project.main` or an explicit package.
 
-- `goark go` 代理全部 Go 参数且不注入 Goark 行为；是否执行前置生成由用户选择 Goark 自有命令还是裸 Go 代理明确决定。
-- 远程 `package@version` 没有本地生成上下文，因此直接委托 Go。
+### Neutral
 
-## 备选方案
+- Standard `go generate` remains available through `goark go generate` but is never implicit.
+- A remote `package@version` has no local project-generation context and remains an official Go concern.
+- Build Profiles and Boot runtime Profiles are intentionally separate controls.
 
-- 运行时反射扫描：启动成本高、错误延迟到运行期，不符合 Goark 的显式注册原则。
-- 默认执行 `go generate ./...`：可能执行不受 Goark 控制的任意命令，副作用和安全边界不可接受。
-- 使用通用 CLI 框架解析全部参数：未知 Go 参数和应用参数容易被提前拒绝或重写。
-- 自行实现编译和链接：重复 Go 工具链，兼容性和维护成本不可接受。
+## Alternatives Rejected
+
+- **Runtime reflection scanning:** moves failures to runtime, increases startup work, and conflicts with explicit Go registration.
+- **Implicit `go generate ./...`:** may execute arbitrary third-party commands outside Goark's declared tool and lock boundaries.
+- **Generation bypass flags:** produce multiple meanings for the same enhanced command and weaken the fixed lifecycle.
+- **Parsing all arguments with a generic CLI framework:** risks rejecting or rewriting current and future Go flags and application arguments.
+- **Implementing a compiler or linker:** duplicates the Go toolchain and creates an unsustainable compatibility boundary.
+
+## Scope
+
+This decision covers the CLI and `goark.build` V1. Agents, Plugins, a shell interpreter, and runtime scanning are outside this scope.
