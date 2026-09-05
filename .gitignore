@@ -46,3 +46,4 @@ desktop.ini
 # 临时目录
 /tmp/
 /.cache/
+/.goark/
