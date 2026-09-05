@@ -4,7 +4,7 @@
 
 `goark.build` is the only Goark project description file. It defines the project entry point, fixed command lifecycles, external tools, task graph, Profiles, environment overrides, caching, and execution policy. V1 does not include Agents, Plugins, runtime scanning, a shell interpreter, or a replacement for the Go toolchain.
 
-`goark.toml` is not recognized. The module path, Go language version, and toolchain are read only from the adjacent `go.mod`.
+The module path, Go language version, and toolchain are read only from the adjacent `go.mod`.
 
 ## File Contract
 

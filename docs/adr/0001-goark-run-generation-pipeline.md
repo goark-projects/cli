@@ -18,7 +18,7 @@ CLI 必须保持 Go 原生工具链语义，同时支持 Spring Boot 风格的�
 - 生成器通过内部窄接口接入，现有 `Descriptor + Binder + Generator` 注解扩展管线保持不变。
 - V1 只执行 Goark CLI 自身拥有的生成器，不扫描或执行任意外部命令。
 - `generate` 提供项目级自动生成，`codegen` 提供低层显式生成；标准 `go generate` 通过 `goark go generate` 使用，不保留旧入口或兼容分支。
-- `goark.build` 是增强命令的唯一项目描述文件；module、Go 版本和 toolchain 仍以同级 `go.mod` 为唯一来源，不兼容 `goark.toml`。
+- `goark.build` 是增强命令的唯一项目描述文件；module、Go 版本和 toolchain 仍以同级 `go.mod` 为唯一来源。
 - 固定生命周期不可通过参数跳过；需要原始 Go 行为时使用 `goark go ...`。
 - 每次生成都原子覆盖 CLI 自有且带标准生成头的目标文件；同一项目使用跨进程文件锁串行化生成阶段，避免保留旧生成结果并保证并发完整性。
 

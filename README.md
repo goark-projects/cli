@@ -133,7 +133,7 @@ output = "./build/admin-minimal"
 go-args = ["-count=1", "./..."]
 ```
 
-未知字段、重复字段、非法路径和无效引用直接失败。module、Go 版本和 toolchain 只读取同级 `go.mod`，不支持 `goark.toml`。完整规范见 [goark.build V1](docs/spec/goark-build-v1.md) 和 [English specification](docs/spec/goark-build-v1.en.md)。
+未知字段、重复字段、非法路径和无效引用直接失败。module、Go 版本和 toolchain 只读取同级 `go.mod`。完整规范见 [goark.build V1](docs/spec/goark-build-v1.md) 和 [English specification](docs/spec/goark-build-v1.en.md)。
 
 ## 项目发现
 
