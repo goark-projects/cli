@@ -107,6 +107,8 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "generate pattern escapes", content: "version = 1\n[generate]\npatterns = [\"../outside/...\"]\n", want: "generate.patterns"},
 		{name: "generate pattern is external module", content: "version = 1\n[generate]\npatterns = [\"example.com/outside/...\"]\n", want: "generate.patterns"},
 		{name: "generate patterns empty", content: "version = 1\n[generate]\npatterns = []\n", want: "generate.patterns"},
+		{name: "go tool latest version", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"latest\"\ninstall = \"auto\"\n", want: "精确 version"},
+		{name: "go tool branch version", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"main\"\ninstall = \"auto\"\n", want: "精确 version"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

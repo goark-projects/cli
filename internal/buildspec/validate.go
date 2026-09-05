@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
@@ -90,6 +92,9 @@ func validateTools(tools map[string]Tool) error {
 		case ToolTypeGo:
 			if tool.Package == "" || tool.Version == "" {
 				return fmt.Errorf("Go 工具 %q 必须声明 package 和 version", name)
+			}
+			if !semver.IsValid(tool.Version) {
+				return fmt.Errorf("Go 工具 %q 必须声明精确 version，不能使用 %q", name, tool.Version)
 			}
 			if tool.Install != "" && tool.Install != "auto" && tool.Install != "manual" {
 				return fmt.Errorf("工具 %q 的 install 必须是 auto 或 manual", name)
