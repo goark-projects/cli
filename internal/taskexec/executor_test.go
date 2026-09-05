@@ -128,6 +128,37 @@ func TestExecutor_whenFailFastTaskFails_shouldCancelRunningTasksAndSkipPending(t
 	}
 }
 
+func TestExecutor_whenFailFastCancelsEarlierNamedTask_shouldReturnOriginatingFailure(t *testing.T) {
+	failure := exitCodeError{code: 23}
+	graph := mustGraph(t, map[string]buildspec.Task{
+		"aaa-wait": {ParallelSafe: true},
+		"zzz-fail": {ParallelSafe: true},
+	})
+	waitStarted := make(chan struct{})
+	runner := RunnerFunc(func(ctx context.Context, name string, _ buildspec.Task) error {
+		switch name {
+		case "aaa-wait":
+			close(waitStarted)
+			<-ctx.Done()
+			return ctx.Err()
+		case "zzz-fail":
+			<-waitStarted
+			return failure
+		default:
+			return nil
+		}
+	})
+	executor := Executor{Graph: graph, MaxParallel: 2, FailFast: true, Runner: runner}
+	err := executor.Execute(context.Background(), []string{"aaa-wait", "zzz-fail"})
+	var taskErr TaskError
+	if !errors.As(err, &taskErr) {
+		t.Fatalf("错误类型 = %T, error=%v", err, err)
+	}
+	if taskErr.Name != "zzz-fail" || !errors.Is(err, failure) {
+		t.Fatalf("错误 = %v", err)
+	}
+}
+
 func TestExecutor_whenContextCanceledBeforeStart_shouldReturnCause(t *testing.T) {
 	graph := mustGraph(t, map[string]buildspec.Task{"one": {}})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -148,4 +179,16 @@ func mustGraph(t *testing.T, tasks map[string]buildspec.Task) *taskgraph.Graph {
 		t.Fatalf("创建任务图失败: %v", err)
 	}
 	return graph
+}
+
+type exitCodeError struct {
+	code int
+}
+
+func (e exitCodeError) Error() string {
+	return "退出码错误"
+}
+
+func (e exitCodeError) ExitCode() int {
+	return e.code
 }

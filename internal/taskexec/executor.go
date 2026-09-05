@@ -101,7 +101,10 @@ func (e Executor) Execute(ctx context.Context, targets []string) error {
 		}
 
 		batch := selectBatch(e.Graph, ready, limit)
-		failures := e.runBatch(runCtx, cancel, batch)
+		failures, batchFailure := e.runBatch(runCtx, cancel, batch)
+		if e.FailFast && batchFailure.err != nil && firstFailure == nil {
+			firstFailure = TaskError{Name: batchFailure.name, Err: batchFailure.err}
+		}
 		for _, name := range batch {
 			remaining--
 			if taskErr := failures[name]; taskErr != nil {
@@ -166,7 +169,7 @@ type taskResult struct {
 	err  error
 }
 
-func (e Executor) runBatch(ctx context.Context, cancel context.CancelFunc, names []string) map[string]error {
+func (e Executor) runBatch(ctx context.Context, cancel context.CancelFunc, names []string) (map[string]error, taskResult) {
 	results := make(chan taskResult, len(names))
 	for _, name := range names {
 		task, _ := e.Graph.Task(name)
@@ -175,14 +178,16 @@ func (e Executor) runBatch(ctx context.Context, cancel context.CancelFunc, names
 		}(name, task)
 	}
 	failures := make(map[string]error)
+	var firstFailure taskResult
 	for range names {
 		result := <-results
 		if result.err != nil {
 			failures[result.name] = result.err
-			if e.FailFast {
+			if e.FailFast && firstFailure.err == nil {
+				firstFailure = result
 				cancel()
 			}
 		}
 	}
-	return failures
+	return failures, firstFailure
 }
