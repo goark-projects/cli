@@ -52,6 +52,9 @@ func (g annotationProjectGenerator) Generate(project goarkProject, dryRun bool) 
 			return nil, fmt.Errorf("检查 package %s 的 Goark 注解失败: %w", item.ImportPath, err)
 		}
 		if !hasAnnotations {
+			if !project.Build.Generate.CleanStale {
+				continue
+			}
 			stale, err := staleAnnotationGenerationResult(g.Name(), item, dryRun)
 			if err != nil {
 				return nil, err
