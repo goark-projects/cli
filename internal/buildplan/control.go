@@ -75,7 +75,7 @@ func ApplyControlArgument(control *Control, argument string) (bool, error) {
 		if !ok || !environmentNamePattern.MatchString(name) {
 			return false, fmt.Errorf("Goark 环境变量必须使用 --goark-env=KEY=VALUE 格式: %s", argument)
 		}
-		control.Environment[name] = value
+		SetEnvironment(control.Environment, name, value)
 		return true, nil
 	}
 	if strings.HasPrefix(argument, "--goark-") {

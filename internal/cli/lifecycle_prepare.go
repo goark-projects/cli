@@ -207,17 +207,11 @@ func validateTaskPaths(project goarkProject) error {
 
 func lifecycleOverrides(document buildspec.Document, plan buildplan.Plan) map[string]string {
 	result := make(map[string]string)
-	for name, value := range document.Commands[plan.Command].Environment {
-		result[name] = value
-	}
+	buildplan.OverlayEnvironment(result, document.Commands[plan.Command].Environment)
 	if profile, ok := document.Profiles[plan.Profile]; ok {
-		for name, value := range profile.Environment {
-			result[name] = value
-		}
+		buildplan.OverlayEnvironment(result, profile.Environment)
 	}
-	for name, value := range plan.Control.Environment {
-		result[name] = value
-	}
+	buildplan.OverlayEnvironment(result, plan.Control.Environment)
 	return result
 }
 

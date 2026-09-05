@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/buildspec"
 	"goark.dev/cli/internal/expand"
 	"goark.dev/cli/internal/projectfs"
@@ -25,11 +26,9 @@ func (r *Runner) taskValues(task buildspec.Task) (map[string]string, expand.Valu
 		if err != nil {
 			return nil, expand.Values{}, fmt.Errorf("替换任务环境变量 %s 失败: %w", name, err)
 		}
-		environment[name] = value
+		buildplan.SetEnvironment(environment, name, value)
 	}
-	for name, value := range r.options.OverrideEnvironment {
-		environment[name] = value
-	}
+	buildplan.OverlayEnvironment(environment, r.options.OverrideEnvironment)
 	values.Environment = environment
 	return environment, values, nil
 }

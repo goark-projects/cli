@@ -205,10 +205,16 @@ func validateProfiles(profiles map[string]Profile) error {
 }
 
 func validateEnvironment(owner string, environment map[string]string) error {
+	seen := make(map[string]string, len(environment))
 	for _, name := range sortedKeys(environment) {
 		if !environmentNamePattern.MatchString(name) {
 			return fmt.Errorf("%s 的 environment 名称 %q 无效", owner, name)
 		}
+		canonical := strings.ToUpper(name)
+		if previous, ok := seen[canonical]; ok {
+			return fmt.Errorf("%s 的 environment 名称 %q 与 %q 重复", owner, previous, name)
+		}
+		seen[canonical] = name
 	}
 	return nil
 }

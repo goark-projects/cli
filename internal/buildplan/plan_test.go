@@ -2,6 +2,7 @@ package buildplan
 
 import (
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -50,6 +51,19 @@ func TestParseControlArguments_whenPassthroughStarts_shouldLeaveApplicationArgum
 	}
 	if control.Profile != "" || !reflect.DeepEqual(remaining, []string{"./cmd/app", "--", "--goark-profile=application"}) {
 		t.Fatalf("参数被错误解析: remaining=%#v control=%#v", remaining, control)
+	}
+}
+
+func TestParseControlArguments_whenWindowsEnvironmentNamesDifferOnlyByCase_shouldUseLastValue(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("仅适用于 Windows 环境名语义")
+	}
+	_, control, err := ParseControlArguments([]string{"--goark-env=PATH=first", "--goark-env=Path=second"})
+	if err != nil {
+		t.Fatalf("解析控制参数失败: %v", err)
+	}
+	if !reflect.DeepEqual(control.Environment, map[string]string{"Path": "second"}) {
+		t.Fatalf("控制环境 = %#v", control.Environment)
 	}
 }
 

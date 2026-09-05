@@ -76,6 +76,34 @@ func TestRunnerRun_whenExecTaskProvided_shouldExpandAndExecute(t *testing.T) {
 	}
 }
 
+func TestRunnerRun_whenWindowsEnvironmentNamesDifferOnlyByCase_shouldPreserveOverridePrecedence(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("仅适用于 Windows 环境名语义")
+	}
+	process := &recordingRunner{}
+	runner := New(Options{
+		Root: t.TempDir(), Environment: map[string]string{"Path": "process"},
+		OverrideEnvironment: map[string]string{"path": "cli"}, Process: process,
+	})
+	task := buildspec.Task{Type: buildspec.TaskTypeGo, Args: []string{"version"}, Environment: map[string]string{"PATH": "task"}}
+	if err := runner.Run(context.Background(), "environment", task); err != nil {
+		t.Fatalf("执行任务失败: %v", err)
+	}
+	if len(process.requests) != 1 {
+		t.Fatalf("进程数量 = %d", len(process.requests))
+	}
+	var matches []string
+	for _, entry := range process.requests[0].Env {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.EqualFold(name, "PATH") {
+			matches = append(matches, entry)
+		}
+	}
+	if !reflect.DeepEqual(matches, []string{"path=cli"}) {
+		t.Fatalf("PATH 环境 = %#v", matches)
+	}
+}
+
 func TestRunnerRun_whenConditionIsFalse_shouldSkipProcess(t *testing.T) {
 	process := &recordingRunner{}
 	runner := New(Options{Root: t.TempDir(), Profile: "dev", Process: process})

@@ -76,42 +76,46 @@ func selectProfile(document buildspec.Document, name string) (buildspec.Profile,
 
 func buildEnvironment(process []string, layers ...map[string]string) map[string]string {
 	values := make(map[string]string, len(process))
-	canonicalNames := make(map[string]string, len(process))
-	set := func(name string, value string) {
-		canonical := name
-		if runtime.GOOS == "windows" {
-			canonical = strings.ToUpper(name)
-		}
-		if previous, ok := canonicalNames[canonical]; ok && previous != name {
-			delete(values, previous)
-		}
-		values[name] = value
-		canonicalNames[canonical] = name
-	}
 	for _, entry := range process {
 		name, value, ok := strings.Cut(entry, "=")
 		if ok && name != "" {
-			set(name, value)
+			SetEnvironment(values, name, value)
 		}
 	}
 	for _, layer := range layers {
-		for name, value := range layer {
-			set(name, value)
-		}
+		OverlayEnvironment(values, layer)
 	}
 	return values
 }
 
-func mergeEnvironment(target map[string]string, source map[string]string) {
-	for name, value := range source {
-		target[name] = value
+// SetEnvironment 按当前平台的环境名规则设置一个值。
+func SetEnvironment(environment map[string]string, name string, value string) {
+	if runtime.GOOS == "windows" {
+		for existing := range environment {
+			if existing != name && strings.EqualFold(existing, name) {
+				delete(environment, existing)
+			}
+		}
+	}
+	environment[name] = value
+}
+
+// OverlayEnvironment 以稳定顺序将一层环境覆盖到目标环境。
+func OverlayEnvironment(target map[string]string, source map[string]string) {
+	names := make([]string, 0, len(source))
+	for name := range source {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		SetEnvironment(target, name, source[name])
 	}
 }
 
 func cloneControl(control Control) Control {
 	cloned := control
 	cloned.Environment = make(map[string]string, len(control.Environment))
-	mergeEnvironment(cloned.Environment, control.Environment)
+	OverlayEnvironment(cloned.Environment, control.Environment)
 	return cloned
 }
 

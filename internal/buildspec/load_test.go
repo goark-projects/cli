@@ -103,6 +103,7 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "invalid task environment", content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
 		{name: "invalid command environment", content: "version = 1\n[commands.build.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
 		{name: "invalid profile environment", content: "version = 1\n[profiles.dev.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
+		{name: "case duplicate environment", content: "version = 1\n[commands.build.environment]\nPATH = \"first\"\nPath = \"second\"\n", want: "重复"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
