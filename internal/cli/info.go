@@ -233,7 +233,7 @@ func createInfoPlans(project goarkProject, workingDirectory string, environment 
 			return nil, err
 		}
 		configuration := project.Build.Commands[name]
-		arguments := append([]string(nil), plan.GoArguments...)
+		arguments := append([]string{}, plan.GoArguments...)
 		if name == "run" {
 			if target, targetErr := project.ResolveRunTarget(workingDirectory); targetErr == nil {
 				arguments = append(arguments, target)
@@ -248,10 +248,10 @@ func createInfoPlans(project goarkProject, workingDirectory string, environment 
 		}
 		plans = append(plans, infoPlan{
 			Command: name, GoArguments: arguments,
-			ApplicationArguments: append([]string(nil), plan.ApplicationArguments...),
+			ApplicationArguments: append([]string{}, plan.ApplicationArguments...),
 			Environment:          buildplan.RedactEnvironment(lifecycleOverrides(project.Build, plan)),
-			Before:               append([]string(nil), configuration.Before...), After: append([]string(nil), configuration.After...),
-			Finally: append([]string(nil), configuration.Finally...), Output: plan.Output,
+			Before:               append([]string{}, configuration.Before...), After: append([]string{}, configuration.After...),
+			Finally: append([]string{}, configuration.Finally...), Output: plan.Output,
 		})
 	}
 	return plans, nil

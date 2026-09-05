@@ -375,8 +375,12 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 			Packages int      `json:"packages"`
 		} `json:"generators"`
 		Plans []struct {
-			Command     string   `json:"command"`
-			GoArguments []string `json:"goArguments"`
+			Command              string   `json:"command"`
+			GoArguments          []string `json:"goArguments"`
+			ApplicationArguments []string `json:"applicationArguments"`
+			Before               []string `json:"before"`
+			After                []string `json:"after"`
+			Finally              []string `json:"finally"`
 		} `json:"plans"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
@@ -392,6 +396,9 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 		t.Fatalf("执行计划错误: %#v", info.Plans)
 	}
 	for _, plan := range info.Plans {
+		if plan.GoArguments == nil || plan.ApplicationArguments == nil || plan.Before == nil || plan.After == nil || plan.Finally == nil {
+			t.Fatalf("执行计划数组必须稳定输出为空数组而不是 null: %#v", plan)
+		}
 		if plan.Command == "run" && !reflect.DeepEqual(plan.GoArguments, []string{"run", "./cmd/server"}) {
 			t.Fatalf("run 最终执行计划错误: %#v", plan.GoArguments)
 		}
