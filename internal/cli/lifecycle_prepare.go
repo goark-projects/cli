@@ -118,23 +118,29 @@ func resolveVerifiedLifecycleTool(
 	allowRestore bool,
 	offline bool,
 ) (tooling.Resolved, error) {
+	restore := func() (tooling.Resolved, error) {
+		item, err := manager.Resolve(ctx, name, tool, tooling.ResolveOptions{AllowInstall: true, ForceInstall: true})
+		if err != nil {
+			return tooling.Resolved{}, err
+		}
+		if err := tooling.Verify(item, locked); err != nil {
+			return tooling.Resolved{}, err
+		}
+		return item, nil
+	}
 	item, err := manager.Resolve(ctx, name, tool, tooling.ResolveOptions{AllowInstall: allowRestore, Offline: offline})
 	if err != nil {
-		return tooling.Resolved{}, err
+		if !allowRestore {
+			return tooling.Resolved{}, err
+		}
+		return restore()
 	}
 	if err := tooling.Verify(item, locked); err == nil {
 		return item, nil
 	} else if !allowRestore {
 		return tooling.Resolved{}, err
 	}
-	item, err = manager.Resolve(ctx, name, tool, tooling.ResolveOptions{AllowInstall: true, ForceInstall: true})
-	if err != nil {
-		return tooling.Resolved{}, err
-	}
-	if err := tooling.Verify(item, locked); err != nil {
-		return tooling.Resolved{}, err
-	}
-	return item, nil
+	return restore()
 }
 
 func (c Command) projectTrustStore() (projecttrust.Store, error) {

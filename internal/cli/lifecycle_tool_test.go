@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,7 +24,14 @@ func TestResolveVerifiedLifecycleTool_whenTrustedToolDigestDrifts_shouldRestoreA
 		}
 		return os.WriteFile(path, []byte("locked-tool\n"), 0o755)
 	}
-	manager.ReadBuild = func(string) (tooling.BuildMetadata, error) {
+	manager.ReadBuild = func(path string) (tooling.BuildMetadata, error) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return tooling.BuildMetadata{}, err
+		}
+		if string(data) != "locked-tool\n" {
+			return tooling.BuildMetadata{}, fmt.Errorf("invalid Go build info")
+		}
 		return tooling.BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:sum"}, nil
 	}
 	tool := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
