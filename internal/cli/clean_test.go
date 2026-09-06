@@ -11,7 +11,7 @@ import (
 
 func TestCommand_whenCleanRequested_shouldDeleteDeclaredOutputsAndCache(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": "version = 1\n[commands.build]\noutput = \"build/app\"\n",
 		"build/app":   "binary",
 		"keep.txt":    "keep",
@@ -35,7 +35,7 @@ func TestCommand_whenCleanRequested_shouldDeleteDeclaredOutputsAndCache(t *testi
 
 func TestCommand_whenCleanDryRunRequested_shouldReportWithoutDeletingOrProcesses(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": "version = 1\n[commands.build]\noutput = \"build/app\"\n",
 		"build/app":   "binary",
 	})

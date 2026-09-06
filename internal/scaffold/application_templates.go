@@ -32,7 +32,7 @@ goark run
 func applicationGoModTemplate(spec appSpec) string {
 	return `module ` + spec.modulePath + `
 
-go 1.25
+go 1.26.0
 
 require (
 	goark.dev/boot v0.0.0

@@ -181,7 +181,7 @@ func assertGeneratedPackageBuilds(t *testing.T, dir string, generated []byte) {
 		goarkRoot := filepath.ToSlash(filepath.Clean(filepath.Join(projectRoot(t), "..", "goark")))
 		mod := fmt.Sprintf(`module example.com/goark-generated-test
 
-go 1.25
+go 1.26.0
 
 require goark.dev/goark v0.0.0
 

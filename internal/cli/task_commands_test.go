@@ -21,7 +21,7 @@ depends-on = ["prepare"]
 
 func TestCommand_whenTasksRequested_shouldListStableTaskMetadataWithoutProcesses(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": taskCommandBuildFile,
 	})
 	runner := &recordingProcessRunner{}
@@ -48,7 +48,7 @@ func TestCommand_whenTasksRequested_shouldListStableTaskMetadataWithoutProcesses
 
 func TestCommand_whenGraphFormatRequested_shouldRenderStableGraph(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": taskCommandBuildFile,
 	})
 	tests := []struct {
@@ -75,7 +75,7 @@ func TestCommand_whenGraphFormatRequested_shouldRenderStableGraph(t *testing.T) 
 
 func TestCommand_whenTaskDryRunRequested_shouldExecuteDependenciesInOrderWithoutProcesses(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": taskCommandBuildFile,
 	})
 	runner := &recordingProcessRunner{}
@@ -91,7 +91,7 @@ func TestCommand_whenTaskDryRunRequested_shouldExecuteDependenciesInOrderWithout
 }
 
 func TestCommand_whenUnknownGraphFormatRequested_shouldReturnUsageError(t *testing.T) {
-	root := writeTestModule(t, map[string]string{"go.mod": "module example.com/app\n\ngo 1.25\n"})
+	root := writeTestModule(t, map[string]string{"go.mod": "module example.com/app\n\ngo 1.26.0\n"})
 	var stderr bytes.Buffer
 	command := Command{Dir: root, Out: io.Discard, Err: &stderr, Runner: &recordingProcessRunner{}}
 	if code := command.Run([]string{"graph", "--format=svg"}); code != 2 {
@@ -104,7 +104,7 @@ func TestCommand_whenUnknownGraphFormatRequested_shouldReturnUsageError(t *testi
 
 func TestCommand_whenTasksContainOutputConflict_shouldRejectBeforeRendering(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.25\n",
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": `version = 1
 [tasks.one]
 type = "delete"
@@ -126,7 +126,7 @@ outputs = ["build/app"]
 
 func TestCommand_whenTaskDoesNotUseUnavailableTool_shouldNotResolveIt(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.25\n",
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": `version = 1
 [tools.missing]
 type = "system"

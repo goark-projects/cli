@@ -9,7 +9,7 @@ import (
 
 func TestCommand_whenDoctorChecksHealthyProject_shouldPass(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 	})
 	var stdout bytes.Buffer
@@ -29,7 +29,7 @@ func TestCommand_whenDoctorChecksHealthyProject_shouldPass(t *testing.T) {
 
 func TestCommand_whenDoctorFindsUnavailableTool_shouldFailWithoutInstalling(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.25\n",
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": `version = 1
 [tools.missing]
 type = "system"

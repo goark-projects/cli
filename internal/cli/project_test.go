@@ -24,7 +24,7 @@ func TestProjectResolver_whenContextCanceled_shouldPropagateCancellationToGoDisc
 
 func TestProjectResolver_whenSingleCommandExists_shouldResolveModuleAndMain(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":              "module example.com/app\n\ngo 1.25\n",
+		"go.mod":              "module example.com/app\n\ngo 1.26.0\n",
 		"internal/app/app.go": "package app\n",
 		"cmd/server/main.go":  "package main\nfunc main() {}\n",
 	})
@@ -48,7 +48,7 @@ func TestProjectResolver_whenSingleCommandExists_shouldResolveModuleAndMain(t *t
 
 func TestProjectResolver_whenBuildFileMissing_shouldReject(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n\ngo 1.25\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n\ngo 1.26.0\n"), 0o644); err != nil {
 		t.Fatalf("写入 go.mod 失败: %v", err)
 	}
 	_, err := newTestProjectResolver(root).Resolve()
@@ -59,7 +59,7 @@ func TestProjectResolver_whenBuildFileMissing_shouldReject(t *testing.T) {
 
 func TestProjectResolver_whenConfiguredMainExists_shouldUseIt(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build":        "version = 1\n[project]\nmain = \"./cmd/admin\"\n",
 		"cmd/admin/main.go":  "package main\nfunc main() {}\n",
 		"cmd/worker/main.go": "package main\nfunc main() {}\n",
@@ -76,7 +76,7 @@ func TestProjectResolver_whenConfiguredMainExists_shouldUseIt(t *testing.T) {
 
 func TestProjectResolver_whenCurrentPackageIsMain_shouldPreferCurrentDirectory(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":            "module example.com/app\n\ngo 1.25\n",
+		"go.mod":            "module example.com/app\n\ngo 1.26.0\n",
 		"main.go":           "package main\nfunc main() {}\n",
 		"cmd/other/main.go": "package main\nfunc main() {}\n",
 	})
@@ -122,7 +122,7 @@ func TestGoarkProject_whenWorkingDirectoryUsesPathAlias_shouldPreferCurrentMainP
 
 func TestProjectResolver_whenMultipleCommandsExist_shouldRequireExplicitTarget(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/admin/main.go":  "package main\nfunc main() {}\n",
 		"cmd/worker/main.go": "package main\nfunc main() {}\n",
 	})
@@ -138,7 +138,7 @@ func TestProjectResolver_whenMultipleCommandsExist_shouldRequireExplicitTarget(t
 
 func TestProjectResolver_whenBuildTagsProvided_shouldUseMatchingFileSet(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"app/base.go": "package app\n",
 		"app/tagged.go": `//go:build special
 
@@ -184,7 +184,7 @@ func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingM
 		if err := os.MkdirAll(item.dir, 0o755); err != nil {
 			t.Fatalf("创建模块目录失败: %v", err)
 		}
-		if err := os.WriteFile(filepath.Join(item.dir, "go.mod"), []byte("module "+item.module+"\n\ngo 1.25\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(item.dir, "go.mod"), []byte("module "+item.module+"\n\ngo 1.26.0\n"), 0o644); err != nil {
 			t.Fatalf("写入 go.mod 失败: %v", err)
 		}
 		if err := os.WriteFile(filepath.Join(item.dir, "goark.build"), []byte("version = 1\n"), 0o644); err != nil {
@@ -194,7 +194,7 @@ func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingM
 			t.Fatalf("写入 main.go 失败: %v", err)
 		}
 	}
-	goWork := "go 1.25\n\nuse (\n\t./first\n\t./second\n)\n"
+	goWork := "go 1.26.0\n\nuse (\n\t./first\n\t./second\n)\n"
 	goWorkPath := filepath.Join(workspace, "go.work")
 	if err := os.WriteFile(goWorkPath, []byte(goWork), 0o644); err != nil {
 		t.Fatalf("写入 go.work 失败: %v", err)

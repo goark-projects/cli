@@ -205,7 +205,7 @@ func writeLocalReplaces(t *testing.T, dir string) {
 	root := filepath.Clean(filepath.Join(projectRoot(t), ".."))
 	mod := `module example.com/admin
 
-go 1.25
+go 1.26.0
 
 require (
 	goark.dev/arkarta v0.0.0

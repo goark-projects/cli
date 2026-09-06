@@ -88,7 +88,7 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 
 func TestCommand_whenInfoContainsSecretEnvironment_shouldRedactWithoutSideEffects(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": "version = 1\n[commands.build.environment]\nAPI_TOKEN = \"top-secret-value\"\n",
 	})
 	runner := &recordingProcessRunner{}
@@ -117,7 +117,7 @@ func TestCommand_whenInfoContainsSecretEnvironment_shouldRedactWithoutSideEffect
 
 func TestCommand_whenInfoProfileSelected_shouldApplyProfileToPlans(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 		"goark.build": `version = 1
 [project]
@@ -154,7 +154,7 @@ API_TOKEN = "profile-secret"
 
 func TestCommand_whenRunRequested_shouldPassPropertiesAndApplicationArguments(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.25\n",
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": `package main
 
 import (
@@ -193,7 +193,7 @@ func main() {
 
 func annotatedTestProject(t *testing.T) string {
 	return writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 		"internal/app/wiring.go": `package app
 

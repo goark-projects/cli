@@ -4,7 +4,7 @@ English | [简体中文](getting-started.zh-CN.md)
 
 ## Prerequisites
 
-- Go 1.25 or later.
+- Go 1.26 or later.
 - A supported Windows, Linux, or macOS environment.
 - Git and network access when a declared Go tool must be installed.
 

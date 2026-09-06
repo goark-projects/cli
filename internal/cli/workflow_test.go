@@ -48,7 +48,7 @@ func TestCommand_whenGenerateRequested_shouldGenerateAnnotatedPackages(t *testin
 
 func TestCommand_whenGenerateUsesBuildTags_shouldGenerateSelectedFileSet(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.25\n",
+		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"app/base.go": "package app\n",
 		"app/tagged.go": `//go:build special
 
@@ -79,7 +79,7 @@ func TestCommand_whenGenerateUsesDirectoryFlag_shouldResolveProjectFromThatDirec
 	if err := os.MkdirAll(filepath.Join(root, "app"), 0o755); err != nil {
 		t.Fatalf("创建项目目录失败: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/service\n\ngo 1.25\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/service\n\ngo 1.26.0\n"), 0o644); err != nil {
 		t.Fatalf("写入 go.mod 失败: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "goark.build"), []byte("version = 1\n"), 0o644); err != nil {
@@ -130,7 +130,7 @@ func TestCommand_whenBuildDryRunRequested_shouldPrintPlanWithoutWriting(t *testi
 
 func TestCommand_whenBuildDryRunRequested_shouldNotStartAnyProcess(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 	})
 	var stderr bytes.Buffer
@@ -147,7 +147,7 @@ func TestCommand_whenBuildDryRunRequested_shouldNotStartAnyProcess(t *testing.T)
 
 func TestCommand_whenBuildOutputConfigured_shouldPassOutputToGoBuild(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 		"goark.build":        "version = 1\n[commands.build]\noutput = \"./build/app\"\n",
 	})
@@ -164,7 +164,7 @@ func TestCommand_whenBuildOutputConfigured_shouldPassOutputToGoBuild(t *testing.
 
 func TestCommand_whenBuildTargetOmitted_shouldUseConfiguredProjectMain(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 		"goark.build": `version = 1
 [project]
@@ -187,7 +187,7 @@ output = "./build/app"
 
 func TestCommand_whenBuildOutputProvidedByCLI_shouldOverrideConfiguredOutput(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 		"goark.build":        "version = 1\n[commands.build]\noutput = \"./build/configured\"\n",
 	})
@@ -204,7 +204,7 @@ func TestCommand_whenBuildOutputProvidedByCLI_shouldOverrideConfiguredOutput(t *
 
 func TestCommand_whenRunDryRunContainsSecretArguments_shouldRedactDiagnostic(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 	})
 	var stderr bytes.Buffer
@@ -227,7 +227,7 @@ func TestCommand_whenRunDryRunContainsSecretArguments_shouldRedactDiagnostic(t *
 
 func TestCommand_whenLockedBuildHasNoLockFile_shouldRejectEvenWithoutTools(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 	})
 	var stderr bytes.Buffer
@@ -242,7 +242,7 @@ func TestCommand_whenLockedBuildHasNoLockFile_shouldRejectEvenWithoutTools(t *te
 
 func TestCommand_whenBuildLifecycleConfigured_shouldPlanHooksInFixedOrder(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod":             "module example.com/app\n\ngo 1.25\n",
+		"go.mod":             "module example.com/app\n\ngo 1.26.0\n",
 		"cmd/server/main.go": "package main\nfunc main() {}\n",
 		"goark.build": `version = 1
 [project]
@@ -295,7 +295,7 @@ args = ["version"]
 
 func TestCommand_whenGoCommandFails_shouldStillRunFinally(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.25\n",
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": `version = 1
 [commands.build]
 finally = ["cleanup"]
@@ -318,7 +318,7 @@ args = ["version"]
 
 func TestCommand_whenFinallyTaskAlreadyRan_shouldRunItAgain(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.25\n",
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": `version = 1
 [commands.build]
 before = ["cleanup"]

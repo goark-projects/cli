@@ -16,7 +16,7 @@
 
 ## 安装
 
-需要 Go 1.25 或更高版本。
+需要 Go 1.26 或更高版本。
 
 ```bash
 go install goark.dev/cli/cmd/goark@latest
