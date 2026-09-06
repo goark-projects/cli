@@ -42,9 +42,9 @@ func TestCreateApp_whenWebDisabled_shouldWriteBootApplicationSkeleton(t *testing
 	if len(files) == 0 {
 		t.Fatal("app scaffold should generate files")
 	}
-	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/boot v0.0.0")
-	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.0")
-	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/goark v0.0.0")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/boot v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/goark v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "goark.build"), `main = "./cmd/app"`)
 	assertFileEquals(t, filepath.Join(dir, "cmd/app/main.go"), minimalMainSource)
 	assertFileContains(t, filepath.Join(dir, "cmd/app/goark.go"), "boot.Run")
@@ -98,8 +98,13 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	assertFileContains(t, filepath.Join(dir, ".gitignore"), "/.goark/")
 	assertFileContains(t, filepath.Join(dir, ".gitignore"), "**/gen/")
 	assertFileContains(t, filepath.Join(dir, "README.md"), "goark run")
-	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.0")
-	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.0")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/arkarta v0.0.3")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/arkhos v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/boot v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-arkhos v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/goark v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "resource/app.yml"), "max-response-bytes")
 	assertFileContains(t, filepath.Join(dir, "resource/static/index.html"), "Goark Boot Web application is running.")
 	assertFileEquals(t, filepath.Join(dir, "cmd/server/main.go"), minimalMainSource)
@@ -209,13 +214,13 @@ func writeLocalReplaces(t *testing.T, dir string) {
 go 1.26.0
 
 require (
-	goark.dev/arkarta v0.0.0
-	goark.dev/arkhos v0.0.0
-	goark.dev/boot v0.0.0
-	goark.dev/gbc-arkhos v0.0.0
-	goark.dev/gbc-log v0.0.0
-	goark.dev/gbc-web v0.0.0
-	goark.dev/goark v0.0.0
+	goark.dev/arkarta v0.0.3
+	goark.dev/arkhos v0.0.1
+	goark.dev/boot v0.0.1
+	goark.dev/gbc-arkhos v0.0.1
+	goark.dev/gbc-log v0.0.1
+	goark.dev/gbc-web v0.0.1
+	goark.dev/goark v0.0.1
 )
 
 replace goark.dev/arkarta => ` + filepath.ToSlash(filepath.Join(root, "arkarta")) + `

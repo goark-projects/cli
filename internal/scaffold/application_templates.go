@@ -35,9 +35,9 @@ func applicationGoModTemplate(spec appSpec) string {
 go 1.26.0
 
 require (
-	goark.dev/boot v0.0.0
-	goark.dev/gbc-log v0.0.0
-	goark.dev/goark v0.0.0
+	goark.dev/boot v0.0.1
+	goark.dev/gbc-log v0.0.1
+	goark.dev/goark v0.0.1
 )
 `
 }
