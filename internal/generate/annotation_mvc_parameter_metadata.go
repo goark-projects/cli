@@ -6,6 +6,8 @@ import (
 	"go/token"
 	"strconv"
 	"strings"
+
+	"goark.dev/cli/internal/generate/mvcrouting"
 )
 
 func mvcValidationGroupArguments(groups []string) string {
@@ -303,7 +305,7 @@ func mvcTypeBasePaths(annotations []Annotation) []string {
 		}
 		paths, err := requireMVCPathTexts(annotation)
 		if err == nil {
-			return normalizeMVCPaths(paths)
+			return mvcrouting.NormalizePaths(paths)
 		}
 	}
 	return []string{""}

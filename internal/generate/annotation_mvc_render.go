@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"strconv"
 	"strings"
+
+	"goark.dev/cli/internal/generate/mvcrouting"
 )
 
 func mvcParameterKind(name string) (mvcHandlerParamKind, bool) {
@@ -262,7 +264,7 @@ func writeMVCConfigurerRegistration(builder *bytes.Buffer, controller *mvcContro
 
 func writeMVCRoute(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString("mvc.")
-	builder.WriteString(routeConstructor(route.HTTPMethod))
+	builder.WriteString(mvcrouting.Constructor(route.HTTPMethod))
 	builder.WriteByte('(')
 	builder.WriteString(strconv.Quote(route.Path))
 	builder.WriteString(", ")

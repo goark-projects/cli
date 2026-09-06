@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/token"
 	"strings"
+
+	"goark.dev/cli/internal/generate/mvcrouting"
 )
 
 func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
@@ -266,14 +268,14 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 		return mvcRouteMappingSpec{}, err
 	}
 	explicitStatus := mvcMappingHasExplicitStatus(annotation)
-	status, err := mvcStatus(annotation, defaultMVCStatus(methods))
+	status, err := mvcStatus(annotation, mvcrouting.DefaultStatus(methods))
 	if err != nil {
 		return mvcRouteMappingSpec{}, err
 	}
 	return mvcRouteMappingSpec{
 		methods:        methods,
 		methodsSet:     methodsSet,
-		paths:          normalizeMVCPaths(paths),
+		paths:          mvcrouting.NormalizePaths(paths),
 		status:         status,
 		explicitStatus: explicitStatus,
 		conditions:     mvcRouteConditionsFromAnnotation(annotation),
