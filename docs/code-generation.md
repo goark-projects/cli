@@ -33,13 +33,15 @@ Project outputs use:
 
 ```text
 <package>/gen/zz_goark_core_gen.go
+<package>/gen/zz_goark_properties_gen.go
 <package>/gen/zz_goark_web_gen.go
 <package>/gen/zz_goark_mvc_gen.go
 ```
 
 Only responsibilities used by a source package produce a file. Core container registration,
-Web registration, and MVC routing remain separate. Generated code imports the source package,
-so annotated types, injection fields, bean methods, and MVC handler methods must be exported.
+configuration-property binding, Web registration, and MVC routing remain separate. Generated
+code imports the source package, so annotated types, injection fields, bean methods, and MVC
+handler methods must be exported.
 
 Goark adds `**/gen/` to the project `.gitignore`. Generated files are local build artifacts and
 must not be committed or counted against source-package file, line, or line-width limits.

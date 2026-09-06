@@ -33,12 +33,14 @@ package 集合默认来自 `[generate].patterns`，其默认值为 `./...`。发
 
 ```text
 <package>/gen/zz_goark_core_gen.go
+<package>/gen/zz_goark_properties_gen.go
 <package>/gen/zz_goark_web_gen.go
 <package>/gen/zz_goark_mvc_gen.go
 ```
 
-源码包只会生成实际使用的职责文件，核心容器注册、Web 注册和 MVC 路由相互独立。
-生成代码会导入源码包，因此注解类型、注入字段、Bean 方法和 MVC 处理方法必须导出。
+源码包只会生成实际使用的职责文件，核心容器注册、配置属性绑定、Web 注册和 MVC 路由
+相互独立。生成代码会导入源码包，因此注解类型、注入字段、Bean 方法和 MVC 处理方法
+必须导出。
 
 Goark 会向项目 `.gitignore` 添加 `**/gen/`。生成文件属于本地构建产物，不提交到 Git，
 也不计入源码包的文件数、文件行数和单行宽度限制。

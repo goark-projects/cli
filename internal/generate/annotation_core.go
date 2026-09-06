@@ -102,7 +102,9 @@ type annotationDependencyResolver struct {
 
 type coreAnnotationBinder struct{}
 
-type coreAnnotationGenerator struct{}
+type coreAnnotationGenerator struct {
+	propertiesOnly bool
+}
 
 func defaultAnnotationExtensions() []AnnotationExtension {
 	return []AnnotationExtension{
@@ -111,6 +113,10 @@ func defaultAnnotationExtensions() []AnnotationExtension {
 			Descriptors: coreAnnotationDescriptors(),
 			Binder:      coreAnnotationBinder{},
 			Generator:   coreAnnotationGenerator{},
+		},
+		{
+			Name:      "properties",
+			Generator: coreAnnotationGenerator{propertiesOnly: true},
 		},
 		webAnnotationExtension(),
 		mvcAnnotationExtension(),
