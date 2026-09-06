@@ -8,7 +8,7 @@ All notable changes to Goark CLI are recorded in this file. The project follows 
 
 No unreleased changes.
 
-## [0.0.1] - 2026-09-05
+## [0.0.1] - 2026-09-06
 
 ### Added
 

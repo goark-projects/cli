@@ -67,6 +67,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Validate bilingual release notes
+        shell: bash
+        run: |
+          test -f "docs/releases/${GITHUB_REF_NAME}.md"
+          test -f "docs/releases/${GITHUB_REF_NAME}.zh-CN.md"
       - name: Publish archives and checksums
         uses: goreleaser/goreleaser-action@v7.2.3
         with:
@@ -75,3 +80,24 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish structured release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_notes="docs/releases/${GITHUB_REF_NAME}.md"
+          release_body="${RUNNER_TEMP}/release-notes.md"
+          version="${GITHUB_REF_NAME#v}"
+
+          {
+            echo "Full [release notes for Goark CLI ${version}](https://github.com/${GITHUB_REPOSITORY}/blob/main/${release_notes}) are available in the repository. [简体中文发行说明](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/releases/${GITHUB_REF_NAME}.zh-CN.md)"
+            echo
+            tail -n +5 "${release_notes}"
+          } > "${release_body}"
+
+          gh release edit "${GITHUB_REF_NAME}" \
+            --title "Goark CLI ${version}" \
+            --notes-file "${release_body}" \
+            --target main \
+            --latest \
+            --verify-tag
