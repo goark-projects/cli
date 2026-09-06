@@ -4,7 +4,78 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"strings"
 )
+
+func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
+	selectors := mvcRequestBodySelectors(annotations)
+	out := make(map[string]struct{}, len(selectors))
+	for _, selector := range selectors {
+		out[selector] = struct{}{}
+	}
+	return out
+}
+
+func mvcRequestBodySelectors(annotations []Annotation) []string {
+	selectors := make([]string, 0, 1)
+	for _, annotation := range annotations {
+		if !isMVCBodyAnnotation(annotation.Name) {
+			continue
+		}
+		if selector := mvcRequestBodySelector(annotation); selector != "" {
+			selectors = append(selectors, selector)
+		}
+	}
+	return selectors
+}
+
+func mvcRequestBodySelector(annotation Annotation) string {
+	selector := normalizeSelector(annotation.Selector)
+	if selector != "" {
+		return selector
+	}
+	for _, key := range []string{"param", "name", "value"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func mvcMultipartBodySelectorSet(annotations []Annotation) map[string]struct{} {
+	selectors := mvcMultipartBodySelectors(annotations)
+	out := make(map[string]struct{}, len(selectors))
+	for _, selector := range selectors {
+		out[selector] = struct{}{}
+	}
+	return out
+}
+
+func mvcMultipartBodySelectors(annotations []Annotation) []string {
+	selectors := make([]string, 0, 1)
+	for _, annotation := range annotations {
+		if !isMVCMultipartBodyAnnotation(annotation.Name) {
+			continue
+		}
+		if selector := mvcMultipartBodySelector(annotation); selector != "" {
+			selectors = append(selectors, selector)
+		}
+	}
+	return selectors
+}
+
+func mvcMultipartBodySelector(annotation Annotation) string {
+	selector := normalizeSelector(annotation.Selector)
+	if selector != "" {
+		return selector
+	}
+	for _, key := range []string{"param", "name", "value"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			return value
+		}
+	}
+	return ""
+}
 
 func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation) (*mvcController, error) {
 	component, err := buildMVCComponent(fset, typeSpec, annotations, mvcControllerKind(annotations))
@@ -207,4 +278,72 @@ func mvcRouteMapping(annotation Annotation) (mvcRouteMappingSpec, error) {
 		explicitStatus: explicitStatus,
 		conditions:     mvcRouteConditionsFromAnnotation(annotation),
 	}, nil
+}
+
+func mvcParameterMapFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
+	switch strings.TrimSpace(typ) {
+	case "map[string]string":
+		switch kind {
+		case mvcParamRequestParam:
+			return "RequestParamMap", true
+		case mvcParamRequestHeader:
+			return "RequestHeaderMap", true
+		default:
+			return "", false
+		}
+	case "map[string][]string":
+		switch kind {
+		case mvcParamRequestParam:
+			return "RequestParamValuesMap", true
+		case mvcParamRequestHeader:
+			return "RequestHeaderValuesMap", true
+		default:
+			return "", false
+		}
+	default:
+		return "", false
+	}
+}
+
+func validateMVCParameterMapBinding(methodName, paramName, typ string, kind mvcHandlerParamKind, binding mvcParamBinding) error {
+	if _, ok := mvcParameterMapFunction(kind, typ); !ok {
+		return nil
+	}
+	if binding.SourceExplicit || binding.HasDefault || !binding.Required {
+		return fmt.Errorf("mvc handler method %s map parameter %s must not declare name, value, defaultValue, or required=false", methodName, paramName)
+	}
+	return nil
+}
+
+type mvcParameterBindingItem struct {
+	Kind    mvcHandlerParamKind
+	Binding mvcParamBinding
+}
+
+func mvcParameterBindingSet(annotations []Annotation) (map[string]mvcParameterBindingItem, error) {
+	out := make(map[string]mvcParameterBindingItem)
+	for _, annotation := range annotations {
+		kind, ok := mvcParameterKind(annotation.Name)
+		if !ok {
+			continue
+		}
+		selector := mvcBindingSelector(annotation)
+		if selector == "" {
+			continue
+		}
+		if _, exists := out[selector]; exists {
+			return nil, fmt.Errorf("mvc parameter %q has multiple binding annotations", selector)
+		}
+		out[selector] = mvcParameterBindingItem{
+			Kind: kind,
+			Binding: mvcParamBinding{
+				SourceName:     mvcParameterSourceName(annotation, selector),
+				SourceExplicit: mvcParameterHasSourceName(annotation),
+				Required:       mvcParameterRequired(annotation),
+				HasDefault:     mvcParameterHasDefault(annotation),
+				DefaultValue:   mvcParameterDefaultValue(annotation),
+			},
+		}
+	}
+	return out, nil
 }

@@ -7,7 +7,64 @@ import (
 	"go/token"
 	"sort"
 	"strconv"
+	"strings"
 )
+
+func defaultImportName(importPath string) string {
+	importPath = strings.Trim(importPath, "/")
+	if importPath == "" {
+		return ""
+	}
+	index := strings.LastIndex(importPath, "/")
+	if index < 0 {
+		return importPath
+	}
+	return importPath[index+1:]
+}
+
+func mvcModelUsesOptionalInjection(model *mvcAnnotationModel) bool {
+	for _, controller := range model.Controllers {
+		for _, field := range controller.Component.Fields {
+			if !field.Injection.Required && field.Injection.Kind != "value" {
+				return true
+			}
+		}
+	}
+	for _, advice := range model.Advices {
+		for _, field := range advice.Component.Fields {
+			if !field.Injection.Required && field.Injection.Kind != "value" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mvcModelUsesConfigurer(model *mvcAnnotationModel) bool {
+	if len(model.Controllers) > 0 {
+		return true
+	}
+	for _, advice := range model.Advices {
+		if len(advice.ExceptionHandlers) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func mvcModelUsesArkWeb(model *mvcAnnotationModel) bool {
+	for _, controller := range model.Controllers {
+		if len(controller.Routes) > 0 || len(controller.ModelAttributes) > 0 {
+			return true
+		}
+	}
+	for _, advice := range model.Advices {
+		if len(advice.ExceptionHandlers) > 0 {
+			return true
+		}
+	}
+	return false
+}
 
 const webAnnotationModelKey = "goark.web.annotations"
 

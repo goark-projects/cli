@@ -4,51 +4,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"strings"
 )
-
-func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcHandler, error) {
-	if fn == nil {
-		return mvcHandler{}, fmt.Errorf("mvc handler method is nil")
-	}
-	params, err := mvcMethodParams(fset, file, fn, annotations)
-	if err != nil {
-		return mvcHandler{}, err
-	}
-	returnKind, err := mvcMethodReturnKind(file, fn)
-	if err != nil {
-		return mvcHandler{}, err
-	}
-	if hasMVCBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
-	}
-	if hasMVCRequestEntityParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request entity must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
-	}
-	if hasMVCMultipartBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s with multipart body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
-	}
-	if hasMVCResponseBodyAnnotation(annotations) && hasMVCModelParam(params) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s response-body must not be used with *mvc.Model", fn.Name.Name)
-	}
-	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCRequestEntityParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) && !hasMVCJSONRequestPartParam(params) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, request entity, multipart body, model attribute, or JSON request part parameter", fn.Name.Name)
-	}
-	return mvcHandler{
-		Params:     params,
-		ReturnKind: returnKind,
-		ReturnType: mvcPrimaryReturnType(fset, fn),
-		EntityBody: mvcPrimaryResponseEntityBodyType(fset, file, fn),
-	}, nil
-}
-
-func mvcReturnSupportsRequestBody(kind mvcReturnKind) bool {
-	switch kind {
-	case mvcReturnValue, mvcReturnValueError, mvcReturnEntity, mvcReturnEntityError:
-		return true
-	default:
-		return false
-	}
-}
 
 func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) ([]mvcHandlerParam, error) {
 	if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
@@ -304,4 +261,93 @@ func mvcPrimaryResponseEntityBodyType(fset *token.FileSet, file *ast.File, fn *a
 	}
 	body, _ := mvcResponseEntityBodyType(fset, file, fn.Type.Results.List[0].Type)
 	return body
+}
+
+func hasMVCControllerAnnotation(annotations []Annotation) bool {
+	return mvcControllerKind(annotations) != ""
+}
+
+func mvcControllerKind(annotations []Annotation) string {
+	for _, name := range []string{"controller", "rest-controller", "mvc-controller"} {
+		if hasAnnotation(annotations, name) {
+			return name
+		}
+	}
+	return ""
+}
+
+func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
+	for _, annotation := range annotations {
+		if isMVCRouteMappingAnnotation(annotation.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMVCRouteAnnotation(name string) bool {
+	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCRequestEntityAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCValidatedAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name) || isMVCCrossOriginAnnotation(name)
+}
+
+func isMVCRouteMappingAnnotation(name string) bool {
+	switch name {
+	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options", "trace":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMVCBodyAnnotation(name string) bool {
+	switch name {
+	case "request-body", "body":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMVCMultipartBodyAnnotation(name string) bool { return name == "multipart-body" }
+
+func isMVCValidatedAnnotation(name string) bool { return name == "validated" }
+
+func isMVCParameterAnnotation(name string) bool {
+	switch name {
+	case "path-variable", "request-param", "request-header", "cookie-value", "model-attribute",
+		"request-attribute", "session-attribute", "matrix-variable", "request-part":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMVCResponseStatusAnnotation(name string) bool { return name == "response-status" }
+
+func hasMVCResponseBodyAnnotation(annotations []Annotation) bool {
+	return hasAnnotation(annotations, "response-body")
+}
+
+func hasMVCValidatedAnnotation(annotations []Annotation) bool {
+	return hasAnnotation(annotations, "validated")
+}
+
+func isMVCResponseBodyAnnotation(name string) bool { return name == "response-body" }
+
+func mvcValidationGroups(annotation Annotation) []string {
+	values := annotationValueTexts(annotation)
+	for _, key := range []string{"groups", "group"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			values = append(values, value)
+		}
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
 }

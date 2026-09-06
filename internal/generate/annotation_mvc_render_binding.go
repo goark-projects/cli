@@ -6,6 +6,126 @@ import (
 	"strings"
 )
 
+func writeMVCModelViewHandler(builder *bytes.Buffer, route mvcRoute) {
+	modelParam, _ := mvcModelParam(route.Handler.Params)
+	call := mvcHandlerCall(route.MethodName, route.Handler.Params)
+	builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
+	writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+	switch route.Handler.ReturnKind {
+	case mvcReturnError:
+		builder.WriteString("if err := ")
+		builder.WriteString(call)
+		builder.WriteString("; err != nil {\nreturn nil, err\n}\n")
+		writeMVCModelAndViewReturn(builder, "", modelParam.Name, route.Status)
+	case mvcReturnValue:
+		builder.WriteString("viewName := ")
+		builder.WriteString(call)
+		builder.WriteByte('\n')
+		writeMVCModelAndViewReturn(builder, "viewName", modelParam.Name, route.Status)
+	case mvcReturnValueError:
+		builder.WriteString("viewName, err := ")
+		builder.WriteString(call)
+		builder.WriteString("\nif err != nil {\nreturn nil, err\n}\n")
+		writeMVCModelAndViewReturn(builder, "viewName", modelParam.Name, route.Status)
+	default:
+		builder.WriteString(call)
+		builder.WriteByte('\n')
+		writeMVCModelAndViewReturn(builder, "", modelParam.Name, route.Status)
+	}
+	builder.WriteString("\n})")
+}
+
+func writeMVCModelAndViewReturn(builder *bytes.Buffer, viewName string, modelName string, statusCode int) {
+	builder.WriteString("return mvc.NewModelAndView(")
+	if viewName == "" {
+		builder.WriteString(strconv.Quote(""))
+	} else {
+		builder.WriteString(viewName)
+	}
+	builder.WriteString(", ")
+	builder.WriteString(modelName)
+	builder.WriteString(", mvc.WithViewStatus(")
+	builder.WriteString(strconv.Itoa(statusCode))
+	builder.WriteString(")), nil")
+}
+
+func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
+	if hasMVCBodyParam(route.Handler.Params) {
+		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+			writeMVCBindEntityHandler(builder, route)
+			return
+		}
+		writeMVCBindJSONHandler(builder, route)
+		return
+	}
+	if hasMVCRequestEntityParam(route.Handler.Params) {
+		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+			writeMVCBindRequestEntityEntityHandler(builder, route)
+			return
+		}
+		writeMVCBindRequestEntityHandler(builder, route)
+		return
+	}
+	if hasMVCMultipartBodyParam(route.Handler.Params) {
+		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+			writeMVCBindMultipartEntityHandler(builder, route)
+			return
+		}
+		writeMVCBindMultipartHandler(builder, route)
+		return
+	}
+	call := mvcHandlerCall(route.MethodName, route.Handler.Params)
+	switch route.Handler.ReturnKind {
+	case mvcReturnResultError, mvcReturnEntityError:
+		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		builder.WriteString("return ")
+		builder.WriteString(call)
+		builder.WriteString("\n})")
+	case mvcReturnResult, mvcReturnEntity:
+		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		builder.WriteString("return ")
+		builder.WriteString(call)
+		builder.WriteString(", nil\n})")
+	case mvcReturnValueError:
+		writeMVCValueReturnHandlerName(builder, route)
+		builder.WriteString(strconv.Itoa(route.Status))
+		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		builder.WriteString("return ")
+		builder.WriteString(call)
+		builder.WriteString("\n})")
+	case mvcReturnValue:
+		writeMVCValueReturnHandlerName(builder, route)
+		builder.WriteString(strconv.Itoa(route.Status))
+		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		builder.WriteString("return ")
+		builder.WriteString(call)
+		builder.WriteString(", nil\n})")
+	case mvcReturnError:
+		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return err", route.ValidationGroups)
+		builder.WriteString("return ")
+		builder.WriteString(call)
+		builder.WriteString("\n})")
+	default:
+		builder.WriteString("mvc.NoContent(func(ctx *arkweb.Context) error {\n")
+		writeMVCParameterBindings(builder, route.Handler.Params, "return err", route.ValidationGroups)
+		builder.WriteString(call)
+		builder.WriteString("\nreturn nil\n})")
+	}
+}
+
+func writeMVCValueReturnHandlerName(builder *bytes.Buffer, route mvcRoute) {
+	if route.ResponseBody {
+		builder.WriteString("mvc.ResponseBody[any](")
+		return
+	}
+	builder.WriteString("mvc.Return[any](")
+}
+
 func writeMVCBindJSONHandler(builder *bytes.Buffer, route mvcRoute) {
 	bodyParam, _ := mvcBodyParam(route.Handler.Params)
 	if len(route.ValidationGroups) > 0 {
@@ -170,15 +290,6 @@ func writeMVCValidationGroupSlice(builder *bytes.Buffer, groups []string) {
 	builder.WriteByte('}')
 }
 
-func mvcValidationGroupArguments(groups []string) string {
-	if len(groups) == 0 {
-		return ""
-	}
-	var builder bytes.Buffer
-	writeMVCValidationGroupArguments(&builder, groups)
-	return builder.String()
-}
-
 func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 	args := make([]string, 0, len(params))
 	for _, param := range params {
@@ -241,88 +352,4 @@ func mvcParameterBindingCall(param mvcHandlerParam, validationGroups []string) (
 		args = append(args, "mvc.WithRequired(false)")
 	}
 	return "mvc." + function + "(" + strings.Join(args, ", ") + ")", true
-}
-
-func mvcParameterFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
-	suffix, ok := mvcParameterFunctionSuffix(kind, typ)
-	if !ok {
-		return "", false
-	}
-	switch kind {
-	case mvcParamPathVariable:
-		return "Path" + suffix, true
-	case mvcParamRequestParam:
-		return "RequestParam" + suffix, true
-	case mvcParamRequestHeader:
-		return "RequestHeader" + suffix, true
-	case mvcParamCookieValue:
-		return "CookieValue" + suffix, true
-	case mvcParamModelAttribute:
-		return "ModelAttribute", true
-	case mvcParamRequestAttribute:
-		return "RequestAttribute" + suffix, true
-	case mvcParamSessionAttribute:
-		return "SessionAttribute" + suffix, true
-	case mvcParamMatrixVariable:
-		return "MatrixVariable" + suffix, true
-	default:
-		return "", false
-	}
-}
-
-func mvcParameterFunctionSuffix(kind mvcHandlerParamKind, typ string) (string, bool) {
-	if kind == mvcParamRequestAttribute || kind == mvcParamSessionAttribute {
-		return mvcScalarParameterTypeSuffix(typ)
-	}
-	return mvcCollectionParameterTypeSuffix(typ)
-}
-
-func mvcCollectionParameterTypeSuffix(typ string) (string, bool) {
-	switch strings.TrimSpace(typ) {
-	case "string":
-		return "String", true
-	case "int":
-		return "Int", true
-	case "int64":
-		return "Int64", true
-	case "bool":
-		return "Bool", true
-	case "float64":
-		return "Float64", true
-	case "time.Time":
-		return "Time", true
-	case "[]string":
-		return "Strings", true
-	case "[]int":
-		return "Ints", true
-	case "[]int64":
-		return "Int64s", true
-	case "[]bool":
-		return "Bools", true
-	case "[]float64":
-		return "Float64s", true
-	case "[]time.Time":
-		return "Times", true
-	default:
-		return "", false
-	}
-}
-
-func mvcScalarParameterTypeSuffix(typ string) (string, bool) {
-	switch strings.TrimSpace(typ) {
-	case "string":
-		return "String", true
-	case "int":
-		return "Int", true
-	case "int64":
-		return "Int64", true
-	case "bool":
-		return "Bool", true
-	case "float64":
-		return "Float64", true
-	case "time.Time":
-		return "Time", true
-	default:
-		return "", false
-	}
 }

@@ -87,44 +87,28 @@ type AnnotationItem struct {
 }
 
 // Target 返回当前注解所在语法目标。
-func (i AnnotationItem) Target() AnnotationTarget {
-	return i.target
-}
+func (i AnnotationItem) Target() AnnotationTarget { return i.target }
 
 // PackageName 返回当前扫描包名。
-func (i AnnotationItem) PackageName() string {
-	return i.packageName
-}
+func (i AnnotationItem) PackageName() string { return i.packageName }
 
 // FileSet 返回当前扫描文件集。
-func (i AnnotationItem) FileSet() *token.FileSet {
-	return i.fset
-}
+func (i AnnotationItem) FileSet() *token.FileSet { return i.fset }
 
 // File 返回当前 AST 文件。
-func (i AnnotationItem) File() *ast.File {
-	return i.file
-}
+func (i AnnotationItem) File() *ast.File { return i.file }
 
 // GenDecl 返回当前通用声明，仅类型目标有效。
-func (i AnnotationItem) GenDecl() *ast.GenDecl {
-	return i.genDecl
-}
+func (i AnnotationItem) GenDecl() *ast.GenDecl { return i.genDecl }
 
 // TypeSpec 返回当前类型声明，仅类型或字段目标有效。
-func (i AnnotationItem) TypeSpec() *ast.TypeSpec {
-	return i.typeSpec
-}
+func (i AnnotationItem) TypeSpec() *ast.TypeSpec { return i.typeSpec }
 
 // Field 返回当前字段声明，仅字段目标有效。
-func (i AnnotationItem) Field() *ast.Field {
-	return i.field
-}
+func (i AnnotationItem) Field() *ast.Field { return i.field }
 
 // FuncDecl 返回当前函数声明，仅方法目标有效。
-func (i AnnotationItem) FuncDecl() *ast.FuncDecl {
-	return i.funcDecl
-}
+func (i AnnotationItem) FuncDecl() *ast.FuncDecl { return i.funcDecl }
 
 // TypeName 返回当前类型名。
 func (i AnnotationItem) TypeName() string {
@@ -181,9 +165,7 @@ func (i AnnotationItem) Annotations() []Annotation {
 }
 
 // HasAnnotation 判断当前节点是否存在指定注解。
-func (i AnnotationItem) HasAnnotation(name string) bool {
-	return hasAnnotation(i.annotations, name)
-}
+func (i AnnotationItem) HasAnnotation(name string) bool { return hasAnnotation(i.annotations, name) }
 
 // AnnotationBindingContext 持有扫描绑定阶段的共享状态。
 type AnnotationBindingContext struct {
@@ -193,19 +175,13 @@ type AnnotationBindingContext struct {
 }
 
 // PackageName 返回当前扫描包名。
-func (c *AnnotationBindingContext) PackageName() string {
-	return c.pkg.PackageName
-}
+func (c *AnnotationBindingContext) PackageName() string { return c.pkg.PackageName }
 
 // Spec 返回注解扫描输入参数。
-func (c *AnnotationBindingContext) Spec() AnnotationScanSpec {
-	return c.spec
-}
+func (c *AnnotationBindingContext) Spec() AnnotationScanSpec { return c.spec }
 
 // SetValue 写入扩展绑定阶段的共享模型。
-func (c *AnnotationBindingContext) SetValue(key string, value any) {
-	c.values[key] = value
-}
+func (c *AnnotationBindingContext) SetValue(key string, value any) { c.values[key] = value }
 
 // Value 读取扩展绑定阶段的共享模型。
 func (c *AnnotationBindingContext) Value(key string) (any, bool) {
@@ -223,14 +199,10 @@ type AnnotationGenerationContext struct {
 }
 
 // PackageName 返回当前生成包名。
-func (c *AnnotationGenerationContext) PackageName() string {
-	return c.pkg.PackageName
-}
+func (c *AnnotationGenerationContext) PackageName() string { return c.pkg.PackageName }
 
 // SetValue 写入生成阶段共享状态。
-func (c *AnnotationGenerationContext) SetValue(key string, value any) {
-	c.values[key] = value
-}
+func (c *AnnotationGenerationContext) SetValue(key string, value any) { c.values[key] = value }
 
 // Value 读取绑定阶段写入的共享模型。
 func (c *AnnotationGenerationContext) Value(key string) (any, bool) {
@@ -267,4 +239,108 @@ func (c *AnnotationGenerationContext) WriteString(value string) {
 
 func (c *AnnotationGenerationContext) buffer() *bytes.Buffer {
 	return &c.body
+}
+
+func scanAnnotationFile(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File) error {
+	for _, decl := range file.Decls {
+		switch item := decl.(type) {
+		case *ast.GenDecl:
+			if item.Tok == token.TYPE {
+				if err := scanTypeDeclaration(ctx, pipeline, fset, file, item); err != nil {
+					return err
+				}
+			}
+		case *ast.FuncDecl:
+			annotations, err := parseAnnotations(item.Doc)
+			if err != nil {
+				return err
+			}
+			if len(annotations) == 0 {
+				continue
+			}
+			annotationItem := AnnotationItem{
+				target:      AnnotationTargetMethod,
+				packageName: ctx.PackageName(),
+				fset:        fset,
+				file:        file,
+				funcDecl:    item,
+				annotations: annotations,
+			}
+			if err := pipeline.dispatch(ctx, annotationItem); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func scanTypeDeclaration(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File, decl *ast.GenDecl) error {
+	typeAnnotations, err := parseAnnotations(decl.Doc)
+	if err != nil {
+		return err
+	}
+	for _, spec := range decl.Specs {
+		typeSpec, ok := spec.(*ast.TypeSpec)
+		if !ok {
+			continue
+		}
+		specAnnotations, err := parseAnnotations(typeSpec.Doc)
+		if err != nil {
+			return err
+		}
+		annotations := mergeAnnotations(typeAnnotations, specAnnotations)
+		if len(annotations) > 0 {
+			item := AnnotationItem{
+				target:      AnnotationTargetType,
+				packageName: ctx.PackageName(),
+				fset:        fset,
+				file:        file,
+				genDecl:     decl,
+				typeSpec:    typeSpec,
+				annotations: annotations,
+			}
+			if err := pipeline.dispatch(ctx, item); err != nil {
+				return err
+			}
+		}
+		structType, ok := typeSpec.Type.(*ast.StructType)
+		if ok {
+			if err := scanStructFields(ctx, pipeline, fset, file, decl, typeSpec, structType); err != nil {
+				return err
+			}
+		}
+		interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
+		if ok {
+			if err := scanInterfaceMethods(ctx, pipeline, fset, file, decl, typeSpec, interfaceType); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func scanStructFields(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File, decl *ast.GenDecl, typeSpec *ast.TypeSpec, structType *ast.StructType) error {
+	for _, field := range structType.Fields.List {
+		fieldAnnotations, err := parseAnnotations(field.Doc)
+		if err != nil {
+			return err
+		}
+		if len(fieldAnnotations) == 0 {
+			continue
+		}
+		item := AnnotationItem{
+			target:      AnnotationTargetField,
+			packageName: ctx.PackageName(),
+			fset:        fset,
+			file:        file,
+			genDecl:     decl,
+			typeSpec:    typeSpec,
+			field:       field,
+			annotations: fieldAnnotations,
+		}
+		if err := pipeline.dispatch(ctx, item); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -3,10 +3,135 @@ package generate
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func ensureMVCAnnotationModel(ctx *AnnotationBindingContext) *mvcAnnotationModel {
+	if value, ok := ctx.Value(mvcAnnotationModelKey); ok {
+		if model, ok := value.(*mvcAnnotationModel); ok {
+			return model
+		}
+	}
+	model := &mvcAnnotationModel{
+		byType:       make(map[string]*mvcController),
+		adviceByType: make(map[string]*mvcControllerAdvice),
+	}
+	ctx.SetValue(mvcAnnotationModelKey, model)
+	return model
+}
+
+func (mvcAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContext) error {
+	value, ok := ctx.Value(mvcAnnotationModelKey)
+	if !ok {
+		return nil
+	}
+	model, ok := value.(*mvcAnnotationModel)
+	if !ok {
+		return fmt.Errorf("invalid mvc annotation model")
+	}
+	if len(model.Controllers) == 0 && len(model.Advices) == 0 {
+		return nil
+	}
+	ctx.AddImport("", "context")
+	ctx.AddImport("", "goark.dev/goark")
+	ctx.AddImport("", "goark.dev/goark/container")
+	if mvcModelUsesArkWeb(model) {
+		ctx.AddImport("arkweb", arkartaWebImportPath)
+	}
+	if mvcModelUsesConfigurer(model) {
+		ctx.AddImport("goweb", "goark.dev/goark/web")
+		ctx.AddImport("", "goark.dev/goark/web/mvc")
+	}
+	if mvcModelUsesCORS(model) {
+		ctx.AddImport("", goarkWebCORSImportPath)
+	}
+	if mvcModelUsesCORSMaxAge(model) {
+		ctx.AddImport("", "time")
+	}
+	if mvcModelUsesOptionalInjection(model) {
+		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
+	}
+	writeMVCConfiguration(ctx.buffer(), model)
+	return nil
+}
+
+type mvcRouteConditions struct {
+	Consumes []string
+	Produces []string
+	Params   []string
+	Headers  []string
+}
+
+func mvcRouteConditionsFromAnnotation(annotation Annotation) mvcRouteConditions {
+	return mvcRouteConditions{
+		Consumes: mvcRouteConditionValues(annotation, "consumes"),
+		Produces: mvcRouteConditionValues(annotation, "produces"),
+		Params:   mvcRouteConditionValues(annotation, "params"),
+		Headers:  mvcRouteConditionValues(annotation, "headers"),
+	}
+}
+
+func mvcTypeRouteConditions(annotations []Annotation) mvcRouteConditions {
+	for _, annotation := range annotations {
+		if annotation.Name == "request-mapping" {
+			return mvcRouteConditionsFromAnnotation(annotation)
+		}
+	}
+	return mvcRouteConditions{}
+}
+
+func mvcRouteConditionValues(annotation Annotation, key string) []string {
+	value := strings.TrimSpace(argString(annotation, key, ""))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func writeMVCRouteOptions(builder *bytes.Buffer, conditions mvcRouteConditions) {
+	writeMVCMappingOption(builder, ", mvc.With", "Consumes", conditions.Consumes)
+	writeMVCMappingOption(builder, ", mvc.With", "Produces", conditions.Produces)
+	writeMVCMappingOption(builder, ", mvc.With", "Params", conditions.Params)
+	writeMVCMappingOption(builder, ", mvc.With", "Headers", conditions.Headers)
+}
+
+func writeMVCControllerOptions(builder *bytes.Buffer, conditions mvcRouteConditions) {
+	writeMVCMappingOption(builder, ".With", "Consumes", conditions.Consumes)
+	writeMVCMappingOption(builder, ".With", "Produces", conditions.Produces)
+	writeMVCMappingOption(builder, ".With", "Params", conditions.Params)
+	writeMVCMappingOption(builder, ".With", "Headers", conditions.Headers)
+}
+
+func writeMVCMappingOption(builder *bytes.Buffer, prefix string, name string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	builder.WriteString(prefix)
+	builder.WriteString(name)
+	builder.WriteByte('(')
+	for index, value := range values {
+		if index > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(strconv.Quote(value))
+	}
+	builder.WriteByte(')')
+}
+
+func isArkartaMultipartPartExpr(file *ast.File, expr ast.Expr) bool {
+	return isImportedSelectorExpr(file, expr, arkartaMultipartImportPath, "Part")
+}
 
 type mvcCrossOrigin struct {
 	AllowedOrigins        []string
@@ -220,42 +345,4 @@ func writeMVCCrossOriginStringSliceField(builder *bytes.Buffer, name string, val
 		builder.WriteString(strconv.Quote(value))
 	}
 	builder.WriteString("},")
-}
-
-func isMVCCrossOriginAnnotation(name string) bool {
-	return name == "cross-origin"
-}
-
-func mvcModelUsesCORS(model *mvcAnnotationModel) bool {
-	if model == nil {
-		return false
-	}
-	for _, controller := range model.Controllers {
-		if controller.CrossOrigin != nil {
-			return true
-		}
-		for _, route := range controller.Routes {
-			if route.CrossOrigin != nil {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func mvcModelUsesCORSMaxAge(model *mvcAnnotationModel) bool {
-	if model == nil {
-		return false
-	}
-	for _, controller := range model.Controllers {
-		if controller.CrossOrigin != nil && controller.CrossOrigin.MaxAgeSet {
-			return true
-		}
-		for _, route := range controller.Routes {
-			if route.CrossOrigin != nil && route.CrossOrigin.MaxAgeSet {
-				return true
-			}
-		}
-	}
-	return false
 }

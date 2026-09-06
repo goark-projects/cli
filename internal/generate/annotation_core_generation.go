@@ -1,55 +1,13 @@
 package generate
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/token"
+	"strconv"
+	"strings"
 )
-
-func (g coreAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContext) error {
-	value, ok := ctx.Value(coreAnnotationModelKey)
-	if !ok {
-		return nil
-	}
-	model, ok := value.(*coreAnnotationModel)
-	if !ok {
-		return fmt.Errorf("invalid core annotation model")
-	}
-	if g.propertiesOnly {
-		return generateConfigurationProperties(ctx, model)
-	}
-	ctx.AddImport("", "context")
-	ctx.AddImport("", "goark.dev/goark")
-	ctx.AddImport("", "goark.dev/goark/container")
-	if modelUsesOptionalInjection(model) {
-		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
-	}
-	if model.UsesProperties {
-		ctx.AddImport("coreenv", "goark.dev/goark/core/env")
-		ctx.AddImport("", "goark.dev/goark/core/resource")
-	}
-	for _, configuration := range model.Configurations {
-		writeGeneratedConfiguration(ctx.buffer(), configuration)
-	}
-	return nil
-}
-
-func generateConfigurationProperties(
-	ctx *AnnotationGenerationContext,
-	model *coreAnnotationModel,
-) error {
-	if len(model.ConfigurationProperties) == 0 {
-		return nil
-	}
-	ctx.AddImport("", "goark.dev/goark")
-	ctx.AddImport("coreenv", "goark.dev/goark/core/env")
-	ctx.AddImport("arkerrors", "goark.dev/goark/errors")
-	addConfigurationPropertiesImports(ctx, model.ConfigurationProperties)
-	for _, properties := range model.ConfigurationProperties {
-		writeConfigurationProperties(ctx.buffer(), properties)
-	}
-	return nil
-}
 
 func modelUsesOptionalInjection(model *coreAnnotationModel) bool {
 	for _, configuration := range model.Configurations {
@@ -170,4 +128,206 @@ func beanReturnType(fset *token.FileSet, results *ast.FieldList) (string, bool, 
 		return exprString(fset, results.List[0].Type), true, nil
 	}
 	return "", false, fmt.Errorf("bean method must return T or (T, error)")
+}
+
+func componentKind(annotations []Annotation) string {
+	for _, name := range []string{"component", "service", "repository"} {
+		if hasAnnotation(annotations, name) {
+			return name
+		}
+	}
+	return ""
+}
+
+func componentOptionKind(annotations []Annotation) string {
+	if kind := componentKind(annotations); kind != "" {
+		return kind
+	}
+	return webComponentKind(annotations)
+}
+
+func buildBeanOptions(annotations []Annotation) annotationBeanOptions {
+	options := annotationBeanOptions{
+		Primary: hasAnnotation(annotations, "primary"),
+		Lazy:    annotationBoolByName(annotations, "lazy", true),
+		Scope:   annotationString(annotations, "scope", ""),
+	}
+	if !hasAnnotation(annotations, "lazy") {
+		options.Lazy = false
+	}
+	if values := annotationStrings(annotations, "depends-on"); len(values) > 0 {
+		for _, value := range values {
+			for _, item := range strings.Split(value, ",") {
+				item = strings.TrimSpace(item)
+				if item != "" {
+					options.DependsOn = append(options.DependsOn, item)
+				}
+			}
+		}
+	}
+	if hasAnnotation(annotations, "order") {
+		value := annotationInt(annotations, "order", 0)
+		options.Order = &value
+	}
+	if hasAnnotation(annotations, "priority") {
+		value := annotationInt(annotations, "priority", 0)
+		options.Priority = &value
+	}
+	return options
+}
+
+func propertySourceAnnotations(annotations []Annotation) []annotationPropertySource {
+	sources := make([]annotationPropertySource, 0)
+	for _, annotation := range annotations {
+		switch annotation.Name {
+		case "property-source":
+			source := annotationPropertySource{
+				Location:               argString(annotation, "value", ""),
+				Name:                   argString(annotation, "name", ""),
+				Encoding:               argString(annotation, "encoding", ""),
+				IgnoreResourceNotFound: annotationBool(annotation, "ignoreResourceNotFound", false),
+			}
+			if source.Location != "" {
+				sources = append(sources, source)
+			}
+		case "property-sources":
+			for _, location := range strings.Split(argString(annotation, "value", ""), ";") {
+				location = strings.TrimSpace(location)
+				if location != "" {
+					sources = append(sources, annotationPropertySource{Location: location})
+				}
+			}
+		}
+	}
+	return sources
+}
+
+func buildInjection(annotations []Annotation, defaultName string) injectionSpec {
+	injection := injectionSpec{Required: true}
+	if value := annotationString(annotations, "value", ""); value != "" {
+		injection.Kind = "value"
+		injection.Value = value
+		return injection
+	}
+	qualifier := firstNonEmpty(
+		annotationString(annotations, "qualifier", ""),
+		annotationString(annotations, "named", ""),
+		autowiredQualifier(annotations),
+	)
+	if hasAnnotation(annotations, "resource") {
+		injection.Kind = "resource"
+		injection.Qualifier = annotationString(annotations, "resource", defaultName)
+		return injection
+	}
+	if hasAnnotation(annotations, "inject") || hasAnnotation(annotations, "autowired") || qualifier != "" {
+		injection.Kind = "bean"
+		injection.Qualifier = qualifier
+		if hasAnnotation(annotations, "autowired") {
+			injection.Required = autowiredRequired(annotations)
+		}
+	}
+	return injection
+}
+
+func autowiredQualifier(annotations []Annotation) string {
+	for _, annotation := range annotations {
+		if annotation.Name != "autowired" {
+			continue
+		}
+		if value, ok := annotation.Args["qualifier"]; ok {
+			return value.Text()
+		}
+	}
+	return ""
+}
+
+func autowiredRequired(annotations []Annotation) bool {
+	for _, annotation := range annotations {
+		if annotation.Name != "autowired" {
+			continue
+		}
+		return annotationBool(annotation, "required", true)
+	}
+	return true
+}
+
+func writeGeneratedConfiguration(builder *bytes.Buffer, configuration *annotationConfiguration) {
+	if configuration.SourceTypeName != "" {
+		builder.WriteString("type ")
+		builder.WriteString(configuration.TypeName)
+		builder.WriteString(" struct {\nsource ")
+		builder.WriteString(configuration.SourceTypeName)
+		builder.WriteString("\n}\n\n")
+	} else if configuration.Synthetic {
+		builder.WriteString("type ")
+		builder.WriteString(configuration.TypeName)
+		builder.WriteString(" struct{}\n\n")
+	}
+	builder.WriteString("func (")
+	builder.WriteString(configuration.TypeName)
+	builder.WriteString(") Name() string {\nreturn ")
+	builder.WriteString(strconv.Quote(configuration.Name))
+	builder.WriteString("\n}\n\n")
+	builder.WriteString("func (")
+	builder.WriteString(configuration.TypeName)
+	builder.WriteString(") Order() int {\nreturn ")
+	builder.WriteString(strconv.Itoa(configuration.Order))
+	builder.WriteString("\n}\n\n")
+	if len(configuration.PropertySources) > 0 {
+		writeConfigureEnvironment(builder, configuration)
+	}
+	writeRegisterWithContext(builder, configuration)
+}
+
+func writeConfigureEnvironment(builder *bytes.Buffer, configuration *annotationConfiguration) {
+	builder.WriteString("func (")
+	builder.WriteString(configuration.TypeName)
+	builder.WriteString(") ConfigureEnvironment(ctx context.Context, environment coreenv.ConfigurableEnvironment) error {\n")
+	builder.WriteString("loader, err := resource.NewLoader()\nif err != nil {\nreturn err\n}\n")
+	for _, source := range configuration.PropertySources {
+		builder.WriteString("source, err := coreenv.LoadPropertiesPropertySource(ctx, loader, ")
+		builder.WriteString(strconv.Quote(source.Location))
+		if source.Name != "" {
+			builder.WriteString(", coreenv.WithPropertySourceName(")
+			builder.WriteString(strconv.Quote(source.Name))
+			builder.WriteString(")")
+		}
+		if source.Encoding != "" {
+			builder.WriteString(", coreenv.WithPropertySourceEncoding(")
+			builder.WriteString(strconv.Quote(source.Encoding))
+			builder.WriteString(")")
+		}
+		if source.IgnoreResourceNotFound {
+			builder.WriteString(", coreenv.WithIgnoreResourceNotFound(true)")
+		}
+		builder.WriteString(")\nif err != nil {\nreturn err\n}\nif source != nil {\nif err := environment.PropertySources().AddLast(source); err != nil {\nreturn err\n}\n}\n")
+	}
+	builder.WriteString("return nil\n}\n\n")
+}
+
+func writeRegisterWithContext(builder *bytes.Buffer, configuration *annotationConfiguration) {
+	builder.WriteString("func (c ")
+	builder.WriteString(configuration.TypeName)
+	builder.WriteString(") Register(ctx context.Context, registry *container.Registry) error {\n")
+	builder.WriteString("return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))\n")
+	builder.WriteString("}\n\n")
+	builder.WriteString("func (c ")
+	builder.WriteString(configuration.TypeName)
+	builder.WriteString(") RegisterWithContext(ctx context.Context, config goark.ConfigurationContext) error {\n")
+	if len(configuration.Profiles) > 0 {
+		writeProfileGuard(builder, strings.Join(wrapExpressions(configuration.Profiles), " | "), configuration.Name, "return nil")
+	}
+	if len(configuration.Components) > 0 || len(configuration.Beans) > 0 || len(configuration.Properties) > 0 {
+		builder.WriteString("registry := config.Registry()\n")
+	}
+	for _, properties := range configuration.Properties {
+		writeConfigurationPropertiesRegistration(builder, properties)
+	}
+	for _, component := range configuration.Components {
+		writeComponentRegistration(builder, component)
+	}
+	for _, bean := range configuration.Beans {
+		writeBeanRegistrationFromAnnotation(builder, bean)
+	}
+	builder.WriteString("return nil\n}\n\n")
 }

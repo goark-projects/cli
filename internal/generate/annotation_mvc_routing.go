@@ -2,66 +2,11 @@ package generate
 
 import (
 	"fmt"
+	"go/ast"
 	"net/http"
 	"strconv"
 	"strings"
 )
-
-func mvcTypeBasePaths(annotations []Annotation) []string {
-	for _, annotation := range annotations {
-		if annotation.Name != "request-mapping" {
-			continue
-		}
-		paths, err := requireMVCPathTexts(annotation)
-		if err == nil {
-			return normalizeMVCPaths(paths)
-		}
-	}
-	return []string{""}
-}
-
-func mvcTypeRequestMethods(annotations []Annotation) ([]string, error) {
-	for _, annotation := range annotations {
-		if annotation.Name == "request-mapping" {
-			return mvcTypeRequestMethodsFromAnnotation(annotation)
-		}
-	}
-	return nil, nil
-}
-
-func mvcTypeRequestMethodsFromAnnotation(annotation Annotation) ([]string, error) {
-	methods := strings.TrimSpace(argString(annotation, "method", ""))
-	if methods == "" {
-		return nil, nil
-	}
-	return parseMVCRequestMethods(annotation, methods)
-}
-
-func requireMVCPath(annotation Annotation) error {
-	_, err := requireMVCPathTexts(annotation)
-	return err
-}
-
-func requireMVCPathTexts(annotation Annotation) ([]string, error) {
-	values := annotationValueTexts(annotation)
-	if len(values) == 0 {
-		if value := argString(annotation, "path", ""); value != "" {
-			values = []string{value}
-		}
-	}
-	if len(values) == 0 {
-		return nil, fmt.Errorf("annotation %q requires path value", annotation.Name)
-	}
-	paths := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			return nil, fmt.Errorf("annotation %q requires path value", annotation.Name)
-		}
-		paths = append(paths, value)
-	}
-	return paths, nil
-}
 
 func mvcHTTPMethods(annotation Annotation) ([]string, bool, error) {
 	switch annotation.Name {
@@ -318,4 +263,94 @@ func joinMVCPaths(base string, path string) string {
 		return base
 	}
 	return base + path
+}
+
+func isArkWebContextExpr(file *ast.File, expr ast.Expr) bool {
+	star, ok := expr.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	return isImportedSelectorExpr(file, star.X, arkartaWebImportPath, "Context")
+}
+
+func isGoarkMVCModelPointerExpr(file *ast.File, expr ast.Expr) bool {
+	star, ok := expr.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	return isImportedSelectorExpr(file, star.X, goarkMVCImportPath, "Model")
+}
+
+func isSelectorTypeExpr(expr ast.Expr, selectorName string) bool {
+	star, ok := expr.(*ast.StarExpr)
+	if ok {
+		expr = star.X
+	}
+	selector, ok := expr.(*ast.SelectorExpr)
+	return ok && selector.Sel.Name == selectorName
+}
+
+func isErrorExpr(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "error"
+}
+
+func isArkWebResultExpr(file *ast.File, expr ast.Expr) bool {
+	return isImportedSelectorExpr(file, expr, arkartaWebImportPath, "Result")
+}
+
+func isGoarkWebResponseEntityExpr(file *ast.File, expr ast.Expr) bool {
+	switch typ := expr.(type) {
+	case *ast.IndexExpr:
+		return isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity")
+	case *ast.IndexListExpr:
+		return isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity")
+	default:
+		return false
+	}
+}
+
+func isGoarkWebDownloadResultExpr(file *ast.File, expr ast.Expr) bool {
+	return isImportedSelectorExpr(file, expr, goarkWebImportPath, "DownloadResult")
+}
+
+func isImportedSelectorExpr(file *ast.File, expr ast.Expr, importPath string, selectorName string) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != selectorName {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	aliases := importAliases(file, importPath)
+	_, ok = aliases[ident.Name]
+	return ok
+}
+
+func importAliases(file *ast.File, importPath string) map[string]struct{} {
+	aliases := make(map[string]struct{}, 1)
+	if file == nil {
+		return aliases
+	}
+	for _, spec := range file.Imports {
+		if spec.Path == nil {
+			continue
+		}
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || path != importPath {
+			continue
+		}
+		if spec.Name == nil {
+			aliases[defaultImportName(importPath)] = struct{}{}
+			continue
+		}
+		switch spec.Name.Name {
+		case "", "_", ".":
+			continue
+		default:
+			aliases[spec.Name.Name] = struct{}{}
+		}
+	}
+	return aliases
 }

@@ -282,3 +282,48 @@ func ensureCoreAnnotationModel(ctx *AnnotationBindingContext) *coreAnnotationMod
 	ctx.SetValue(coreAnnotationModelKey, model)
 	return model
 }
+
+func (g coreAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContext) error {
+	value, ok := ctx.Value(coreAnnotationModelKey)
+	if !ok {
+		return nil
+	}
+	model, ok := value.(*coreAnnotationModel)
+	if !ok {
+		return fmt.Errorf("invalid core annotation model")
+	}
+	if g.propertiesOnly {
+		return generateConfigurationProperties(ctx, model)
+	}
+	ctx.AddImport("", "context")
+	ctx.AddImport("", "goark.dev/goark")
+	ctx.AddImport("", "goark.dev/goark/container")
+	if modelUsesOptionalInjection(model) {
+		ctx.AddImport("arkerrors", "goark.dev/goark/errors")
+	}
+	if model.UsesProperties {
+		ctx.AddImport("coreenv", "goark.dev/goark/core/env")
+		ctx.AddImport("", "goark.dev/goark/core/resource")
+	}
+	for _, configuration := range model.Configurations {
+		writeGeneratedConfiguration(ctx.buffer(), configuration)
+	}
+	return nil
+}
+
+func generateConfigurationProperties(
+	ctx *AnnotationGenerationContext,
+	model *coreAnnotationModel,
+) error {
+	if len(model.ConfigurationProperties) == 0 {
+		return nil
+	}
+	ctx.AddImport("", "goark.dev/goark")
+	ctx.AddImport("coreenv", "goark.dev/goark/core/env")
+	ctx.AddImport("arkerrors", "goark.dev/goark/errors")
+	addConfigurationPropertiesImports(ctx, model.ConfigurationProperties)
+	for _, properties := range model.ConfigurationProperties {
+		writeConfigurationProperties(ctx.buffer(), properties)
+	}
+	return nil
+}

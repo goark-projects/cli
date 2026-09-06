@@ -3,7 +3,44 @@ package generate
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 )
+
+func isMVCCrossOriginAnnotation(name string) bool { return name == "cross-origin" }
+
+func mvcModelUsesCORS(model *mvcAnnotationModel) bool {
+	if model == nil {
+		return false
+	}
+	for _, controller := range model.Controllers {
+		if controller.CrossOrigin != nil {
+			return true
+		}
+		for _, route := range controller.Routes {
+			if route.CrossOrigin != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mvcModelUsesCORSMaxAge(model *mvcAnnotationModel) bool {
+	if model == nil {
+		return false
+	}
+	for _, controller := range model.Controllers {
+		if controller.CrossOrigin != nil && controller.CrossOrigin.MaxAgeSet {
+			return true
+		}
+		for _, route := range controller.Routes {
+			if route.CrossOrigin != nil && route.CrossOrigin.MaxAgeSet {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func mvcAnnotationExtension() AnnotationExtension {
 	return AnnotationExtension{
@@ -272,4 +309,48 @@ func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
 		return fmt.Errorf("annotation %q receiver is not supported", ctx.Annotation.Name)
 	}
 	return nil
+}
+
+func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcHandler, error) {
+	if fn == nil {
+		return mvcHandler{}, fmt.Errorf("mvc handler method is nil")
+	}
+	params, err := mvcMethodParams(fset, file, fn, annotations)
+	if err != nil {
+		return mvcHandler{}, err
+	}
+	returnKind, err := mvcMethodReturnKind(file, fn)
+	if err != nil {
+		return mvcHandler{}, err
+	}
+	if hasMVCBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+	}
+	if hasMVCRequestEntityParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request entity must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+	}
+	if hasMVCMultipartBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s with multipart body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+	}
+	if hasMVCResponseBodyAnnotation(annotations) && hasMVCModelParam(params) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s response-body must not be used with *mvc.Model", fn.Name.Name)
+	}
+	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCRequestEntityParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) && !hasMVCJSONRequestPartParam(params) {
+		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, request entity, multipart body, model attribute, or JSON request part parameter", fn.Name.Name)
+	}
+	return mvcHandler{
+		Params:     params,
+		ReturnKind: returnKind,
+		ReturnType: mvcPrimaryReturnType(fset, fn),
+		EntityBody: mvcPrimaryResponseEntityBodyType(fset, file, fn),
+	}, nil
+}
+
+func mvcReturnSupportsRequestBody(kind mvcReturnKind) bool {
+	switch kind {
+	case mvcReturnValue, mvcReturnValueError, mvcReturnEntity, mvcReturnEntityError:
+		return true
+	default:
+		return false
+	}
 }
