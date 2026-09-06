@@ -180,6 +180,33 @@ func TestRunnerRun_whenCacheHits_shouldNotStartProcess(t *testing.T) {
 	}
 }
 
+func TestRunnerRun_whenCacheWasSavedThroughPathAlias_shouldHit(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "project")
+	alias := filepath.Join(parent, "alias")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("创建项目目录失败: %v", err)
+	}
+	if err := os.Symlink(root, alias); err != nil {
+		t.Skipf("当前环境无法创建符号链接: %v", err)
+	}
+	writeTaskFile(t, root, "input/source.txt", "input")
+	writeTaskFile(t, root, "output/result.txt", "result")
+	task := buildspec.Task{Type: buildspec.TaskTypeGo, Args: []string{"version"}, Inputs: []string{"input/*.txt"}, Outputs: []string{"output/*.txt"}, Cache: true}
+	cache := taskcache.NewStore(alias)
+	if err := cache.Save(taskcache.Context{Root: alias, TaskName: "cached", Task: task, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}); err != nil {
+		t.Fatalf("准备缓存失败: %v", err)
+	}
+	process := &recordingRunner{}
+	runner := New(Options{Root: root, Process: process, Cache: cache})
+	if err := runner.Run(context.Background(), "cached", task); err != nil {
+		t.Fatalf("读取缓存失败: %v", err)
+	}
+	if len(process.requests) != 0 {
+		t.Fatalf("路径别名不应破坏缓存命中: %#v", process.requests)
+	}
+}
+
 func TestRunnerRun_whenTaskTimesOut_shouldReturnDeadline(t *testing.T) {
 	process := &recordingRunner{err: context.DeadlineExceeded}
 	runner := New(Options{Root: t.TempDir(), Process: process, DefaultTimeout: time.Nanosecond})

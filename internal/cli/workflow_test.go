@@ -39,7 +39,7 @@ func TestCommand_whenGenerateRequested_shouldGenerateAnnotatedPackages(t *testin
 	if code := command.Run([]string{"generate"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	output := filepath.Join(root, "internal", "app", "zz_goark_app_gen.go")
+	output := filepath.Join(canonicalTestPath(t, root), "internal", "app", "zz_goark_app_gen.go")
 	if _, err := os.Stat(output); err != nil {
 		t.Fatalf("生成文件不存在: %v", err)
 	}

@@ -34,7 +34,7 @@ func TestProjectResolver_whenSingleCommandExists_shouldResolveModuleAndMain(t *t
 	if err != nil {
 		t.Fatalf("发现项目失败: %v", err)
 	}
-	if project.Root != root || project.ModulePath != "example.com/app" {
+	if project.Root != canonicalTestPath(t, root) || project.ModulePath != "example.com/app" {
 		t.Fatalf("项目模型错误: %#v", project)
 	}
 	target, err := project.ResolveRunTarget(root)
@@ -85,6 +85,33 @@ func TestProjectResolver_whenCurrentPackageIsMain_shouldPreferCurrentDirectory(t
 		t.Fatalf("发现项目失败: %v", err)
 	}
 	target, err := project.ResolveRunTarget(root)
+	if err != nil {
+		t.Fatalf("发现入口失败: %v", err)
+	}
+	if target != "." {
+		t.Fatalf("入口 = %q", target)
+	}
+}
+
+func TestGoarkProject_whenWorkingDirectoryUsesPathAlias_shouldPreferCurrentMainPackage(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "project")
+	alias := filepath.Join(parent, "alias")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("创建项目目录失败: %v", err)
+	}
+	if err := os.Symlink(root, alias); err != nil {
+		t.Skipf("当前环境无法创建符号链接: %v", err)
+	}
+	project := goarkProject{
+		Root: canonicalTestPath(t, root),
+		Packages: []goPackage{{
+			Dir:  canonicalTestPath(t, root),
+			Name: "main",
+		}},
+	}
+
+	target, err := project.ResolveRunTarget(alias)
 	if err != nil {
 		t.Fatalf("发现入口失败: %v", err)
 	}
@@ -183,9 +210,22 @@ func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingM
 	if err != nil {
 		t.Fatalf("发现工作区项目失败: %v", err)
 	}
-	if project.Root != second || project.ModulePath != "example.com/second" {
+	if project.Root != canonicalTestPath(t, second) || project.ModulePath != "example.com/second" {
 		t.Fatalf("选择了错误模块: %#v", project)
 	}
+}
+
+func canonicalTestPath(t *testing.T, value string) string {
+	t.Helper()
+	abs, err := filepath.Abs(value)
+	if err != nil {
+		t.Fatalf("解析绝对路径失败: %v", err)
+	}
+	canonical, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		t.Fatalf("解析路径符号链接失败: %v", err)
+	}
+	return filepath.Clean(canonical)
 }
 
 func newTestProjectResolver(dir string) projectResolver {

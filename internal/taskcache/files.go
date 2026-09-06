@@ -19,6 +19,10 @@ type fileDigest struct {
 }
 
 func collect(root string, patterns []string, requireEach bool) ([]fileDigest, error) {
+	root, err := canonicalRoot(root)
+	if err != nil {
+		return nil, err
+	}
 	resolver := projectfs.New(root)
 	files := make(map[string]fileDigest)
 	for _, pattern := range patterns {
@@ -49,6 +53,18 @@ func collect(root string, patterns []string, requireEach bool) ([]fileDigest, er
 	}
 	sort.Slice(result, func(left int, right int) bool { return result[left].Path < result[right].Path })
 	return result, nil
+}
+
+func canonicalRoot(root string) (string, error) {
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("解析缓存项目根目录失败: %w", err)
+	}
+	canonical, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", fmt.Errorf("解析缓存项目根目录符号链接失败: %w", err)
+	}
+	return filepath.Clean(canonical), nil
 }
 
 func collectPath(root string, target string, files map[string]fileDigest) error {

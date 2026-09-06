@@ -215,6 +215,14 @@ func (p goarkProject) ResolveRunTarget(workingDir string) (string, error) {
 		}
 		return "", fmt.Errorf("project.main %q 不是可运行的 main package", p.Build.Project.Main)
 	}
+	workingDir, err := filepath.Abs(workingDir)
+	if err != nil {
+		return "", fmt.Errorf("解析当前目录失败: %w", err)
+	}
+	workingDir, err = filepath.EvalSymlinks(workingDir)
+	if err != nil {
+		return "", fmt.Errorf("解析当前目录符号链接失败: %w", err)
+	}
 	if p.isMainPackage(workingDir) {
 		return ".", nil
 	}
