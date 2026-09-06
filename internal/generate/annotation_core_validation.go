@@ -71,10 +71,10 @@ func validateIntValue(annotation Annotation) error {
 
 func validateBoolArg(annotation Annotation, key string) error {
 	value, ok := annotation.Args[key]
-	if !ok || strings.TrimSpace(value.text) == "" {
+	if !ok || strings.TrimSpace(value.Text()) == "" {
 		return nil
 	}
-	if _, err := strconv.ParseBool(strings.TrimSpace(value.text)); err != nil {
+	if _, err := strconv.ParseBool(strings.TrimSpace(value.Text())); err != nil {
 		return fmt.Errorf("annotation %q argument %q requires boolean value: %w", annotation.Name, key, err)
 	}
 	return nil

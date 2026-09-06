@@ -34,7 +34,7 @@ func annotationString(annotations []Annotation, name string, fallback string) st
 		}
 		for _, key := range []string{"name", "value"} {
 			if value, ok := annotation.Args[key]; ok {
-				return value.text
+				return value.Text()
 			}
 		}
 	}
@@ -60,12 +60,12 @@ func annotationValueTexts(annotation Annotation) []string {
 	if len(annotation.Values) > 0 {
 		values := make([]string, 0, len(annotation.Values))
 		for _, value := range annotation.Values {
-			values = append(values, value.text)
+			values = append(values, value.Text())
 		}
 		return values
 	}
 	if value, ok := annotation.Args["value"]; ok {
-		return []string{value.text}
+		return []string{value.Text()}
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func annotationInt(annotations []Annotation, name string, fallback int) int {
 			continue
 		}
 		if value, ok := annotation.Args["value"]; ok {
-			if parsed, err := strconv.Atoi(value.text); err == nil {
+			if parsed, err := strconv.Atoi(value.Text()); err == nil {
 				return parsed
 			}
 		}
@@ -89,7 +89,7 @@ func annotationBool(annotation Annotation, key string, fallback bool) bool {
 	if !ok {
 		return fallback
 	}
-	parsed, err := strconv.ParseBool(value.text)
+	parsed, err := strconv.ParseBool(value.Text())
 	if err != nil {
 		return fallback
 	}
@@ -107,7 +107,7 @@ func annotationBoolByName(annotations []Annotation, name string, fallback bool) 
 
 func argString(annotation Annotation, key string, fallback string) string {
 	if value, ok := annotation.Args[key]; ok {
-		return value.text
+		return value.Text()
 	}
 	return fallback
 }

@@ -109,7 +109,7 @@ func autowiredQualifier(annotations []Annotation) string {
 			continue
 		}
 		if value, ok := annotation.Args["qualifier"]; ok {
-			return value.text
+			return value.Text()
 		}
 	}
 	return ""

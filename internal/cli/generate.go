@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"goark.dev/cli/internal/generate"
+	"goark.dev/cli/internal/generate/manual"
 )
 
 type stringList []string
@@ -49,7 +49,7 @@ func (c Command) runCodegenConfiguration(args []string) int {
 	var imports stringList
 	var beans stringList
 	var output string
-	spec := generate.ConfigurationSpec{}
+	spec := manual.ConfigurationSpec{}
 	flags := flag.NewFlagSet("goark codegen configuration", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&spec.ConfigurationName, "name", "", "配置名称")
@@ -97,7 +97,7 @@ func (c Command) runCodegenConfiguration(args []string) int {
 		spec.Beans = append(spec.Beans, item)
 	}
 
-	source, err := generate.GenerateConfiguration(spec)
+	source, err := manual.GenerateConfiguration(spec)
 	if err != nil {
 		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
 		return 2
@@ -118,7 +118,7 @@ func (c Command) runCodegenRegistry(args []string) int {
 	var imports stringList
 	var configurations stringList
 	var output string
-	spec := generate.RegistrySpec{}
+	spec := manual.RegistrySpec{}
 	flags := flag.NewFlagSet("goark codegen registry", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&spec.PackageName, "package", "", "生成文件包名")
@@ -155,11 +155,11 @@ func (c Command) runCodegenRegistry(args []string) int {
 		spec.Imports = append(spec.Imports, item)
 	}
 	for _, rawConfiguration := range configurations {
-		item := generate.ConfigurationRegistrationSpec{Type: strings.TrimSpace(rawConfiguration)}
+		item := manual.ConfigurationRegistrationSpec{Type: strings.TrimSpace(rawConfiguration)}
 		spec.Configurations = append(spec.Configurations, item)
 	}
 
-	source, err := generate.GenerateRegistry(spec)
+	source, err := manual.GenerateRegistry(spec)
 	if err != nil {
 		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
 		return 2
@@ -176,34 +176,34 @@ func (c Command) runCodegenRegistry(args []string) int {
 	return 0
 }
 
-func parseImportSpec(raw string) (generate.ImportSpec, error) {
+func parseImportSpec(raw string) (manual.ImportSpec, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return generate.ImportSpec{}, fmt.Errorf("import 不能为空")
+		return manual.ImportSpec{}, fmt.Errorf("import 不能为空")
 	}
 	alias, path, ok := strings.Cut(raw, "=")
 	if !ok {
-		return generate.ImportSpec{Path: raw}, nil
+		return manual.ImportSpec{Path: raw}, nil
 	}
 	alias = strings.TrimSpace(alias)
 	path = strings.TrimSpace(path)
 	if alias == "" || path == "" {
-		return generate.ImportSpec{}, fmt.Errorf("import %q 格式错误", raw)
+		return manual.ImportSpec{}, fmt.Errorf("import %q 格式错误", raw)
 	}
-	return generate.ImportSpec{Alias: alias, Path: path}, nil
+	return manual.ImportSpec{Alias: alias, Path: path}, nil
 }
 
-func parseBeanSpec(raw string) (generate.BeanSpec, error) {
+func parseBeanSpec(raw string) (manual.BeanSpec, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return generate.BeanSpec{}, fmt.Errorf("bean 不能为空")
+		return manual.BeanSpec{}, fmt.Errorf("bean 不能为空")
 	}
 	parts := strings.Split(raw, ";")
 	name, provider, ok := strings.Cut(parts[0], "=")
 	if !ok {
-		return generate.BeanSpec{}, fmt.Errorf("bean %q 缺少 name=provider", raw)
+		return manual.BeanSpec{}, fmt.Errorf("bean %q 缺少 name=provider", raw)
 	}
-	bean := generate.BeanSpec{
+	bean := manual.BeanSpec{
 		Name:     strings.TrimSpace(name),
 		Provider: strings.TrimSpace(provider),
 	}
@@ -220,7 +220,7 @@ func parseBeanSpec(raw string) (generate.BeanSpec, error) {
 		case strings.HasPrefix(option, "deps="):
 			deps := strings.TrimPrefix(option, "deps=")
 			if deps == "" {
-				return generate.BeanSpec{}, fmt.Errorf("bean %q deps 不能为空", bean.Name)
+				return manual.BeanSpec{}, fmt.Errorf("bean %q deps 不能为空", bean.Name)
 			}
 			for _, dep := range strings.Split(deps, ",") {
 				bean.Dependencies = append(bean.Dependencies, strings.TrimSpace(dep))
@@ -228,7 +228,7 @@ func parseBeanSpec(raw string) (generate.BeanSpec, error) {
 		case strings.HasPrefix(option, "scope="):
 			bean.Scope = strings.TrimSpace(strings.TrimPrefix(option, "scope="))
 		default:
-			return generate.BeanSpec{}, fmt.Errorf("bean %q 不支持选项 %q", bean.Name, option)
+			return manual.BeanSpec{}, fmt.Errorf("bean %q 不支持选项 %q", bean.Name, option)
 		}
 	}
 	return bean, nil
