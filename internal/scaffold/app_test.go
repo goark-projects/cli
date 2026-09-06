@@ -96,6 +96,7 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	assertFileContains(t, filepath.Join(dir, "goark.build"), "name = \"admin\"")
 	assertFileContains(t, filepath.Join(dir, "goark.build"), "main = \"./cmd/server\"")
 	assertFileContains(t, filepath.Join(dir, ".gitignore"), "/.goark/")
+	assertFileContains(t, filepath.Join(dir, ".gitignore"), "**/gen/")
 	assertFileContains(t, filepath.Join(dir, "README.md"), "goark run")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.0")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.0")

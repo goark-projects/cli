@@ -4,7 +4,9 @@
 
 ## 仓库文件
 
-应提交 `go.mod`、`go.sum`、`goark.build`；声明工具或使用锁定执行时还应提交 `goark.build.lock`。仓库策略要求跟踪生成源码时，应提交 Goark 生成的 `.go` 文件。不要提交 `.goark/cache`、用户工具缓存或项目信任记录。
+应提交 `go.mod`、`go.sum`、`goark.build`；声明工具或使用锁定执行时还应提交
+`goark.build.lock`。不要提交 Goark 生成的 `**/gen/` 包、`.goark/cache`、用户工具缓存或
+项目信任记录；CI 会在执行 Go 命令前重新生成 `gen` 包。
 
 ## 开发者准备
 

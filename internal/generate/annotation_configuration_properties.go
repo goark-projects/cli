@@ -13,6 +13,7 @@ import (
 
 type annotationConfigurationProperties struct {
 	TypeName            string
+	SourceTypeName      string
 	BeanName            string
 	Prefix              string
 	IgnoreUnknownFields bool

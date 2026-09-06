@@ -7,6 +7,7 @@ import (
 
 func mvcAnnotationExtension() AnnotationExtension {
 	return AnnotationExtension{
+		Name:        "mvc",
 		Descriptors: mvcAnnotationDescriptors(),
 		Binder:      mvcAnnotationBinder{},
 		Generator:   mvcAnnotationGenerator{},

@@ -11,6 +11,8 @@ import (
 type AnnotationScanSpec struct {
 	Dir               string
 	PackageName       string
+	SourceImportPath  string
+	GeneratorVersion  string
 	ConfigurationName string
 	TypeName          string
 	Files             []string
@@ -55,6 +57,7 @@ type AnnotationGenerator interface {
 
 // AnnotationExtension 组合一个注解扩展的描述、绑定和生成阶段。
 type AnnotationExtension struct {
+	Name        string
 	Descriptors []AnnotationDescriptor
 	Binder      AnnotationBinder
 	Generator   AnnotationGenerator
@@ -67,6 +70,7 @@ type annotationBindingFinalizer interface {
 type annotationPipeline struct {
 	extensions  []AnnotationExtension
 	descriptors map[string]AnnotationDescriptor
+	spec        AnnotationScanSpec
 }
 
 // AnnotationItem 表示扫描器发现的一处带 goark 注解的语法节点。
@@ -247,6 +251,13 @@ func (c *AnnotationGenerationContext) AddImport(alias string, path string) {
 	}
 	c.importKeys[key] = struct{}{}
 	c.imports = append(c.imports, ImportSpec{Alias: alias, Path: path})
+}
+
+func (c *AnnotationGenerationContext) sourceType(value string) string {
+	if c.pkg.SourceImportPath == "" {
+		return value
+	}
+	return qualifyLocalIdentifiers(value, c.pkg.types)
 }
 
 // WriteString 写入生成源码正文。

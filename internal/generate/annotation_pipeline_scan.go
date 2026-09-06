@@ -12,9 +12,10 @@ import (
 )
 
 type annotationPackage struct {
-	PackageName string
-	fset        *token.FileSet
-	types       map[string]annotationTypeDeclaration
+	PackageName      string
+	SourceImportPath string
+	fset             *token.FileSet
+	types            map[string]annotationTypeDeclaration
 }
 
 type annotationTypeDeclaration struct {
@@ -24,22 +25,72 @@ type annotationTypeDeclaration struct {
 
 // GenerateAnnotations 扫描 Go 源码注解并生成 goark 注册代码。
 func GenerateAnnotations(spec AnnotationScanSpec) ([]byte, error) {
-	pipeline, err := newAnnotationPipeline(spec.Extensions)
-	if err != nil {
-		return nil, err
-	}
-	pkg, values, err := scanAnnotations(spec, pipeline)
+	pkg, values, pipeline, err := buildAnnotationModel(spec)
 	if err != nil {
 		return nil, err
 	}
 	return renderAnnotationPackage(pkg, values, pipeline)
 }
 
-func newAnnotationPipeline(extensions []AnnotationExtension) (*annotationPipeline, error) {
-	all := append(defaultAnnotationExtensions(), extensions...)
+// AnnotationFile 描述一个按职责拆分的注解生成文件。
+type AnnotationFile struct {
+	Name   string
+	Source []byte
+}
+
+// GenerateAnnotationFiles 扫描一次源码，并按生成职责输出独立文件。
+func GenerateAnnotationFiles(spec AnnotationScanSpec) ([]AnnotationFile, error) {
+	pkg, values, pipeline, err := buildAnnotationModel(spec)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]AnnotationFile, 0, len(pipeline.extensions))
+	for index, extension := range pipeline.extensions {
+		if extension.Generator == nil {
+			continue
+		}
+		source, err := renderAnnotationExtensions(pkg, values, pipeline, []AnnotationExtension{extension})
+		if err != nil {
+			return nil, err
+		}
+		if source == nil {
+			continue
+		}
+		name := strings.TrimSpace(extension.Name)
+		if name == "" {
+			name = fmt.Sprintf("extension_%02d", index+1)
+		}
+		files = append(files, AnnotationFile{
+			Name:   "zz_goark_" + name + "_gen.go",
+			Source: source,
+		})
+	}
+	return files, nil
+}
+
+func buildAnnotationModel(
+	spec AnnotationScanSpec,
+) (*annotationPackage, map[string]any, *annotationPipeline, error) {
+	pipeline, err := newAnnotationPipeline(spec)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	pkg, values, err := scanAnnotations(spec, pipeline)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := prepareExternalGeneration(pkg, values); err != nil {
+		return nil, nil, nil, err
+	}
+	return pkg, values, pipeline, nil
+}
+
+func newAnnotationPipeline(spec AnnotationScanSpec) (*annotationPipeline, error) {
+	all := append(defaultAnnotationExtensions(), spec.Extensions...)
 	pipeline := &annotationPipeline{
 		extensions:  all,
 		descriptors: make(map[string]AnnotationDescriptor),
+		spec:        spec,
 	}
 	for _, extension := range all {
 		for _, descriptor := range extension.Descriptors {
@@ -87,7 +138,12 @@ func scanAnnotations(spec AnnotationScanSpec, pipeline *annotationPipeline) (*an
 		return nil, nil, fmt.Errorf("package %q not found in %s", packageName, dir)
 	}
 
-	pkg := &annotationPackage{PackageName: packageName, fset: fset, types: make(map[string]annotationTypeDeclaration)}
+	pkg := &annotationPackage{
+		PackageName:      packageName,
+		SourceImportPath: strings.TrimSpace(spec.SourceImportPath),
+		fset:             fset,
+		types:            make(map[string]annotationTypeDeclaration),
+	}
 	for _, file := range parsedPackage.Files {
 		for _, declaration := range file.Decls {
 			general, ok := declaration.(*ast.GenDecl)

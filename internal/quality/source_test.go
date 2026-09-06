@@ -46,8 +46,10 @@ func forEachGoSource(t *testing.T, check func(string, []byte)) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() && path != root && strings.HasPrefix(entry.Name(), ".") {
-			return filepath.SkipDir
+		if entry.IsDir() && path != root {
+			if strings.HasPrefix(entry.Name(), ".") || entry.Name() == "gen" {
+				return filepath.SkipDir
+			}
 		}
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" {
 			return nil

@@ -192,6 +192,9 @@ func (mvcAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContex
 	if len(model.Controllers) == 0 && len(model.Advices) == 0 {
 		return nil
 	}
+	ctx.AddImport("", "context")
+	ctx.AddImport("", "goark.dev/goark")
+	ctx.AddImport("", "goark.dev/goark/container")
 	if mvcModelUsesArkWeb(model) {
 		ctx.AddImport("arkweb", arkartaWebImportPath)
 	}

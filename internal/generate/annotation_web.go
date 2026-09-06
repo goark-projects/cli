@@ -33,6 +33,7 @@ type webAnnotationGenerator struct{}
 
 func webAnnotationExtension() AnnotationExtension {
 	return AnnotationExtension{
+		Name:        "web",
 		Descriptors: webAnnotationDescriptors(),
 		Binder:      webAnnotationBinder{},
 		Generator:   webAnnotationGenerator{},

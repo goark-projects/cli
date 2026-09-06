@@ -19,6 +19,7 @@ type coreAnnotationModel struct {
 
 type annotationConfiguration struct {
 	TypeName        string
+	SourceTypeName  string
 	Name            string
 	Order           int
 	Profiles        []string
@@ -37,14 +38,15 @@ type annotationPropertySource struct {
 }
 
 type annotationBean struct {
-	Name         string
-	MethodName   string
-	ReturnType   string
-	ReturnsError bool
-	Params       []annotationParam
-	Options      annotationBeanOptions
-	Profiles     []string
-	Condition    string
+	Name              string
+	MethodName        string
+	ReturnType        string
+	ReturnsError      bool
+	Params            []annotationParam
+	Options           annotationBeanOptions
+	Profiles          []string
+	Condition         string
+	ConfigurationType string
 }
 
 type annotationComponent struct {
@@ -105,6 +107,7 @@ type coreAnnotationGenerator struct{}
 func defaultAnnotationExtensions() []AnnotationExtension {
 	return []AnnotationExtension{
 		{
+			Name:        "core",
 			Descriptors: coreAnnotationDescriptors(),
 			Binder:      coreAnnotationBinder{},
 			Generator:   coreAnnotationGenerator{},

@@ -7,7 +7,13 @@ import (
 )
 
 func writeGeneratedConfiguration(builder *bytes.Buffer, configuration *annotationConfiguration) {
-	if configuration.Synthetic {
+	if configuration.SourceTypeName != "" {
+		builder.WriteString("type ")
+		builder.WriteString(configuration.TypeName)
+		builder.WriteString(" struct {\nsource ")
+		builder.WriteString(configuration.SourceTypeName)
+		builder.WriteString("\n}\n\n")
+	} else if configuration.Synthetic {
 		builder.WriteString("type ")
 		builder.WriteString(configuration.TypeName)
 		builder.WriteString(" struct{}\n\n")
@@ -109,13 +115,15 @@ func writeBeanRegistrationFromAnnotation(builder *bytes.Buffer, bean annotationB
 		writeParamResolution(builder, param)
 	}
 	if bean.ReturnsError {
-		builder.WriteString("return c.")
+		builder.WriteString("return ")
+		writeConfigurationMethodReceiver(builder, bean)
 		builder.WriteString(bean.MethodName)
 		builder.WriteString("(")
 		builder.WriteString(strings.Join(args, ", "))
 		builder.WriteString(")\n")
 	} else {
-		builder.WriteString("out = c.")
+		builder.WriteString("out = ")
+		writeConfigurationMethodReceiver(builder, bean)
 		builder.WriteString(bean.MethodName)
 		builder.WriteString("(")
 		builder.WriteString(strings.Join(args, ", "))
@@ -125,6 +133,14 @@ func writeBeanRegistrationFromAnnotation(builder *bytes.Buffer, bean annotationB
 	writeContainerOptions(builder, bean.Options)
 	builder.WriteString("); err != nil {\nreturn err\n}\n")
 	writeConditionalEnd(builder, bean.Profiles, bean.Condition)
+}
+
+func writeConfigurationMethodReceiver(builder *bytes.Buffer, bean annotationBean) {
+	if bean.ConfigurationType != "" {
+		builder.WriteString("c.source.")
+		return
+	}
+	builder.WriteString("c.")
 }
 
 func writeParamResolution(builder *bytes.Buffer, param annotationParam) {

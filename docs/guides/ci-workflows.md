@@ -4,7 +4,9 @@ English | [简体中文](ci-workflows.zh-CN.md)
 
 ## Repository Files
 
-Commit `go.mod`, `go.sum`, `goark.build`, and `goark.build.lock` when tools or locked execution are used. Commit Goark-generated `.go` files when repository policy tracks generated source. Do not commit `.goark/cache`, the user tool cache, or project trust records.
+Commit `go.mod`, `go.sum`, `goark.build`, and `goark.build.lock` when tools or locked execution
+are used. Do not commit Goark-generated `**/gen/` packages, `.goark/cache`, the user tool cache,
+or project trust records. CI regenerates `gen` packages before Go commands.
 
 ## Developer Preparation
 

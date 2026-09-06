@@ -65,6 +65,7 @@ func gitignoreTemplate() string {
 /dist/
 /tmp/
 /.goark/
+**/gen/
 *.exe
 *.test
 coverage.out

@@ -14,14 +14,18 @@ func addConfigurationPropertiesImports(ctx *AnnotationGenerationContext, propert
 }
 
 func writeConfigurationProperties(builder *bytes.Buffer, properties annotationConfigurationProperties) {
+	sourceType := properties.TypeName
+	if properties.SourceTypeName != "" {
+		sourceType = properties.SourceTypeName
+	}
 	builder.WriteString("// Bind")
 	builder.WriteString(properties.TypeName)
 	builder.WriteString(" 从 Environment 绑定配置属性。\nfunc Bind")
 	builder.WriteString(properties.TypeName)
 	builder.WriteString("(environment goark.Environment) (out *")
-	builder.WriteString(properties.TypeName)
+	builder.WriteString(sourceType)
 	builder.WriteString(", err error) {\nout = &")
-	builder.WriteString(properties.TypeName)
+	builder.WriteString(sourceType)
 	builder.WriteString("{}\n")
 	for _, initializer := range properties.Initializers {
 		builder.WriteString(initializer)
@@ -109,10 +113,14 @@ func writeConfigurationPropertiesMetadata(builder *bytes.Buffer, properties anno
 }
 
 func writeConfigurationPropertiesRegistration(builder *bytes.Buffer, properties annotationConfigurationProperties) {
+	sourceType := properties.TypeName
+	if properties.SourceTypeName != "" {
+		sourceType = properties.SourceTypeName
+	}
 	builder.WriteString("if err := container.Register(registry, ")
 	builder.WriteString(strconv.Quote(properties.BeanName))
 	builder.WriteString(", func(_ context.Context, _ container.Resolver) (*")
-	builder.WriteString(properties.TypeName)
+	builder.WriteString(sourceType)
 	builder.WriteString(", error) {\nreturn Bind")
 	builder.WriteString(properties.TypeName)
 	builder.WriteString("(config.Environment())\n}); err != nil {\nreturn err\n}\n")

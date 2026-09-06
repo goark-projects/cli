@@ -37,7 +37,13 @@ func TestCommand_whenGenerateRequested_shouldGenerateAnnotatedPackages(t *testin
 	if code := command.Run([]string{"generate"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	output := filepath.Join(canonicalTestPath(t, root), "internal", "app", "zz_goark_app_gen.go")
+	output := filepath.Join(
+		canonicalTestPath(t, root),
+		"internal",
+		"app",
+		"gen",
+		"zz_goark_core_gen.go",
+	)
 	if _, err := os.Stat(output); err != nil {
 		t.Fatalf("生成文件不存在: %v", err)
 	}
@@ -64,7 +70,7 @@ type TaggedComponent struct{}
 	if code := command.Run([]string{"generate", "-tags", "special", "./app"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	data, err := os.ReadFile(filepath.Join(root, "app", "zz_goark_app_gen.go"))
+	data, err := os.ReadFile(filepath.Join(root, "app", "gen", "zz_goark_core_gen.go"))
 	if err != nil {
 		t.Fatalf("读取生成文件失败: %v", err)
 	}
@@ -94,7 +100,7 @@ func TestCommand_whenGenerateUsesDirectoryFlag_shouldResolveProjectFromThatDirec
 	if code := command.Run([]string{"generate", "-C", "service"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(root, "app", "zz_goark_app_gen.go")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "app", "gen", "zz_goark_core_gen.go")); err != nil {
 		t.Fatalf("生成文件不存在: %v", err)
 	}
 }
@@ -120,7 +126,9 @@ func TestCommand_whenBuildDryRunRequested_shouldPrintPlanWithoutWriting(t *testi
 	if code := command.Run([]string{"build", "--goark-dry-run", "./..."}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(root, "internal", "app", "zz_goark_app_gen.go")); !os.IsNotExist(err) {
+	if _, err := os.Stat(
+		filepath.Join(root, "internal", "app", "gen", "zz_goark_core_gen.go"),
+	); !os.IsNotExist(err) {
 		t.Fatalf("模拟执行不应写文件: %v", err)
 	}
 	if !strings.Contains(stderr.String(), "would generate") || !strings.Contains(stderr.String(), "go build ./...") {
