@@ -90,7 +90,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
 
           {
-            echo "Full [release notes for Goark CLI ${version}](https://github.com/${GITHUB_REPOSITORY}/blob/main/${release_notes}) are available in the repository. [简体中文发行说明](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/releases/${GITHUB_REF_NAME}.zh-CN.md)"
+            echo "Full [release notes for Goark CLI ${version}](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/${release_notes}) are available in the repository. [中文](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/releases/${GITHUB_REF_NAME}.zh-CN.md)"
             echo
             tail -n +5 "${release_notes}"
           } > "${release_body}"
