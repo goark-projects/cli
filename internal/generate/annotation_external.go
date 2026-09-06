@@ -13,7 +13,11 @@ import (
 	"unicode/utf8"
 )
 
-func parseAnnotationPackages(fset *token.FileSet, dir string, files []string) (map[string]*ast.Package, error) {
+func parseAnnotationPackages(
+	fset *token.FileSet,
+	dir string,
+	files []string,
+) (map[string]*ast.Package, error) {
 	if len(files) == 0 {
 		return parser.ParseDir(fset, dir, func(info os.FileInfo) bool {
 			name := info.Name()
@@ -28,7 +32,8 @@ func parseAnnotationPackages(fset *token.FileSet, dir string, files []string) (m
 		}
 		path := filepath.Join(dir, name)
 		relative, err := filepath.Rel(dir, path)
-		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		if err != nil || relative == ".." ||
+			strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 			return nil, fmt.Errorf("Go source file %q is outside scan directory", name)
 		}
 		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
@@ -92,7 +97,11 @@ func validateExternalSymbols(pkg *annotationPackage, values map[string]any) erro
 		}
 		for _, bean := range configuration.Beans {
 			if !ast.IsExported(bean.MethodName) {
-				return fmt.Errorf("生成 gen 包要求 Bean 方法 %s.%s 可导出", configuration.TypeName, bean.MethodName)
+				return fmt.Errorf(
+					"生成 gen 包要求 Bean 方法 %s.%s 可导出",
+					configuration.TypeName,
+					bean.MethodName,
+				)
 			}
 		}
 	}
@@ -198,7 +207,10 @@ func qualifyCoreModel(pkg *annotationPackage, values map[string]any) {
 	}
 	for _, configuration := range model.Configurations {
 		if !configuration.Synthetic {
-			configuration.SourceTypeName = qualifyLocalIdentifiers(configuration.TypeName, pkg.types)
+			configuration.SourceTypeName = qualifyLocalIdentifiers(
+				configuration.TypeName,
+				pkg.types,
+			)
 			configuration.Synthetic = true
 		}
 		qualifyConfiguration(pkg, configuration)
@@ -232,7 +244,10 @@ func qualifyProperties(pkg *annotationPackage, properties *annotationConfigurati
 		)
 	}
 	for item := range properties.Fields {
-		properties.Fields[item].Type = qualifyLocalIdentifiers(properties.Fields[item].Type, pkg.types)
+		properties.Fields[item].Type = qualifyLocalIdentifiers(
+			properties.Fields[item].Type,
+			pkg.types,
+		)
 		properties.Fields[item].MapValueType = qualifyLocalIdentifiers(
 			properties.Fields[item].MapValueType,
 			pkg.types,
@@ -244,7 +259,10 @@ func qualifyComponent(pkg *annotationPackage, component *annotationComponent) {
 	component.TypeName = qualifyLocalIdentifiers(component.TypeName, pkg.types)
 	component.Condition = qualifyLocalIdentifiers(component.Condition, pkg.types)
 	for index := range component.Fields {
-		component.Fields[index].Type = qualifyLocalIdentifiers(component.Fields[index].Type, pkg.types)
+		component.Fields[index].Type = qualifyLocalIdentifiers(
+			component.Fields[index].Type,
+			pkg.types,
+		)
 	}
 }
 

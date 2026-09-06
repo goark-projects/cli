@@ -125,28 +125,46 @@ func defaultAnnotationExtensions() []AnnotationExtension {
 
 func coreAnnotationDescriptors() []AnnotationDescriptor {
 	return []AnnotationDescriptor{
-		{Name: "configuration", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
-		{Name: "component", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
-		{Name: "service", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
-		{Name: "repository", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCoreNamedStructTypeAnnotation},
-		{Name: "bean", Targets: []AnnotationTarget{AnnotationTargetMethod}, Validate: validateCoreBeanAnnotation},
-		{Name: "autowired", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
-		{Name: "inject", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
-		{Name: "resource", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
-		{Name: "qualifier", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
-		{Name: "named", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
-		{Name: "value", Targets: []AnnotationTarget{AnnotationTargetField, AnnotationTargetMethod}, Validate: validateCoreInjectionAnnotation},
-		{Name: "primary", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreBeanOptionAnnotation},
-		{Name: "lazy", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreLazyAnnotation},
-		{Name: "scope", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreScopeAnnotation},
-		{Name: "depends-on", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreDependsOnAnnotation},
-		{Name: "order", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreOrderAnnotation},
-		{Name: "priority", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCorePriorityAnnotation},
-		{Name: "profile", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreProfileAnnotation},
-		{Name: "property-source", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCorePropertySourceAnnotation},
-		{Name: "property-sources", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateCorePropertySourcesAnnotation},
-		{Name: "configuration-properties", Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateConfigurationPropertiesAnnotation},
-		{Name: "conditional", Targets: []AnnotationTarget{AnnotationTargetType, AnnotationTargetMethod}, Validate: validateCoreConditionalAnnotation},
+		typeDesc("configuration", validateCoreNamedStructTypeAnnotation),
+		typeDesc("component", validateCoreNamedStructTypeAnnotation),
+		typeDesc("service", validateCoreNamedStructTypeAnnotation),
+		typeDesc("repository", validateCoreNamedStructTypeAnnotation),
+		methodDesc("bean", validateCoreBeanAnnotation),
+		fieldMethodDesc("autowired", validateCoreInjectionAnnotation),
+		fieldMethodDesc("inject", validateCoreInjectionAnnotation),
+		fieldMethodDesc("resource", validateCoreInjectionAnnotation),
+		fieldMethodDesc("qualifier", validateCoreInjectionAnnotation),
+		fieldMethodDesc("named", validateCoreInjectionAnnotation),
+		fieldMethodDesc("value", validateCoreInjectionAnnotation),
+		typeMethodDesc("primary", validateCoreBeanOptionAnnotation),
+		typeMethodDesc("lazy", validateCoreLazyAnnotation),
+		typeMethodDesc("scope", validateCoreScopeAnnotation),
+		typeMethodDesc("depends-on", validateCoreDependsOnAnnotation),
+		typeMethodDesc("order", validateCoreOrderAnnotation),
+		typeMethodDesc("priority", validateCorePriorityAnnotation),
+		typeMethodDesc("profile", validateCoreProfileAnnotation),
+		typeDesc("property-source", validateCorePropertySourceAnnotation),
+		typeDesc("property-sources", validateCorePropertySourcesAnnotation),
+		typeDesc("configuration-properties", validateConfigurationPropertiesAnnotation),
+		typeMethodDesc("conditional", validateCoreConditionalAnnotation),
+	}
+}
+
+func fieldMethodDesc(name string, validate annotationValidateFunc) AnnotationDescriptor {
+	return newAnnotationDesc(name, validate, AnnotationTargetField, AnnotationTargetMethod)
+}
+
+func typeMethodDesc(name string, validate annotationValidateFunc) AnnotationDescriptor {
+	return newAnnotationDesc(name, validate, AnnotationTargetType, AnnotationTargetMethod)
+}
+
+func newAnnotationDesc(
+	name string,
+	validate annotationValidateFunc,
+	targets ...AnnotationTarget,
+) AnnotationDescriptor {
+	return AnnotationDescriptor{
+		Name: name, Targets: targets, Validate: validate,
 	}
 }
 
@@ -170,7 +188,10 @@ func validateCoreNamedStructTypeAnnotation(ctx AnnotationValidationContext) erro
 
 func validateCoreBeanAnnotation(ctx AnnotationValidationContext) error {
 	if ctx.Item.FuncDecl() == nil || ctx.Item.FuncDecl().Recv == nil {
-		return fmt.Errorf("annotation %q requires concrete method with receiver", ctx.Annotation.Name)
+		return fmt.Errorf(
+			"annotation %q requires concrete method with receiver",
+			ctx.Annotation.Name,
+		)
 	}
 	if ctx.Item.ReceiverTypeName() == "" {
 		return fmt.Errorf("annotation %q receiver is not supported", ctx.Annotation.Name)
@@ -189,10 +210,17 @@ func validateCoreInjectionAnnotation(ctx AnnotationValidationContext) error {
 			return fmt.Errorf("annotation %q requires bean method target", ctx.Annotation.Name)
 		}
 		if strings.TrimSpace(ctx.Annotation.Selector) == "" {
-			return fmt.Errorf("annotation %q on method target requires parameter selector", ctx.Annotation.Name)
+			return fmt.Errorf(
+				"annotation %q on method target requires parameter selector",
+				ctx.Annotation.Name,
+			)
 		}
 		if !methodHasParameter(ctx.Item.FuncDecl(), normalizeSelector(ctx.Annotation.Selector)) {
-			return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, ctx.Annotation.Selector)
+			return fmt.Errorf(
+				"annotation %q selector %q does not match any method parameter",
+				ctx.Annotation.Name,
+				ctx.Annotation.Selector,
+			)
 		}
 	}
 	switch ctx.Annotation.Name {
@@ -313,8 +341,12 @@ func validateCoreComponentOrBeanOwner(ctx AnnotationValidationContext) error {
 func validateCoreConfigurationComponentOrBeanOwner(ctx AnnotationValidationContext) error {
 	switch ctx.Target {
 	case AnnotationTargetType:
-		if !ctx.Item.HasAnnotation("configuration") && componentOptionKind(ctx.Item.annotations) == "" {
-			return fmt.Errorf("annotation %q requires configuration or component type target", ctx.Annotation.Name)
+		if !ctx.Item.HasAnnotation("configuration") &&
+			componentOptionKind(ctx.Item.annotations) == "" {
+			return fmt.Errorf(
+				"annotation %q requires configuration or component type target",
+				ctx.Annotation.Name,
+			)
 		}
 	case AnnotationTargetMethod:
 		if !ctx.Item.HasAnnotation("bean") {

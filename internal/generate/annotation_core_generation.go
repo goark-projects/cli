@@ -40,7 +40,11 @@ func buildConfiguration(typeName string, annotations []Annotation) *annotationCo
 	}
 }
 
-func buildComponent(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation) (annotationComponent, bool, error) {
+func buildComponent(
+	fset *token.FileSet,
+	typeSpec *ast.TypeSpec,
+	annotations []Annotation,
+) (annotationComponent, bool, error) {
 	typeName := typeSpec.Name.Name
 	component := annotationComponent{
 		TypeName:  typeName,
@@ -78,7 +82,11 @@ func buildComponent(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []A
 	return component, usesValue, nil
 }
 
-func buildBean(fset *token.FileSet, fn *ast.FuncDecl, annotations []Annotation) (annotationBean, bool, error) {
+func buildBean(
+	fset *token.FileSet,
+	fn *ast.FuncDecl,
+	annotations []Annotation,
+) (annotationBean, bool, error) {
 	returnType, returnsError, err := beanReturnType(fset, fn.Type.Results)
 	if err != nil {
 		return annotationBean{}, false, err
@@ -219,7 +227,8 @@ func buildInjection(annotations []Annotation, defaultName string) injectionSpec 
 		injection.Qualifier = annotationString(annotations, "resource", defaultName)
 		return injection
 	}
-	if hasAnnotation(annotations, "inject") || hasAnnotation(annotations, "autowired") || qualifier != "" {
+	if hasAnnotation(annotations, "inject") || hasAnnotation(annotations, "autowired") ||
+		qualifier != "" {
 		injection.Kind = "bean"
 		injection.Qualifier = qualifier
 		if hasAnnotation(annotations, "autowired") {
@@ -282,7 +291,10 @@ func writeGeneratedConfiguration(builder *bytes.Buffer, configuration *annotatio
 func writeConfigureEnvironment(builder *bytes.Buffer, configuration *annotationConfiguration) {
 	builder.WriteString("func (")
 	builder.WriteString(configuration.TypeName)
-	builder.WriteString(") ConfigureEnvironment(ctx context.Context, environment coreenv.ConfigurableEnvironment) error {\n")
+	builder.WriteString(
+		") ConfigureEnvironment(ctx context.Context, " +
+			"environment coreenv.ConfigurableEnvironment) error {\n",
+	)
 	builder.WriteString("loader, err := resource.NewLoader()\nif err != nil {\nreturn err\n}\n")
 	for _, source := range configuration.PropertySources {
 		builder.WriteString("source, err := coreenv.LoadPropertiesPropertySource(ctx, loader, ")
@@ -300,7 +312,11 @@ func writeConfigureEnvironment(builder *bytes.Buffer, configuration *annotationC
 		if source.IgnoreResourceNotFound {
 			builder.WriteString(", coreenv.WithIgnoreResourceNotFound(true)")
 		}
-		builder.WriteString(")\nif err != nil {\nreturn err\n}\nif source != nil {\nif err := environment.PropertySources().AddLast(source); err != nil {\nreturn err\n}\n}\n")
+		builder.WriteString(
+			")\nif err != nil {\nreturn err\n}\nif source != nil {\n" +
+				"if err := environment.PropertySources().AddLast(source); err != nil {\n" +
+				"return err\n}\n}\n",
+		)
 	}
 	builder.WriteString("return nil\n}\n\n")
 }
@@ -309,15 +325,25 @@ func writeRegisterWithContext(builder *bytes.Buffer, configuration *annotationCo
 	builder.WriteString("func (c ")
 	builder.WriteString(configuration.TypeName)
 	builder.WriteString(") Register(ctx context.Context, registry *container.Registry) error {\n")
-	builder.WriteString("return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))\n")
+	builder.WriteString(
+		"return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))\n",
+	)
 	builder.WriteString("}\n\n")
 	builder.WriteString("func (c ")
 	builder.WriteString(configuration.TypeName)
-	builder.WriteString(") RegisterWithContext(ctx context.Context, config goark.ConfigurationContext) error {\n")
+	builder.WriteString(
+		") RegisterWithContext(ctx context.Context, config goark.ConfigurationContext) error {\n",
+	)
 	if len(configuration.Profiles) > 0 {
-		writeProfileGuard(builder, strings.Join(wrapExpressions(configuration.Profiles), " | "), configuration.Name, "return nil")
+		writeProfileGuard(
+			builder,
+			strings.Join(wrapExpressions(configuration.Profiles), " | "),
+			configuration.Name,
+			"return nil",
+		)
 	}
-	if len(configuration.Components) > 0 || len(configuration.Beans) > 0 || len(configuration.Properties) > 0 {
+	if len(configuration.Components) > 0 || len(configuration.Beans) > 0 ||
+		len(configuration.Properties) > 0 {
 		builder.WriteString("registry := config.Registry()\n")
 	}
 	for _, properties := range configuration.Properties {

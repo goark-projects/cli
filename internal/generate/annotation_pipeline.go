@@ -45,6 +45,16 @@ type AnnotationValidationContext struct {
 	Item       AnnotationItem
 }
 
+type annotationValidateFunc func(AnnotationValidationContext) error
+
+func typeDesc(name string, validate annotationValidateFunc) AnnotationDescriptor {
+	return newAnnotationDesc(name, validate, AnnotationTargetType)
+}
+
+func methodDesc(name string, validate annotationValidateFunc) AnnotationDescriptor {
+	return newAnnotationDesc(name, validate, AnnotationTargetMethod)
+}
+
 // AnnotationBinder 将 AST 注解绑定到生成模型。
 type AnnotationBinder interface {
 	BindAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) error

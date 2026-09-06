@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-func (coreAnnotationBinder) BindAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) error {
+func (coreAnnotationBinder) BindAnnotation(
+	ctx *AnnotationBindingContext,
+	item AnnotationItem,
+) error {
 	switch item.Target() {
 	case AnnotationTargetType:
 		return bindCoreTypeAnnotation(ctx, item)
@@ -39,8 +42,12 @@ func (coreAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingCont
 	sort.SliceStable(model.Configurations, func(i, j int) bool {
 		return model.Configurations[i].TypeName < model.Configurations[j].TypeName
 	})
-	model.Configurations[0].Components = append(model.Configurations[0].Components, model.Components...)
-	model.Configurations[0].Properties = append(model.Configurations[0].Properties, model.ConfigurationProperties...)
+	model.Configurations[0].Components = append(
+		model.Configurations[0].Components,
+		model.Components...)
+	model.Configurations[0].Properties = append(
+		model.Configurations[0].Properties,
+		model.ConfigurationProperties...)
 	for _, configuration := range model.Configurations {
 		sort.SliceStable(configuration.Beans, func(i, j int) bool {
 			return configuration.Beans[i].Name < configuration.Beans[j].Name
@@ -108,17 +115,26 @@ func (r annotationDependencyResolver) addCandidate(candidate annotationDependenc
 	r.byType[candidate.Type] = append(r.byType[candidate.Type], candidate)
 }
 
-func inferComponentDependencyMetadata(component *annotationComponent, resolver annotationDependencyResolver) {
+func inferComponentDependencyMetadata(
+	component *annotationComponent,
+	resolver annotationDependencyResolver,
+) {
 	for _, field := range component.Fields {
 		name := resolver.dependencyName(field.Type, field.Injection)
 		if name == "" {
 			continue
 		}
 		if field.Injection.Required {
-			component.Options.InjectionDependencies = appendUniqueDependency(component.Options.InjectionDependencies, name)
+			component.Options.InjectionDependencies = appendUniqueDependency(
+				component.Options.InjectionDependencies,
+				name,
+			)
 			continue
 		}
-		component.Options.OptionalInjectionDependencies = appendUniqueDependency(component.Options.OptionalInjectionDependencies, name)
+		component.Options.OptionalInjectionDependencies = appendUniqueDependency(
+			component.Options.OptionalInjectionDependencies,
+			name,
+		)
 	}
 }
 
@@ -128,7 +144,10 @@ func inferBeanDependencyMetadata(bean *annotationBean, resolver annotationDepend
 		if name == "" {
 			continue
 		}
-		bean.Options.FactoryDependencies = appendUniqueDependency(bean.Options.FactoryDependencies, name)
+		bean.Options.FactoryDependencies = appendUniqueDependency(
+			bean.Options.FactoryDependencies,
+			name,
+		)
 	}
 }
 
@@ -146,7 +165,9 @@ func (r annotationDependencyResolver) dependencyName(typ string, injection injec
 	return candidate.Name
 }
 
-func (r annotationDependencyResolver) resolveByType(typ string) (annotationDependencyCandidate, bool) {
+func (r annotationDependencyResolver) resolveByType(
+	typ string,
+) (annotationDependencyCandidate, bool) {
 	candidates := append([]annotationDependencyCandidate(nil), r.byType[strings.TrimSpace(typ)]...)
 	switch len(candidates) {
 	case 0:
@@ -160,7 +181,9 @@ func (r annotationDependencyResolver) resolveByType(typ string) (annotationDepen
 	return uniqueHighestPriorityCandidate(candidates)
 }
 
-func uniquePrimaryCandidate(candidates []annotationDependencyCandidate) (annotationDependencyCandidate, bool) {
+func uniquePrimaryCandidate(
+	candidates []annotationDependencyCandidate,
+) (annotationDependencyCandidate, bool) {
 	var selected annotationDependencyCandidate
 	count := 0
 	for _, candidate := range candidates {
@@ -173,7 +196,9 @@ func uniquePrimaryCandidate(candidates []annotationDependencyCandidate) (annotat
 	return selected, count == 1
 }
 
-func uniqueHighestPriorityCandidate(candidates []annotationDependencyCandidate) (annotationDependencyCandidate, bool) {
+func uniqueHighestPriorityCandidate(
+	candidates []annotationDependencyCandidate,
+) (annotationDependencyCandidate, bool) {
 	var selected annotationDependencyCandidate
 	selectedSet := false
 	ambiguous := false

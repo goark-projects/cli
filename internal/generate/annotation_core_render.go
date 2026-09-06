@@ -77,7 +77,8 @@ func writeComponentDependencyInjector(builder *bytes.Buffer, component annotatio
 	if len(component.Fields) == 0 {
 		return
 	}
-	builder.WriteString(", container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *")
+	builder.WriteString(", container.WithTypedDependencyInjector(")
+	builder.WriteString("func(ctx context.Context, resolver container.Resolver, out *")
 	builder.WriteString(component.TypeName)
 	builder.WriteString(") error {\n")
 	builder.WriteString("var err error\n")
@@ -87,7 +88,13 @@ func writeComponentDependencyInjector(builder *bytes.Buffer, component annotatio
 	builder.WriteString("return nil\n})")
 }
 
-func writeInjectionAssignment(builder *bytes.Buffer, target string, typ string, injection injectionSpec, errorReturn string) {
+func writeInjectionAssignment(
+	builder *bytes.Buffer,
+	target string,
+	typ string,
+	injection injectionSpec,
+	errorReturn string,
+) {
 	if injection.Kind == "value" {
 		builder.WriteString(target)
 		builder.WriteString(", err = goark.ResolveValueAs[")
@@ -128,7 +135,12 @@ func writeInjectionErrorCheck(builder *bytes.Buffer, required bool, errorReturn 
 	builder.WriteString("}\n")
 }
 
-func writeConditionalStart(builder *bytes.Buffer, name string, profiles []string, condition string) {
+func writeConditionalStart(
+	builder *bytes.Buffer,
+	name string,
+	profiles []string,
+	condition string,
+) {
 	if len(profiles) > 0 {
 		writeProfileGuard(builder, strings.Join(wrapExpressions(profiles), " | "), name, "")
 	}
@@ -150,7 +162,12 @@ func writeConditionalEnd(builder *bytes.Buffer, profiles []string, condition str
 	}
 }
 
-func writeProfileGuard(builder *bytes.Buffer, expression string, name string, unmatchedAction string) {
+func writeProfileGuard(
+	builder *bytes.Buffer,
+	expression string,
+	name string,
+	unmatchedAction string,
+) {
 	builder.WriteString("if matched, err := (goark.ProfileCondition{Expression: ")
 	builder.WriteString(strconv.Quote(expression))
 	builder.WriteString("}).Matches(config, goark.AnnotationMetadata{Name: ")
@@ -201,13 +218,18 @@ func containerOptions(options annotationBeanOptions) []string {
 		out = append(out, "container.WithPriority("+strconv.Itoa(*options.Priority)+")")
 	}
 	if len(options.FactoryDependencies) > 0 {
-		out = append(out, dependencyOption("container.WithFactoryDependencies", options.FactoryDependencies))
+		out = append(out,
+			dependencyOption("container.WithFactoryDependencies", options.FactoryDependencies))
 	}
 	if len(options.InjectionDependencies) > 0 {
-		out = append(out, dependencyOption("container.WithInjectionDependencies", options.InjectionDependencies))
+		out = append(out,
+			dependencyOption("container.WithInjectionDependencies", options.InjectionDependencies))
 	}
 	if len(options.OptionalInjectionDependencies) > 0 {
-		out = append(out, dependencyOption("container.WithOptionalInjectionDependencies", options.OptionalInjectionDependencies))
+		out = append(out, dependencyOption(
+			"container.WithOptionalInjectionDependencies",
+			options.OptionalInjectionDependencies,
+		))
 	}
 	return out
 }
@@ -288,7 +310,12 @@ func validateBoolArg(annotation Annotation, key string) error {
 		return nil
 	}
 	if _, err := strconv.ParseBool(strings.TrimSpace(value.Text())); err != nil {
-		return fmt.Errorf("annotation %q argument %q requires boolean value: %w", annotation.Name, key, err)
+		return fmt.Errorf(
+			"annotation %q argument %q requires boolean value: %w",
+			annotation.Name,
+			key,
+			err,
+		)
 	}
 	return nil
 }

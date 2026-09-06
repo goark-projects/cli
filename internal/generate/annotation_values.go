@@ -14,7 +14,10 @@ import (
 	"goark.dev/cli/internal/generate/annotationparse"
 )
 
-func addConfigurationPropertiesImports(ctx *AnnotationGenerationContext, properties []annotationConfigurationProperties) {
+func addConfigurationPropertiesImports(
+	ctx *AnnotationGenerationContext,
+	properties []annotationConfigurationProperties,
+) {
 	for _, item := range properties {
 		for _, importSpec := range item.Imports {
 			ctx.AddImport(importSpec.Alias, importSpec.Path)
@@ -22,7 +25,10 @@ func addConfigurationPropertiesImports(ctx *AnnotationGenerationContext, propert
 	}
 }
 
-func writeConfigurationProperties(builder *bytes.Buffer, properties annotationConfigurationProperties) {
+func writeConfigurationProperties(
+	builder *bytes.Buffer,
+	properties annotationConfigurationProperties,
+) {
 	sourceType := properties.TypeName
 	if properties.SourceTypeName != "" {
 		sourceType = properties.SourceTypeName
@@ -57,11 +63,15 @@ func writeConfigurationProperties(builder *bytes.Buffer, properties annotationCo
 		}
 		builder.WriteString("}); err != nil {\nreturn nil, err\n}\n")
 	}
-	builder.WriteString("if validator, ok := any(out).(goark.ConfigurationPropertiesValidator); ok {\nif err = validator.Validate(); err != nil {\nreturn nil, err\n}\n}\nreturn out, nil\n}\n\n")
+	writeConfigurationValidator(builder)
+	builder.WriteString("return out, nil\n}\n\n")
 	writeConfigurationPropertiesMetadata(builder, properties)
 }
 
-func writeConfigurationPropertyBinding(builder *bytes.Buffer, field annotationConfigurationPropertyField) {
+func writeConfigurationPropertyBinding(
+	builder *bytes.Buffer,
+	field annotationConfigurationPropertyField,
+) {
 	if field.MapValueType != "" {
 		writeConfigurationPropertyMapBinding(builder, field)
 		return
@@ -70,7 +80,11 @@ func writeConfigurationPropertyBinding(builder *bytes.Buffer, field annotationCo
 	builder.WriteString(field.Type)
 	builder.WriteString("](environment, ")
 	builder.WriteString(strconv.Quote(field.Name))
-	builder.WriteString("); bindErr != nil {\nreturn nil, arkerrors.Wrapf(arkerrors.CodeConversion, bindErr, \"failed to bind configuration property %s\", ")
+	builder.WriteString(
+		"); bindErr != nil {\nreturn nil, " +
+			"arkerrors.Wrapf(arkerrors.CodeConversion, bindErr, " +
+			"\"failed to bind configuration property %s\", ",
+	)
 	builder.WriteString(strconv.Quote(field.Name))
 	builder.WriteString(")\n} else if found {\n")
 	builder.WriteString(field.Target)
@@ -84,14 +98,19 @@ func writeConfigurationPropertyBinding(builder *bytes.Buffer, field annotationCo
 		builder.WriteString(strconv.Quote(field.DefaultValue))
 		builder.WriteString(")\nif err != nil {\nreturn nil, err\n}\n}")
 	} else if field.Required {
-		builder.WriteString(" else {\nreturn nil, arkerrors.Newf(arkerrors.CodeNotFound, \"required configuration property %q not found\", ")
+		builder.WriteString(" else {\nreturn nil, " +
+			"arkerrors.Newf(arkerrors.CodeNotFound, " +
+			"\"required configuration property %q not found\", ")
 		builder.WriteString(strconv.Quote(field.Name))
 		builder.WriteString(")\n}")
 	}
 	builder.WriteByte('\n')
 }
 
-func writeConfigurationPropertyMapBinding(builder *bytes.Buffer, field annotationConfigurationPropertyField) {
+func writeConfigurationPropertyMapBinding(
+	builder *bytes.Buffer,
+	field annotationConfigurationPropertyField,
+) {
 	builder.WriteString("if value, found, bindErr := coreenv.GetPropertyMapAsValue[")
 	builder.WriteString(field.MapValueType)
 	builder.WriteString("](environment, ")
@@ -101,12 +120,18 @@ func writeConfigurationPropertyMapBinding(builder *bytes.Buffer, field annotatio
 	builder.WriteString(" = value\n}\n")
 }
 
-func writeConfigurationPropertiesMetadata(builder *bytes.Buffer, properties annotationConfigurationProperties) {
+func writeConfigurationPropertiesMetadata(
+	builder *bytes.Buffer,
+	properties annotationConfigurationProperties,
+) {
 	builder.WriteString("// ")
 	builder.WriteString(properties.TypeName)
 	builder.WriteString("ConfigurationMetadata 返回生成的配置属性元数据。\nfunc ")
 	builder.WriteString(properties.TypeName)
-	builder.WriteString("ConfigurationMetadata() []goark.ConfigurationProperty {\nreturn []goark.ConfigurationProperty{\n")
+	builder.WriteString(
+		"ConfigurationMetadata() []goark.ConfigurationProperty {\n" +
+			"return []goark.ConfigurationProperty{\n",
+	)
 	for _, field := range properties.Fields {
 		builder.WriteString("{Name:")
 		builder.WriteString(strconv.Quote(field.Name))
@@ -121,7 +146,10 @@ func writeConfigurationPropertiesMetadata(builder *bytes.Buffer, properties anno
 	builder.WriteString("}\n}\n\n")
 }
 
-func writeConfigurationPropertiesRegistration(builder *bytes.Buffer, properties annotationConfigurationProperties) {
+func writeConfigurationPropertiesRegistration(
+	builder *bytes.Buffer,
+	properties annotationConfigurationProperties,
+) {
 	sourceType := properties.TypeName
 	if properties.SourceTypeName != "" {
 		sourceType = properties.SourceTypeName

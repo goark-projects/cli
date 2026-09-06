@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"path"
@@ -39,12 +40,18 @@ func validateConfigurationPropertiesAnnotation(ctx AnnotationValidationContext) 
 		return err
 	}
 	if _, hasPrefix := ctx.Annotation.Args["prefix"]; hasPrefix && len(ctx.Annotation.Values) > 0 {
-		return fmt.Errorf("annotation %q accepts either prefix or value argument", ctx.Annotation.Name)
+		return fmt.Errorf(
+			"annotation %q accepts either prefix or value argument",
+			ctx.Annotation.Name,
+		)
 	}
 	return validateBoolArg(ctx.Annotation, "ignoreUnknownFields")
 }
 
-func buildConfigurationProperties(ctx *AnnotationBindingContext, item AnnotationItem) (annotationConfigurationProperties, error) {
+func buildConfigurationProperties(
+	ctx *AnnotationBindingContext,
+	item AnnotationItem,
+) (annotationConfigurationProperties, error) {
 	annotation := findAnnotation(item.annotations, "configuration-properties")
 	prefix := strings.Trim(argString(annotation, "prefix", argString(annotation, "value", "")), ".")
 	properties := annotationConfigurationProperties{
@@ -55,7 +62,10 @@ func buildConfigurationProperties(ctx *AnnotationBindingContext, item Annotation
 	}
 	imports := make(map[string]ImportSpec)
 	visiting := make(map[string]bool)
-	if err := collectConfigurationPropertyFields(ctx, item.TypeName(), "out", prefix, visiting, imports, &properties); err != nil {
+	err := collectConfigurationPropertyFields(
+		ctx, item.TypeName(), "out", prefix, visiting, imports, &properties,
+	)
+	if err != nil {
 		return annotationConfigurationProperties{}, err
 	}
 	for _, item := range imports {
@@ -77,7 +87,10 @@ func collectConfigurationPropertyFields(
 	properties *annotationConfigurationProperties,
 ) error {
 	if visiting[typeName] {
-		return fmt.Errorf("configuration properties type %s contains recursive struct reference", typeName)
+		return fmt.Errorf(
+			"configuration properties type %s contains recursive struct reference",
+			typeName,
+		)
 	}
 	declaration, ok := ctx.pkg.types[typeName]
 	if !ok {
@@ -109,9 +122,15 @@ func collectConfigurationPropertyFields(
 		fieldTarget := target + "." + fieldName
 		if nestedType, pointer := localStructType(ctx.pkg, field.Type); nestedType != "" {
 			if pointer {
-				properties.Initializers = append(properties.Initializers, fieldTarget+" = &"+nestedType+"{}")
+				properties.Initializers = append(
+					properties.Initializers,
+					fieldTarget+" = &"+nestedType+"{}",
+				)
 			}
-			if err := collectConfigurationPropertyFields(ctx, nestedType, fieldTarget, propertyName, visiting, imports, properties); err != nil {
+			err := collectConfigurationPropertyFields(
+				ctx, nestedType, fieldTarget, propertyName, visiting, imports, properties,
+			)
+			if err != nil {
 				return err
 			}
 			continue
@@ -119,7 +138,11 @@ func collectConfigurationPropertyFields(
 		if mapType, ok := field.Type.(*ast.MapType); ok {
 			key, ok := mapType.Key.(*ast.Ident)
 			if !ok || key.Name != "string" {
-				return fmt.Errorf("configuration properties field %s.%s map key must be string", typeName, fieldName)
+				return fmt.Errorf(
+					"configuration properties field %s.%s map key must be string",
+					typeName,
+					fieldName,
+				)
 			}
 			collectTypeImports(declaration.file, mapType.Value, imports)
 			properties.Fields = append(properties.Fields, annotationConfigurationPropertyField{
@@ -227,7 +250,10 @@ func collectTypeImports(file *ast.File, expression ast.Expr, imports map[string]
 			alias = importSpec.Name.Name
 		}
 		if _, used := qualifiers[alias]; used {
-			imports[alias+"\x00"+importPath] = ImportSpec{Alias: importAlias(alias, importPath), Path: importPath}
+			imports[alias+"\x00"+importPath] = ImportSpec{
+				Alias: importAlias(alias, importPath),
+				Path:  importPath,
+			}
 		}
 	}
 }
@@ -244,7 +270,8 @@ func kebabCase(value string) string {
 	var builder strings.Builder
 	for index, current := range runes {
 		if unicode.IsUpper(current) {
-			previousIsLowerOrDigit := index > 0 && (unicode.IsLower(runes[index-1]) || unicode.IsDigit(runes[index-1]))
+			previousIsLowerOrDigit := index > 0 &&
+				(unicode.IsLower(runes[index-1]) || unicode.IsDigit(runes[index-1]))
 			nextIsLower := index+1 < len(runes) && unicode.IsLower(runes[index+1])
 			if index > 0 && (previousIsLowerOrDigit || nextIsLower) {
 				builder.WriteByte('-')
@@ -274,4 +301,10 @@ func findAnnotation(annotations []Annotation, name string) Annotation {
 		}
 	}
 	return Annotation{}
+}
+
+func writeConfigurationValidator(builder *bytes.Buffer) {
+	builder.WriteString("if validator, ok := any(out).(")
+	builder.WriteString("goark.ConfigurationPropertiesValidator); ok {\n")
+	builder.WriteString("if err = validator.Validate(); err != nil {\nreturn nil, err\n}\n}\n")
 }
