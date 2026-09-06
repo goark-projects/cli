@@ -56,15 +56,6 @@ func (g annotationProjectGenerator) Generate(project goarkProject, dryRun bool) 
 		if filepath.Base(item.Dir) == "gen" {
 			continue
 		}
-		if project.Build.Generate.CleanStale {
-			legacy, err := removeLegacyAnnotationOutput(g.Name(), item, dryRun)
-			if err != nil {
-				return nil, err
-			}
-			if legacy != nil {
-				results = append(results, *legacy)
-			}
-		}
 		hasAnnotations, err := packageContainsGoarkAnnotations(item)
 		if err != nil {
 			return nil, fmt.Errorf("检查 package %s 的 Goark 注解失败: %w", item.ImportPath, err)
@@ -72,6 +63,13 @@ func (g annotationProjectGenerator) Generate(project goarkProject, dryRun bool) 
 		if !hasAnnotations {
 			if !project.Build.Generate.CleanStale {
 				continue
+			}
+			legacy, err := removeLegacyAnnotationOutput(g.Name(), item, dryRun)
+			if err != nil {
+				return nil, err
+			}
+			if legacy != nil {
+				results = append(results, *legacy)
 			}
 			stale, err := staleAnnotationGenerationResults(g.Name(), item, nil, dryRun)
 			if err != nil {
@@ -109,6 +107,13 @@ func (g annotationProjectGenerator) Generate(project goarkProject, dryRun bool) 
 			results = append(results, result)
 		}
 		if project.Build.Generate.CleanStale {
+			legacy, err := removeLegacyAnnotationOutput(g.Name(), item, dryRun)
+			if err != nil {
+				return nil, err
+			}
+			if legacy != nil {
+				results = append(results, *legacy)
+			}
 			stale, err := staleAnnotationGenerationResults(g.Name(), item, expected, dryRun)
 			if err != nil {
 				return nil, err
