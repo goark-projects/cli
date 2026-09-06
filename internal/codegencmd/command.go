@@ -1,4 +1,4 @@
-package cli
+package codegencmd
 
 import (
 	"errors"
@@ -23,29 +23,30 @@ func (l *stringList) Set(value string) error {
 	return nil
 }
 
-func (c Command) runCodegen(args []string) int {
+// Run 分发低级代码生成器。
+func Run(args []string, out io.Writer, errOut io.Writer, annotations func([]string) int) int {
 	if len(args) == 0 {
-		c.printCodegenHelp(c.Err)
+		Help(errOut)
 		return 2
 	}
 	switch args[0] {
 	case "help", "-h", "--help":
-		c.printCodegenHelp(c.Out)
+		Help(out)
 		return 0
 	case "configuration":
-		return c.runCodegenConfiguration(args[1:])
+		return runConfiguration(args[1:], out, errOut)
 	case "registry":
-		return c.runCodegenRegistry(args[1:])
+		return runRegistry(args[1:], out, errOut)
 	case "annotations":
-		return c.runCodegenAnnotations(args[1:])
+		return annotations(args[1:])
 	default:
-		_, _ = fmt.Fprintf(c.Err, "未知生成器: %s\n\n", args[0])
-		c.printCodegenHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "未知生成器: %s\n\n", args[0])
+		Help(errOut)
 		return 2
 	}
 }
 
-func (c Command) runCodegenConfiguration(args []string) int {
+func runConfiguration(args []string, out io.Writer, errOut io.Writer) int {
 	var imports stringList
 	var beans stringList
 	var output string
@@ -62,27 +63,27 @@ func (c Command) runCodegenConfiguration(args []string) int {
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printCodegenConfigurationHelp(c.Out)
+			ConfigurationHelp(out)
 			return 0
 		}
-		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printCodegenConfigurationHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "%v\n\n", err)
+		ConfigurationHelp(errOut)
 		return 2
 	}
 	if flags.NArg() > 0 {
-		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printCodegenConfigurationHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
+		ConfigurationHelp(errOut)
 		return 2
 	}
 	if spec.ConfigurationName == "" || spec.PackageName == "" {
-		c.printCodegenConfigurationHelp(c.Err)
+		ConfigurationHelp(errOut)
 		return 2
 	}
 	for _, rawImport := range imports {
 		item, err := parseImportSpec(rawImport)
 		if err != nil {
-			_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-			c.printCodegenConfigurationHelp(c.Err)
+			_, _ = fmt.Fprintf(errOut, "%v\n\n", err)
+			ConfigurationHelp(errOut)
 			return 2
 		}
 		spec.Imports = append(spec.Imports, item)
@@ -90,8 +91,8 @@ func (c Command) runCodegenConfiguration(args []string) int {
 	for _, rawBean := range beans {
 		item, err := parseBeanSpec(rawBean)
 		if err != nil {
-			_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-			c.printCodegenConfigurationHelp(c.Err)
+			_, _ = fmt.Fprintf(errOut, "%v\n\n", err)
+			ConfigurationHelp(errOut)
 			return 2
 		}
 		spec.Beans = append(spec.Beans, item)
@@ -99,22 +100,22 @@ func (c Command) runCodegenConfiguration(args []string) int {
 
 	source, err := manual.GenerateConfiguration(spec)
 	if err != nil {
-		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
+		_, _ = fmt.Fprintf(errOut, "%v\n", err)
 		return 2
 	}
 	if output == "" {
-		_, _ = c.Out.Write(source)
+		_, _ = out.Write(source)
 		return 0
 	}
 	if err := writeFile(output, source); err != nil {
-		_, _ = fmt.Fprintf(c.Err, "写入生成文件失败: %v\n", err)
+		_, _ = fmt.Fprintf(errOut, "写入生成文件失败: %v\n", err)
 		return 1
 	}
-	_, _ = fmt.Fprintf(c.Err, "generated %s\n", output)
+	_, _ = fmt.Fprintf(errOut, "generated %s\n", output)
 	return 0
 }
 
-func (c Command) runCodegenRegistry(args []string) int {
+func runRegistry(args []string, out io.Writer, errOut io.Writer) int {
 	var imports stringList
 	var configurations stringList
 	var output string
@@ -129,27 +130,27 @@ func (c Command) runCodegenRegistry(args []string) int {
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printCodegenRegistryHelp(c.Out)
+			RegistryHelp(out)
 			return 0
 		}
-		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printCodegenRegistryHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "%v\n\n", err)
+		RegistryHelp(errOut)
 		return 2
 	}
 	if flags.NArg() > 0 {
-		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printCodegenRegistryHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
+		RegistryHelp(errOut)
 		return 2
 	}
 	if spec.PackageName == "" || len(configurations) == 0 {
-		c.printCodegenRegistryHelp(c.Err)
+		RegistryHelp(errOut)
 		return 2
 	}
 	for _, rawImport := range imports {
 		item, err := parseImportSpec(rawImport)
 		if err != nil {
-			_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-			c.printCodegenRegistryHelp(c.Err)
+			_, _ = fmt.Fprintf(errOut, "%v\n\n", err)
+			RegistryHelp(errOut)
 			return 2
 		}
 		spec.Imports = append(spec.Imports, item)
@@ -161,18 +162,18 @@ func (c Command) runCodegenRegistry(args []string) int {
 
 	source, err := manual.GenerateRegistry(spec)
 	if err != nil {
-		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
+		_, _ = fmt.Fprintf(errOut, "%v\n", err)
 		return 2
 	}
 	if output == "" {
-		_, _ = c.Out.Write(source)
+		_, _ = out.Write(source)
 		return 0
 	}
 	if err := writeFile(output, source); err != nil {
-		_, _ = fmt.Fprintf(c.Err, "写入生成文件失败: %v\n", err)
+		_, _ = fmt.Fprintf(errOut, "写入生成文件失败: %v\n", err)
 		return 1
 	}
-	_, _ = fmt.Fprintf(c.Err, "generated %s\n", output)
+	_, _ = fmt.Fprintf(errOut, "generated %s\n", output)
 	return 0
 }
 
@@ -242,7 +243,8 @@ func writeFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func (c Command) printCodegenHelp(w io.Writer) {
+// Help 输出 codegen 命令帮助。
+func Help(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
   goark codegen <generator> [flags]
 
@@ -254,7 +256,8 @@ Available generators:
 `)
 }
 
-func (c Command) printCodegenConfigurationHelp(w io.Writer) {
+// ConfigurationHelp 输出 configuration 生成器帮助。
+func ConfigurationHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
   goark codegen configuration --name <name> --package <package> [flags]
 
@@ -275,7 +278,8 @@ Examples:
 `)
 }
 
-func (c Command) printCodegenRegistryHelp(w io.Writer) {
+// RegistryHelp 输出 registry 生成器帮助。
+func RegistryHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
   goark codegen registry --package <package> --configuration <type> [flags]
 
@@ -294,7 +298,8 @@ Examples:
 `)
 }
 
-func (c Command) printCodegenAnnotationsHelp(w io.Writer) {
+// AnnotationsHelp 输出 annotations 生成器帮助。
+func AnnotationsHelp(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
   goark codegen annotations --dir <package-dir> [flags]
 

@@ -1,4 +1,4 @@
-package cli
+package completion
 
 import (
 	"fmt"
@@ -8,13 +8,14 @@ import (
 const completionCommands = "help version new run build test install vet list fix generate clean tasks task graph sync tools tool doctor codegen info go completion"
 const codegenCommands = "configuration registry annotations"
 
-func (c Command) runCompletion(args []string) int {
+// Run 校验目标 shell 并将补全脚本写入输出流。
+func Run(args []string, out io.Writer, errOut io.Writer) int {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
-		c.printCompletionHelp(c.Out)
+		Help(out)
 		return 0
 	}
 	if len(args) != 1 {
-		c.printCompletionUsageError()
+		printUsageError(errOut)
 		return 2
 	}
 
@@ -29,19 +30,20 @@ func (c Command) runCompletion(args []string) int {
 	case "powershell":
 		script = powershellCompletion
 	default:
-		c.printCompletionUsageError()
+		printUsageError(errOut)
 		return 2
 	}
-	_, _ = io.WriteString(c.Out, script)
+	_, _ = io.WriteString(out, script)
 	return 0
 }
 
-func (c Command) printCompletionUsageError() {
-	_, _ = fmt.Fprintln(c.Err, "completion shell 必须是 bash、zsh、fish、powershell 之一")
-	c.printCompletionHelp(c.Err)
+func printUsageError(errOut io.Writer) {
+	_, _ = fmt.Fprintln(errOut, "completion shell 必须是 bash、zsh、fish、powershell 之一")
+	Help(errOut)
 }
 
-func (c Command) printCompletionHelp(w io.Writer) {
+// Help 输出 completion 命令帮助。
+func Help(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
   goark completion <bash|zsh|fish|powershell>
 

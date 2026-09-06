@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildspec"
+	"goark.dev/cli/internal/codegencmd"
 	"goark.dev/cli/internal/generate"
 	"goark.dev/cli/internal/runargs"
 )
@@ -23,16 +24,16 @@ func (c Command) runCodegenAnnotations(args []string) int {
 	flags.StringVar(&spec.TypeName, "type", "", "默认配置类型名")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printCodegenAnnotationsHelp(c.Out)
+			codegencmd.AnnotationsHelp(c.Out)
 			return 0
 		}
 		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printCodegenAnnotationsHelp(c.Err)
+		codegencmd.AnnotationsHelp(c.Err)
 		return 2
 	}
 	if flags.NArg() > 0 {
 		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printCodegenAnnotationsHelp(c.Err)
+		codegencmd.AnnotationsHelp(c.Err)
 		return 2
 	}
 	results, err := c.generateAnnotationPackage(spec)

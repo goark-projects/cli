@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"goark.dev/cli/internal/codegencmd"
+	"goark.dev/cli/internal/completion"
+	"goark.dev/cli/internal/newcmd"
 )
 
 var enhancedGoCommands = map[string]struct{}{
@@ -44,7 +48,7 @@ func (c Command) runHelp(args []string) int {
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)
 		}
-		c.printNewHelp(c.Out)
+		newcmd.Help(c.Out)
 	case "run":
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)
@@ -109,19 +113,19 @@ func (c Command) runHelp(args []string) int {
 		if len(args) != 1 {
 			return c.unknownHelpCommand(args)
 		}
-		c.printCompletionHelp(c.Out)
+		completion.Help(c.Out)
 	case "codegen":
 		if len(args) == 1 {
-			c.printCodegenHelp(c.Out)
+			codegencmd.Help(c.Out)
 			break
 		}
 		switch args[1] {
 		case "configuration":
-			c.printCodegenConfigurationHelp(c.Out)
+			codegencmd.ConfigurationHelp(c.Out)
 		case "registry":
-			c.printCodegenRegistryHelp(c.Out)
+			codegencmd.RegistryHelp(c.Out)
 		case "annotations":
-			c.printCodegenAnnotationsHelp(c.Out)
+			codegencmd.AnnotationsHelp(c.Out)
 		default:
 			return c.unknownHelpCommand(args)
 		}

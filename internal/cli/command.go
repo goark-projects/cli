@@ -10,6 +10,9 @@ import (
 	"strings"
 	"syscall"
 
+	"goark.dev/cli/internal/codegencmd"
+	"goark.dev/cli/internal/completion"
+	"goark.dev/cli/internal/newcmd"
 	"goark.dev/cli/internal/processrun"
 	"goark.dev/cli/internal/version"
 )
@@ -67,7 +70,7 @@ func (c Command) Run(args []string) int {
 	case "go":
 		return c.runGo(args[1:])
 	case "new":
-		return c.runNew(args[1:])
+		return newcmd.Run(args[1:], c.Dir, c.Out, c.Err)
 	case "run":
 		return c.runApplication(args[1:])
 	case "build", "test", "install", "vet", "list", "fix":
@@ -93,9 +96,9 @@ func (c Command) Run(args []string) int {
 	case "doctor":
 		return c.runDoctor(args[1:])
 	case "codegen":
-		return c.runCodegen(args[1:])
+		return codegencmd.Run(args[1:], c.Out, c.Err, c.runCodegenAnnotations)
 	case "completion":
-		return c.runCompletion(args[1:])
+		return completion.Run(args[1:], c.Out, c.Err)
 	default:
 		_, _ = fmt.Fprintf(c.Err, "未知命令: %s\n\n", args[0])
 		c.printHelp(c.Err)

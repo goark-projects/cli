@@ -1,4 +1,4 @@
-package cli
+package clitest
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"goark.dev/cli/internal/processrun"
 )
 
 func TestCommand_whenInfoRequested_shouldReportProjectAndGenerationPlan(t *testing.T) {
@@ -240,6 +242,6 @@ func testOSCommand(dir string, stdout io.Writer, stderr io.Writer) Command {
 		Env:    append(os.Environ(), "GOWORK=off", "GOFLAGS="),
 		Out:    stdout,
 		Err:    stderr,
-		Runner: osProcessRunner{},
+		Runner: processrun.OSRunner{},
 	}
 }

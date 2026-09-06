@@ -1,4 +1,4 @@
-package cli
+package clitest
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"goark.dev/cli/internal/processrun"
 )
 
 func TestCommand_whenSyncRequested_shouldCreateVerifiableLockAndTrust(t *testing.T) {
@@ -99,6 +101,6 @@ func testToolCommand(t *testing.T, root string, stdout io.Writer, stderr io.Writ
 	t.Helper()
 	return Command{
 		Dir: root, Env: append(os.Environ(), "GOWORK=off"), Out: stdout, Err: stderr,
-		Runner: osProcessRunner{}, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir(),
+		Runner: processrun.OSRunner{}, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir(),
 	}
 }

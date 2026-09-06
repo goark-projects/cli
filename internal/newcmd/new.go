@@ -1,4 +1,4 @@
-package cli
+package newcmd
 
 import (
 	"errors"
@@ -10,19 +10,20 @@ import (
 	"goark.dev/cli/internal/scaffold"
 )
 
-func (c Command) runNew(args []string) int {
+// Run 解析脚手架参数并创建项目。
+func Run(args []string, dir string, out io.Writer, errOut io.Writer) int {
 	if len(args) == 0 {
-		c.printNewHelp(c.Err)
+		Help(errOut)
 		return 2
 	}
 	if args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
-		c.printNewHelp(c.Out)
+		Help(out)
 		return 0
 	}
 
 	outputDir := "."
-	if c.Dir != "" {
-		outputDir = c.Dir
+	if dir != "" {
+		outputDir = dir
 	}
 	spec := scaffold.AppSpec{Dir: outputDir}
 	projectType := "app"
@@ -35,21 +36,21 @@ func (c Command) runNew(args []string) int {
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			c.printNewHelp(c.Out)
+			Help(out)
 			return 0
 		}
-		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printNewHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "%v\n\n", err)
+		Help(errOut)
 		return 2
 	}
 	if flags.NArg() > 1 {
-		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printNewHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
+		Help(errOut)
 		return 2
 	}
 	if flags.NArg() == 0 {
-		_, _ = fmt.Fprintln(c.Err, "缺少项目名")
-		c.printNewHelp(c.Err)
+		_, _ = fmt.Fprintln(errOut, "缺少项目名")
+		Help(errOut)
 		return 2
 	}
 	projectName := flags.Arg(0)
@@ -63,24 +64,25 @@ func (c Command) runNew(args []string) int {
 	case "web":
 		spec.Type = scaffold.ProjectTypeWeb
 	default:
-		_, _ = fmt.Fprintf(c.Err, "不支持的项目类型 %q，仅支持 app 或 web\n\n", projectType)
-		c.printNewHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "不支持的项目类型 %q，仅支持 app 或 web\n\n", projectType)
+		Help(errOut)
 		return 2
 	}
 	files, err := scaffold.CreateApp(spec)
 	if err != nil {
-		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printNewHelp(c.Err)
+		_, _ = fmt.Fprintf(errOut, "%v\n\n", err)
+		Help(errOut)
 		return 2
 	}
-	_, _ = fmt.Fprintf(c.Err, "created %s\n", spec.Dir)
+	_, _ = fmt.Fprintf(errOut, "created %s\n", spec.Dir)
 	for _, file := range files {
-		_, _ = fmt.Fprintf(c.Err, "  %s\n", file.Path)
+		_, _ = fmt.Fprintf(errOut, "  %s\n", file.Path)
 	}
 	return 0
 }
 
-func (c Command) printNewHelp(w io.Writer) {
+// Help 输出 new 命令帮助。
+func Help(w io.Writer) {
 	_, _ = fmt.Fprint(w, `Usage:
   goark new [-type app|web] [-module <module-path>] [-dir <path>] <name>
 
