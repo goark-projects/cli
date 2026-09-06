@@ -8,6 +8,7 @@ import (
 
 	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/processrun"
+	"goark.dev/cli/internal/runargs"
 )
 
 type workflowControl = buildplan.Control
@@ -22,7 +23,7 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	workingDir, err := effectiveGoWorkingDir(c.Dir, goArguments)
+	workingDir, err := runargs.EffectiveWorkingDir(c.Dir, goArguments)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
@@ -55,7 +56,7 @@ func containsVersionedPackage(args []string) bool {
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
 		if strings.HasPrefix(arg, "-") {
-			if goBuildFlagConsumesValue(arg) && index+1 < len(args) {
+			if runargs.BuildFlagConsumesValue(arg) && index+1 < len(args) {
 				index++
 			}
 			continue
@@ -72,12 +73,12 @@ func (c Command) runApplication(args []string) int {
 		c.printRunHelp(c.Out)
 		return 0
 	}
-	plan, err := parseRunArguments(args)
+	plan, err := runargs.Parse(args)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	workingDir, err := effectiveGoWorkingDir(c.Dir, plan.GoArguments)
+	workingDir, err := runargs.EffectiveWorkingDir(c.Dir, plan.GoArguments)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
@@ -121,7 +122,7 @@ func (c Command) runProjectGenerate(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	workingDir, err := effectiveGoWorkingDir(c.Dir, directoryFlags)
+	workingDir, err := runargs.EffectiveWorkingDir(c.Dir, directoryFlags)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
@@ -194,7 +195,7 @@ func parseProjectGenerationArguments(args []string) ([]string, []string, []strin
 func (c Command) resolveProject(dir string, patterns []string, buildFlags []string, static bool) (goarkProject, error) {
 	return projectResolver{
 		Context:    c.Context,
-		Dir:        effectiveBaseDir(dir),
+		Dir:        runargs.BaseDir(dir),
 		Env:        append([]string(nil), c.Env...),
 		Runner:     c.Runner,
 		Err:        c.Err,
@@ -238,7 +239,7 @@ func hasBuildTarget(arguments []string) bool {
 	for index := 0; index < len(arguments); index++ {
 		argument := arguments[index]
 		if strings.HasPrefix(argument, "-") {
-			if goBuildFlagConsumesValue(argument) && index+1 < len(arguments) {
+			if runargs.BuildFlagConsumesValue(argument) && index+1 < len(arguments) {
 				index++
 			}
 			continue

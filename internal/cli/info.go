@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildplan"
+	"goark.dev/cli/internal/runargs"
 	"goark.dev/cli/internal/taskview"
 	"goark.dev/cli/internal/toolservice"
 	"goark.dev/cli/internal/version"
@@ -137,7 +138,7 @@ func (c Command) createInfoReport(project goarkProject, control buildplan.Contro
 	if err := validateProjectTaskGraph(project); err != nil {
 		return infoReport{}, err
 	}
-	mainTarget, err := project.ResolveRunTarget(effectiveBaseDir(c.Dir))
+	mainTarget, err := project.ResolveRunTarget(runargs.BaseDir(c.Dir))
 	if err != nil {
 		mainTarget = "unresolved (" + err.Error() + ")"
 	}
@@ -161,7 +162,7 @@ func (c Command) createInfoReport(project goarkProject, control buildplan.Contro
 	if err != nil {
 		return infoReport{}, err
 	}
-	plans, err := createInfoPlans(project, effectiveBaseDir(c.Dir), c.environment(), control)
+	plans, err := createInfoPlans(project, runargs.BaseDir(c.Dir), c.environment(), control)
 	if err != nil {
 		return infoReport{}, err
 	}

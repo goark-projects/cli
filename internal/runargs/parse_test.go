@@ -1,4 +1,4 @@
-package cli
+package runargs
 
 import (
 	"path/filepath"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseRunArguments_whenGoarkAndApplicationArgumentsMixed_shouldClassifyWithoutReordering(t *testing.T) {
-	plan, err := parseRunArguments([]string{
+	plan, err := Parse([]string{
 		"-race",
 		"-tags=dev,integration",
 		"-Dserver.port=9090",
@@ -47,7 +47,7 @@ func TestParseRunArguments_whenGoarkAndApplicationArgumentsMixed_shouldClassifyW
 }
 
 func TestParseRunArguments_whenBuildFlagConsumesValue_shouldKeepTargetBoundary(t *testing.T) {
-	plan, err := parseRunArguments([]string{"-tags", "dev", "-ldflags", "-s -w", "./cmd/server", "arg"})
+	plan, err := Parse([]string{"-tags", "dev", "-ldflags", "-s -w", "./cmd/server", "arg"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestParseRunArguments_whenBuildFlagConsumesValue_shouldKeepTargetBoundary(t
 
 func TestParseRunArguments_whenCurrentGoBuildFlagsConsumeValues_shouldKeepTargetBoundary(t *testing.T) {
 	flags := []string{"-buildvcs", "true", "-covermode", "atomic", "-coverpkg", "./...", "-pgo", "auto"}
-	plan, err := parseRunArguments(append(flags, "./cmd/server", "application-argument"))
+	plan, err := Parse(append(flags, "./cmd/server", "application-argument"))
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestParseRunArguments_whenCurrentGoBuildFlagsConsumeValues_shouldKeepTarget
 }
 
 func TestParseRunArguments_whenGoFilesProvided_shouldKeepAllGoFilesAsTargets(t *testing.T) {
-	plan, err := parseRunArguments([]string{"main.go", "wire.go", "--", "value"})
+	plan, err := Parse([]string{"main.go", "wire.go", "--", "value"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
@@ -90,13 +90,11 @@ func TestParseRunArguments_whenGoFilesProvided_shouldKeepAllGoFilesAsTargets(t *
 }
 
 func TestComposeRunArguments_whenApplicationUsesGlobalFlagName_shouldNotMoveApplicationArgument(t *testing.T) {
-	plan, err := parseRunArguments([]string{"./cmd/server", "--", "-C=application-value"})
+	plan, err := Parse([]string{"./cmd/server", "--", "-C=application-value"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
-	args := composeEnhancedGoArguments("run", plan.GoArguments)
-	args = append(args, plan.PropertyArguments...)
-	args = append(args, plan.ApplicationArguments...)
+	args := append([]string{"run"}, plan.GoRunArguments()...)
 	want := []string{"run", "./cmd/server", "-C=application-value"}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("最终参数 = %#v, want %#v", args, want)
@@ -104,7 +102,7 @@ func TestComposeRunArguments_whenApplicationUsesGlobalFlagName_shouldNotMoveAppl
 }
 
 func TestParseRunArguments_whenNoTargetProvided_shouldKeepPropertiesForResolvedTarget(t *testing.T) {
-	plan, err := parseRunArguments([]string{"-Dserver.port=9090", "--feature.enabled=true"})
+	plan, err := Parse([]string{"-Dserver.port=9090", "--feature.enabled=true"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
@@ -117,7 +115,7 @@ func TestParseRunArguments_whenNoTargetProvided_shouldKeepPropertiesForResolvedT
 }
 
 func TestParseRunArguments_whenLongPropertyUsesSeparateValue_shouldNotTreatValueAsTarget(t *testing.T) {
-	plan, err := parseRunArguments([]string{"--server.port", "9090", "--feature.enabled", "true"})
+	plan, err := Parse([]string{"--server.port", "9090", "--feature.enabled", "true"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
@@ -130,7 +128,7 @@ func TestParseRunArguments_whenLongPropertyUsesSeparateValue_shouldNotTreatValue
 }
 
 func TestParseRunArguments_whenControlFlagsProvided_shouldSetExecutionMode(t *testing.T) {
-	plan, err := parseRunArguments([]string{"--goark-profile=dev", "--goark-env=PORT=9090", "--goark-offline", "--goark-locked", "--goark-dry-run", "."})
+	plan, err := Parse([]string{"--goark-profile=dev", "--goark-env=PORT=9090", "--goark-offline", "--goark-locked", "--goark-dry-run", "."})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
@@ -140,7 +138,7 @@ func TestParseRunArguments_whenControlFlagsProvided_shouldSetExecutionMode(t *te
 }
 
 func TestParseRunArguments_whenControlFlagsFollowTarget_shouldKeepThemInGoarkControl(t *testing.T) {
-	plan, err := parseRunArguments([]string{"./cmd/server", "--goark-profile=dev", "--goark-env=PORT=9090"})
+	plan, err := Parse([]string{"./cmd/server", "--goark-profile=dev", "--goark-env=PORT=9090"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
@@ -155,7 +153,7 @@ func TestParseRunArguments_whenControlFlagsFollowTarget_shouldKeepThemInGoarkCon
 func TestParseRunArguments_whenRemovedControlFlagsProvided_shouldReject(t *testing.T) {
 	for _, argument := range []string{"--goark-generate-only", "--goark-no-generate"} {
 		for _, input := range [][]string{{argument}, {"./cmd/server", argument}} {
-			if _, err := parseRunArguments(input); err == nil {
+			if _, err := Parse(input); err == nil {
 				t.Fatalf("已删除参数必须失败: %#v", input)
 			}
 		}
@@ -164,7 +162,7 @@ func TestParseRunArguments_whenRemovedControlFlagsProvided_shouldReject(t *testi
 
 func TestParseRunArguments_whenSystemPropertyInvalid_shouldReject(t *testing.T) {
 	for _, input := range [][]string{{"-D"}, {"-Dserver.port"}, {"-D=9090"}} {
-		if _, err := parseRunArguments(input); err == nil {
+		if _, err := Parse(input); err == nil {
 			t.Fatalf("非法系统属性应失败: %#v", input)
 		}
 	}
@@ -172,7 +170,7 @@ func TestParseRunArguments_whenSystemPropertyInvalid_shouldReject(t *testing.T) 
 
 func TestEffectiveGoWorkingDir_whenDirectoryFlagRepeated_shouldUseLastValue(t *testing.T) {
 	base := t.TempDir()
-	workingDir, err := effectiveGoWorkingDir(base, []string{"-C", "first", "-C=second"})
+	workingDir, err := EffectiveWorkingDir(base, []string{"-C", "first", "-C=second"})
 	if err != nil {
 		t.Fatalf("解析工作目录失败: %v", err)
 	}

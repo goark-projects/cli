@@ -10,6 +10,7 @@ import (
 
 	"goark.dev/cli/internal/buildspec"
 	"goark.dev/cli/internal/generate"
+	"goark.dev/cli/internal/runargs"
 )
 
 func (c Command) runCodegenAnnotations(args []string) int {
@@ -54,7 +55,7 @@ func (c Command) generateAnnotationPackage(
 ) ([]GenerationResult, error) {
 	directory := spec.Dir
 	if !filepath.IsAbs(directory) {
-		directory = filepath.Join(effectiveBaseDir(c.Dir), directory)
+		directory = filepath.Join(runargs.BaseDir(c.Dir), directory)
 	}
 	directory, err := filepath.Abs(directory)
 	if err != nil {

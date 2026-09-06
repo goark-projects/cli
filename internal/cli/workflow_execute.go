@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"goark.dev/cli/internal/buildplan"
@@ -51,46 +49,6 @@ func (c Command) captureGoVersion() string {
 
 func parseWorkflowArguments(args []string) ([]string, workflowControl, error) {
 	return buildplan.ParseControlArguments(args)
-}
-
-func effectiveGoWorkingDir(base string, args []string) (string, error) {
-	workingDir := effectiveBaseDir(base)
-	directory := ""
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		var value string
-		switch {
-		case arg == "-C":
-			if index+1 >= len(args) {
-				return "", fmt.Errorf("Go 参数 -C 缺少目录")
-			}
-			value = args[index+1]
-		case strings.HasPrefix(arg, "-C="):
-			value = strings.TrimPrefix(arg, "-C=")
-		}
-		if value == "" {
-			continue
-		}
-		directory = value
-	}
-	if directory != "" {
-		if !filepath.IsAbs(directory) {
-			directory = filepath.Join(workingDir, directory)
-		}
-		return filepath.Clean(directory), nil
-	}
-	return workingDir, nil
-}
-
-func effectiveBaseDir(dir string) string {
-	if dir != "" {
-		return filepath.Clean(dir)
-	}
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	return workingDir
 }
 
 func isHelpOnly(args []string) bool {

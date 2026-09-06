@@ -1,4 +1,4 @@
-package cli
+package runargs
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 	"goark.dev/cli/internal/buildplan"
 )
 
-// runArguments 保存 go run 与 Goark 编译前阶段的参数边界。
-type runArguments struct {
+// Plan 保存 go run 与 Goark 编译前阶段的参数边界。
+type Plan struct {
 	GoArguments          []string
 	PropertyArguments    []string
 	ApplicationArguments []string
@@ -41,8 +41,9 @@ var goBuildFlagsWithValue = map[string]struct{}{
 	"-toolexec":      {},
 }
 
-func parseRunArguments(args []string) (runArguments, error) {
-	plan := runArguments{}
+// Parse 将 Go 参数、应用属性、应用参数和 Goark 控制参数严格分区。
+func Parse(args []string) (Plan, error) {
+	plan := Plan{}
 	afterTarget := false
 	goFiles := false
 	applicationOnly := false
@@ -59,14 +60,14 @@ func parseRunArguments(args []string) (runArguments, error) {
 		}
 		handled, err := applyRunControlArgument(&plan, arg)
 		if err != nil {
-			return runArguments{}, err
+			return Plan{}, err
 		}
 		if handled {
 			continue
 		}
 		if strings.HasPrefix(arg, "-D") {
 			if err := validateSystemPropertyArgument(arg); err != nil {
-				return runArguments{}, err
+				return Plan{}, err
 			}
 			plan.PropertyArguments = append(plan.PropertyArguments, arg)
 			continue
@@ -81,9 +82,9 @@ func parseRunArguments(args []string) (runArguments, error) {
 		}
 		if !afterTarget && strings.HasPrefix(arg, "-") {
 			plan.GoArguments = append(plan.GoArguments, arg)
-			if goBuildFlagConsumesValue(arg) {
+			if BuildFlagConsumesValue(arg) {
 				if index+1 >= len(args) {
-					return runArguments{}, fmt.Errorf("Go 构建参数 %s 缺少值", arg)
+					return Plan{}, fmt.Errorf("Go 构建参数 %s 缺少值", arg)
 				}
 				index++
 				plan.GoArguments = append(plan.GoArguments, args[index])
@@ -108,7 +109,7 @@ func parseRunArguments(args []string) (runArguments, error) {
 	return plan, nil
 }
 
-func applyRunControlArgument(plan *runArguments, arg string) (bool, error) {
+func applyRunControlArgument(plan *Plan, arg string) (bool, error) {
 	return buildplan.ApplyControlArgument(&plan.Control, arg)
 }
 
@@ -121,7 +122,8 @@ func validateSystemPropertyArgument(arg string) error {
 	return nil
 }
 
-func goBuildFlagConsumesValue(arg string) bool {
+// BuildFlagConsumesValue 判断 Go 构建参数是否从后一参数读取值。
+func BuildFlagConsumesValue(arg string) bool {
 	if strings.Contains(arg, "=") {
 		return false
 	}
@@ -130,7 +132,7 @@ func goBuildFlagConsumesValue(arg string) bool {
 }
 
 // GoRunArguments 返回传给 go run 的最终参数，不包含 run 子命令本身。
-func (p runArguments) GoRunArguments() []string {
+func (p Plan) GoRunArguments() []string {
 	args := make([]string, 0, len(p.GoArguments)+len(p.PropertyArguments)+len(p.ApplicationArguments))
 	args = append(args, p.GoArguments...)
 	args = append(args, p.PropertyArguments...)
@@ -139,7 +141,7 @@ func (p runArguments) GoRunArguments() []string {
 }
 
 // WithResolvedTarget 为零配置运行计划补充自动发现的 main package。
-func (p runArguments) WithResolvedTarget(target string) runArguments {
+func (p Plan) WithResolvedTarget(target string) Plan {
 	if p.TargetExplicit {
 		return p
 	}

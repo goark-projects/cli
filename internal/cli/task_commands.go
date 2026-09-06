@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildplan"
+	"goark.dev/cli/internal/runargs"
 	"goark.dev/cli/internal/taskgraph"
 	"goark.dev/cli/internal/taskview"
 )
@@ -126,7 +127,7 @@ func validateProjectTaskGraph(project goarkProject) error {
 
 func (c Command) resolveProjectMetadata(dir string) (goarkProject, error) {
 	return projectResolver{
-		Context: c.Context, Dir: effectiveBaseDir(dir), Env: append([]string(nil), c.Env...), Runner: c.Runner,
+		Context: c.Context, Dir: runargs.BaseDir(dir), Env: append([]string(nil), c.Env...), Runner: c.Runner,
 		Err: c.Err, Static: true, MetadataOnly: true,
 	}.Resolve()
 }
