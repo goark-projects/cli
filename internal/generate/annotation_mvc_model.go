@@ -310,7 +310,7 @@ func validateMVCParameterMapBinding(methodName, paramName, typ string, kind mvcH
 		return nil
 	}
 	if binding.SourceExplicit || binding.HasDefault || !binding.Required {
-		return fmt.Errorf("mvc handler method %s map parameter %s must not declare name, value, defaultValue, or required=false", methodName, paramName)
+		return mvcHandlerError("map parameter %s must not declare name, value, defaultValue, or required=false", methodName, paramName)
 	}
 	return nil
 }

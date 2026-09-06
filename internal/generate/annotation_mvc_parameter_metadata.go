@@ -2,7 +2,6 @@ package generate
 
 import (
 	"bytes"
-	"fmt"
 	"go/ast"
 	"go/token"
 	"strconv"
@@ -107,14 +106,14 @@ func validateMVCRequestEntityAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+		return annotationError("requires mvc route method target", ctx.Annotation.Name)
 	}
 	selector := mvcRequestEntitySelector(ctx.Annotation)
 	if selector == "" {
-		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+		return annotationError("requires parameter selector", ctx.Annotation.Name)
 	}
 	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return nil
 }
@@ -340,13 +339,13 @@ func requireMVCPathTexts(annotation Annotation) ([]string, error) {
 		}
 	}
 	if len(values) == 0 {
-		return nil, fmt.Errorf("annotation %q requires path value", annotation.Name)
+		return nil, annotationError("requires path value", annotation.Name)
 	}
 	paths := make([]string, 0, len(values))
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value == "" {
-			return nil, fmt.Errorf("annotation %q requires path value", annotation.Name)
+			return nil, annotationError("requires path value", annotation.Name)
 		}
 		paths = append(paths, value)
 	}

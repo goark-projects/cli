@@ -73,7 +73,7 @@ func (p *annotationPipeline) validate(item AnnotationItem) error {
 			return fmt.Errorf("unknown annotation %q", annotation.Name)
 		}
 		if !descriptorAllowsTarget(descriptor, item.Target()) {
-			return fmt.Errorf("annotation %q does not support %s target", annotation.Name, item.Target())
+			return annotationError("does not support %s target", annotation.Name, item.Target())
 		}
 		if descriptor.Validate == nil {
 			continue

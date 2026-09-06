@@ -162,13 +162,13 @@ const (
 func validateMVCControllerAdviceAnnotation(ctx AnnotationValidationContext) error {
 	typeSpec := ctx.Item.TypeSpec()
 	if typeSpec == nil {
-		return fmt.Errorf("annotation %q requires type target", ctx.Annotation.Name)
+		return annotationError("requires type target", ctx.Annotation.Name)
 	}
 	if _, ok := typeSpec.Type.(*ast.StructType); !ok {
-		return fmt.Errorf("annotation %q requires struct type target", ctx.Annotation.Name)
+		return annotationError("requires struct type target", ctx.Annotation.Name)
 	}
 	if hasMVCControllerAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q target must not also declare mvc controller", ctx.Annotation.Name)
+		return annotationError("target must not also declare mvc controller", ctx.Annotation.Name)
 	}
 	return validateCoreNameAnnotation(ctx.Annotation)
 }
@@ -178,13 +178,13 @@ func validateMVCExceptionHandlerAnnotation(ctx AnnotationValidationContext) erro
 		return err
 	}
 	if hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q must not be combined with mvc route mapping", ctx.Annotation.Name)
+		return annotationError("must not be combined with mvc route mapping", ctx.Annotation.Name)
 	}
 	if len(ctx.Annotation.Args) > 0 || len(ctx.Annotation.Values) > 0 {
-		return fmt.Errorf("annotation %q does not accept arguments", ctx.Annotation.Name)
+		return annotationError("does not accept arguments", ctx.Annotation.Name)
 	}
 	if selector := normalizeSelector(ctx.Annotation.Selector); selector != "" && !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return nil
 }

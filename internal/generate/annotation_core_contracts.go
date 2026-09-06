@@ -171,10 +171,10 @@ func newAnnotationDesc(
 func validateCoreStructTypeAnnotation(ctx AnnotationValidationContext) error {
 	typeSpec := ctx.Item.TypeSpec()
 	if typeSpec == nil {
-		return fmt.Errorf("annotation %q requires type target", ctx.Annotation.Name)
+		return annotationError("requires type target", ctx.Annotation.Name)
 	}
 	if _, ok := typeSpec.Type.(*ast.StructType); !ok {
-		return fmt.Errorf("annotation %q requires struct type target", ctx.Annotation.Name)
+		return annotationError("requires struct type target", ctx.Annotation.Name)
 	}
 	return nil
 }
@@ -194,7 +194,7 @@ func validateCoreBeanAnnotation(ctx AnnotationValidationContext) error {
 		)
 	}
 	if ctx.Item.ReceiverTypeName() == "" {
-		return fmt.Errorf("annotation %q receiver is not supported", ctx.Annotation.Name)
+		return annotationError("receiver is not supported", ctx.Annotation.Name)
 	}
 	return validateCoreNameAnnotation(ctx.Annotation)
 }
@@ -203,11 +203,11 @@ func validateCoreInjectionAnnotation(ctx AnnotationValidationContext) error {
 	switch ctx.Target {
 	case AnnotationTargetField:
 		if len(ctx.Item.Names()) == 0 {
-			return fmt.Errorf("annotation %q requires named field target", ctx.Annotation.Name)
+			return annotationError("requires named field target", ctx.Annotation.Name)
 		}
 	case AnnotationTargetMethod:
 		if !ctx.Item.HasAnnotation("bean") {
-			return fmt.Errorf("annotation %q requires bean method target", ctx.Annotation.Name)
+			return annotationError("requires bean method target", ctx.Annotation.Name)
 		}
 		if strings.TrimSpace(ctx.Annotation.Selector) == "" {
 			return fmt.Errorf(
@@ -260,7 +260,7 @@ func validateCoreScopeAnnotation(ctx AnnotationValidationContext) error {
 	case ScopeSingleton, ScopePrototype:
 		return nil
 	default:
-		return fmt.Errorf("annotation %q has unsupported scope %q", ctx.Annotation.Name, value)
+		return annotationError("has unsupported scope %q", ctx.Annotation.Name, value)
 	}
 }
 
@@ -275,7 +275,7 @@ func validateCoreDependsOnAnnotation(ctx AnnotationValidationContext) error {
 	for _, value := range values {
 		for _, dependency := range strings.Split(value, ",") {
 			if strings.TrimSpace(dependency) == "" {
-				return fmt.Errorf("annotation %q has empty dependency name", ctx.Annotation.Name)
+				return annotationError("has empty dependency name", ctx.Annotation.Name)
 			}
 		}
 	}
@@ -312,14 +312,14 @@ func validateCoreConditionalAnnotation(ctx AnnotationValidationContext) error {
 
 func validateCorePropertySourceAnnotation(ctx AnnotationValidationContext) error {
 	if !ctx.Item.HasAnnotation("configuration") {
-		return fmt.Errorf("annotation %q requires configuration type target", ctx.Annotation.Name)
+		return annotationError("requires configuration type target", ctx.Annotation.Name)
 	}
 	return requireAnnotationValue(ctx.Annotation)
 }
 
 func validateCorePropertySourcesAnnotation(ctx AnnotationValidationContext) error {
 	if !ctx.Item.HasAnnotation("configuration") {
-		return fmt.Errorf("annotation %q requires configuration type target", ctx.Annotation.Name)
+		return annotationError("requires configuration type target", ctx.Annotation.Name)
 	}
 	return requireAnnotationValue(ctx.Annotation)
 }
@@ -328,11 +328,11 @@ func validateCoreComponentOrBeanOwner(ctx AnnotationValidationContext) error {
 	switch ctx.Target {
 	case AnnotationTargetType:
 		if componentOptionKind(ctx.Item.annotations) == "" {
-			return fmt.Errorf("annotation %q requires component type target", ctx.Annotation.Name)
+			return annotationError("requires component type target", ctx.Annotation.Name)
 		}
 	case AnnotationTargetMethod:
 		if !ctx.Item.HasAnnotation("bean") {
-			return fmt.Errorf("annotation %q requires bean method target", ctx.Annotation.Name)
+			return annotationError("requires bean method target", ctx.Annotation.Name)
 		}
 	}
 	return nil
@@ -350,7 +350,7 @@ func validateCoreConfigurationComponentOrBeanOwner(ctx AnnotationValidationConte
 		}
 	case AnnotationTargetMethod:
 		if !ctx.Item.HasAnnotation("bean") {
-			return fmt.Errorf("annotation %q requires bean method target", ctx.Annotation.Name)
+			return annotationError("requires bean method target", ctx.Annotation.Name)
 		}
 	}
 	return nil

@@ -146,19 +146,19 @@ type mvcCrossOrigin struct {
 
 func validateMVCCrossOriginAnnotation(ctx AnnotationValidationContext) error {
 	if selector := normalizeSelector(ctx.Annotation.Selector); selector != "" {
-		return fmt.Errorf("annotation %q does not accept selector", ctx.Annotation.Name)
+		return annotationError("does not accept selector", ctx.Annotation.Name)
 	}
 	switch ctx.Target {
 	case AnnotationTargetType:
 		if !hasMVCControllerAnnotation(ctx.Item.Annotations()) {
-			return fmt.Errorf("annotation %q on type requires mvc controller target", ctx.Annotation.Name)
+			return annotationError("on type requires mvc controller target", ctx.Annotation.Name)
 		}
 	case AnnotationTargetMethod:
 		if err := validateMVCHandlerMethod(ctx); err != nil {
 			return err
 		}
 		if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-			return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+			return annotationError("requires mvc route method target", ctx.Annotation.Name)
 		}
 	}
 	_, err := mvcCrossOriginFromAnnotation(ctx.Annotation)
@@ -248,7 +248,7 @@ func mvcCrossOriginBool(annotation Annotation, keys ...string) (bool, error) {
 	}
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
-		return false, fmt.Errorf("annotation %q argument %q requires boolean value: %w", annotation.Name, "allowCredentials", err)
+		return false, annotationError("argument %q requires boolean value: %w", annotation.Name, "allowCredentials", err)
 	}
 	return parsed, nil
 }
@@ -260,7 +260,7 @@ func mvcCrossOriginMaxAge(annotation Annotation) (int64, bool, error) {
 	}
 	duration, err := parseMVCCrossOriginDuration(value)
 	if err != nil {
-		return 0, false, fmt.Errorf("annotation %q argument %q requires duration or seconds: %w", annotation.Name, "maxAge", err)
+		return 0, false, annotationError("argument %q requires duration or seconds: %w", annotation.Name, "maxAge", err)
 	}
 	return int64(duration), true, nil
 }
@@ -276,7 +276,7 @@ func mvcCrossOriginSingleArg(annotation Annotation, label string, keys ...string
 		return "", false, nil
 	}
 	if len(values) > 1 {
-		return "", false, fmt.Errorf("annotation %q accepts exactly one %s argument", annotation.Name, label)
+		return "", false, annotationError("accepts exactly one %s argument", annotation.Name, label)
 	}
 	return values[0], true, nil
 }

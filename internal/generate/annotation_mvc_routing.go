@@ -36,7 +36,7 @@ func mvcHTTPMethods(annotation Annotation) ([]string, bool, error) {
 		}
 		return methods, true, nil
 	default:
-		return nil, false, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+		return nil, false, annotationError("requires supported http method", annotation.Name)
 	}
 }
 
@@ -47,10 +47,10 @@ func parseMVCRequestMethods(annotation Annotation, value string) ([]string, erro
 	for _, part := range parts {
 		method := strings.ToUpper(strings.TrimSpace(part))
 		if method == "" {
-			return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+			return nil, annotationError("requires supported http method", annotation.Name)
 		}
 		if !isSupportedMVCRequestMethod(method) {
-			return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+			return nil, annotationError("requires supported http method", annotation.Name)
 		}
 		if _, exists := seen[method]; exists {
 			continue
@@ -59,7 +59,7 @@ func parseMVCRequestMethods(annotation Annotation, value string) ([]string, erro
 		methods = append(methods, method)
 	}
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("annotation %q requires supported http method", annotation.Name)
+		return nil, annotationError("requires supported http method", annotation.Name)
 	}
 	return methods, nil
 }
@@ -84,7 +84,7 @@ func mvcStatus(annotation Annotation, fallback int) (int, error) {
 func mvcResponseStatus(annotation Annotation) (int, error) {
 	values := annotationValueTexts(annotation)
 	if len(values) > 1 {
-		return 0, fmt.Errorf("annotation %q accepts exactly one status value", annotation.Name)
+		return 0, annotationError("accepts exactly one status value", annotation.Name)
 	}
 	value := ""
 	if len(values) == 1 {
@@ -92,16 +92,16 @@ func mvcResponseStatus(annotation Annotation) (int, error) {
 	}
 	namedValues := mvcNamedStatusValues(annotation, "status", "statusCode", "code")
 	if len(namedValues) > 1 {
-		return 0, fmt.Errorf("annotation %q accepts exactly one status argument", annotation.Name)
+		return 0, annotationError("accepts exactly one status argument", annotation.Name)
 	}
 	if len(namedValues) == 1 {
 		if strings.TrimSpace(value) != "" {
-			return 0, fmt.Errorf("annotation %q accepts either value or named status argument", annotation.Name)
+			return 0, annotationError("accepts either value or named status argument", annotation.Name)
 		}
 		value = namedValues[0]
 	}
 	if strings.TrimSpace(value) == "" {
-		return 0, fmt.Errorf("annotation %q requires status value", annotation.Name)
+		return 0, annotationError("requires status value", annotation.Name)
 	}
 	return parseMVCStatus(annotation, "status", value)
 }
@@ -128,10 +128,10 @@ func mvcMappingHasExplicitStatus(annotation Annotation) bool {
 func parseMVCStatus(annotation Annotation, label string, value string) (int, error) {
 	status, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
-		return 0, fmt.Errorf("annotation %q %s requires integer value: %w", annotation.Name, label, err)
+		return 0, annotationError("%s requires integer value: %w", annotation.Name, label, err)
 	}
 	if status < 100 || status > 999 {
-		return 0, fmt.Errorf("annotation %q %s %d is out of range", annotation.Name, label, status)
+		return 0, annotationError("%s %d is out of range", annotation.Name, label, status)
 	}
 	return status, nil
 }

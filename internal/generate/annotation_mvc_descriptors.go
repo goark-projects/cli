@@ -91,13 +91,13 @@ func mvcAnnotationDescriptors() []AnnotationDescriptor {
 func validateMVCControllerAnnotation(ctx AnnotationValidationContext) error {
 	typeSpec := ctx.Item.TypeSpec()
 	if typeSpec == nil {
-		return fmt.Errorf("annotation %q requires type target", ctx.Annotation.Name)
+		return annotationError("requires type target", ctx.Annotation.Name)
 	}
 	if _, ok := typeSpec.Type.(*ast.StructType); !ok {
-		return fmt.Errorf("annotation %q requires struct type target", ctx.Annotation.Name)
+		return annotationError("requires struct type target", ctx.Annotation.Name)
 	}
 	if hasMVCControllerAdviceAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q target must not also declare mvc controller advice", ctx.Annotation.Name)
+		return annotationError("target must not also declare mvc controller advice", ctx.Annotation.Name)
 	}
 	return validateCoreNameAnnotation(ctx.Annotation)
 }
@@ -105,7 +105,7 @@ func validateMVCControllerAnnotation(ctx AnnotationValidationContext) error {
 func validateMVCRequestMappingAnnotation(ctx AnnotationValidationContext) error {
 	if ctx.Target == AnnotationTargetType {
 		if !hasMVCControllerAnnotation(ctx.Item.Annotations()) {
-			return fmt.Errorf("annotation %q on type requires mvc controller target", ctx.Annotation.Name)
+			return annotationError("on type requires mvc controller target", ctx.Annotation.Name)
 		}
 		if err := requireMVCPath(ctx.Annotation); err != nil {
 			return err
@@ -134,14 +134,14 @@ func validateMVCRequestBodyAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+		return annotationError("requires mvc route method target", ctx.Annotation.Name)
 	}
 	selector := mvcRequestBodySelector(ctx.Annotation)
 	if selector == "" {
-		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+		return annotationError("requires parameter selector", ctx.Annotation.Name)
 	}
 	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return nil
 }
@@ -151,14 +151,14 @@ func validateMVCMultipartBodyAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+		return annotationError("requires mvc route method target", ctx.Annotation.Name)
 	}
 	selector := mvcMultipartBodySelector(ctx.Annotation)
 	if selector == "" {
-		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+		return annotationError("requires parameter selector", ctx.Annotation.Name)
 	}
 	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return nil
 }
@@ -168,21 +168,21 @@ func validateMVCParameterBindingAnnotation(ctx AnnotationValidationContext) erro
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+		return annotationError("requires mvc route method target", ctx.Annotation.Name)
 	}
 	selector := mvcBindingSelector(ctx.Annotation)
 	if selector == "" {
-		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+		return annotationError("requires parameter selector", ctx.Annotation.Name)
 	}
 	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	if err := validateAtMostOneAnnotationValue(ctx.Annotation); err != nil {
 		return err
 	}
 	if _, hasName := ctx.Annotation.Args["name"]; hasName {
 		if _, hasValue := ctx.Annotation.Args["value"]; hasValue {
-			return fmt.Errorf("annotation %q accepts either name or value argument", ctx.Annotation.Name)
+			return annotationError("accepts either name or value argument", ctx.Annotation.Name)
 		}
 	}
 	if err := validateBoolArg(ctx.Annotation, "required"); err != nil {
@@ -200,10 +200,10 @@ func validateMVCModelAttributeAnnotation(ctx AnnotationValidationContext) error 
 	}
 	selector := mvcBindingSelector(ctx.Annotation)
 	if selector == "" {
-		return fmt.Errorf("annotation %q requires parameter selector", ctx.Annotation.Name)
+		return annotationError("requires parameter selector", ctx.Annotation.Name)
 	}
 	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return fmt.Errorf("annotation %q selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
 	}
 	return validateAtMostOneAnnotationValue(ctx.Annotation)
 }
@@ -213,26 +213,26 @@ func validateMVCModelAttributeMethodAnnotation(ctx AnnotationValidationContext) 
 		return fmt.Errorf("mvc model attribute method %s has multiple model-attribute annotations", ctx.Item.FuncName())
 	}
 	if selector := normalizeSelector(ctx.Annotation.Selector); selector != "" {
-		return fmt.Errorf("annotation %q selector %q requires mvc route method target", ctx.Annotation.Name, selector)
+		return annotationError("selector %q requires mvc route method target", ctx.Annotation.Name, selector)
 	}
 	if _, hasParam := ctx.Annotation.Args["param"]; hasParam {
-		return fmt.Errorf("annotation %q param argument requires mvc route method target", ctx.Annotation.Name)
+		return annotationError("param argument requires mvc route method target", ctx.Annotation.Name)
 	}
 	if err := validateAtMostOneAnnotationValue(ctx.Annotation); err != nil {
 		return err
 	}
 	if _, hasName := ctx.Annotation.Args["name"]; hasName {
 		if _, hasValue := ctx.Annotation.Args["value"]; hasValue {
-			return fmt.Errorf("annotation %q accepts either name or value argument", ctx.Annotation.Name)
+			return annotationError("accepts either name or value argument", ctx.Annotation.Name)
 		}
 	}
 	name := mvcModelAttributeMethodName(ctx.Annotation)
 	if name == "" {
-		return fmt.Errorf("annotation %q requires model attribute name", ctx.Annotation.Name)
+		return annotationError("requires model attribute name", ctx.Annotation.Name)
 	}
 	fn := ctx.Item.FuncDecl()
 	if fn == nil {
-		return fmt.Errorf("annotation %q requires concrete method with receiver", ctx.Annotation.Name)
+		return annotationError("requires concrete method with receiver", ctx.Annotation.Name)
 	}
 	if _, err := mvcModelAttributeMethodParams(ctx.Item.File(), fn); err != nil {
 		return err
@@ -252,10 +252,10 @@ func validateMVCRequestPartAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	if _, ok := ctx.Annotation.Args["defaultValue"]; ok {
-		return fmt.Errorf("annotation %q does not accept defaultValue argument", ctx.Annotation.Name)
+		return annotationError("does not accept defaultValue argument", ctx.Annotation.Name)
 	}
 	if _, ok := ctx.Annotation.Args["default"]; ok {
-		return fmt.Errorf("annotation %q does not accept default argument", ctx.Annotation.Name)
+		return annotationError("does not accept default argument", ctx.Annotation.Name)
 	}
 	return nil
 }
@@ -265,13 +265,13 @@ func validateMVCValidatedAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route method target", ctx.Annotation.Name)
+		return annotationError("requires mvc route method target", ctx.Annotation.Name)
 	}
 	if normalizeSelector(ctx.Annotation.Selector) != "" {
-		return fmt.Errorf("annotation %q does not accept selector", ctx.Annotation.Name)
+		return annotationError("does not accept selector", ctx.Annotation.Name)
 	}
 	if len(mvcValidationGroups(ctx.Annotation)) == 0 {
-		return fmt.Errorf("annotation %q requires validation group value", ctx.Annotation.Name)
+		return annotationError("requires validation group value", ctx.Annotation.Name)
 	}
 	return nil
 }
@@ -281,7 +281,7 @@ func validateMVCResponseStatusAnnotation(ctx AnnotationValidationContext) error 
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) && !hasMVCExceptionHandlerAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route or exception handler method target", ctx.Annotation.Name)
+		return annotationError("requires mvc route or exception handler method target", ctx.Annotation.Name)
 	}
 	_, err := mvcResponseStatus(ctx.Annotation)
 	return err
@@ -292,10 +292,10 @@ func validateMVCResponseBodyAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	if !hasMVCRouteMappingAnnotation(ctx.Item.Annotations()) && !hasMVCExceptionHandlerAnnotation(ctx.Item.Annotations()) {
-		return fmt.Errorf("annotation %q requires mvc route or exception handler method target", ctx.Annotation.Name)
+		return annotationError("requires mvc route or exception handler method target", ctx.Annotation.Name)
 	}
 	if normalizeSelector(ctx.Annotation.Selector) != "" || len(ctx.Annotation.Args) > 0 || len(ctx.Annotation.Values) > 0 {
-		return fmt.Errorf("annotation %q does not accept arguments", ctx.Annotation.Name)
+		return annotationError("does not accept arguments", ctx.Annotation.Name)
 	}
 	return nil
 }
@@ -303,10 +303,10 @@ func validateMVCResponseBodyAnnotation(ctx AnnotationValidationContext) error {
 func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
 	fn := ctx.Item.FuncDecl()
 	if fn == nil || fn.Recv == nil {
-		return fmt.Errorf("annotation %q requires concrete method with receiver", ctx.Annotation.Name)
+		return annotationError("requires concrete method with receiver", ctx.Annotation.Name)
 	}
 	if ctx.Item.ReceiverTypeName() == "" {
-		return fmt.Errorf("annotation %q receiver is not supported", ctx.Annotation.Name)
+		return annotationError("receiver is not supported", ctx.Annotation.Name)
 	}
 	return nil
 }
@@ -324,19 +324,19 @@ func analyzeMVCHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, an
 		return mvcHandler{}, err
 	}
 	if hasMVCBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+		return mvcHandler{}, mvcHandlerError("with request body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 	}
 	if hasMVCRequestEntityParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s with request entity must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+		return mvcHandler{}, mvcHandlerError("with request entity must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 	}
 	if hasMVCMultipartBodyParam(params) && !mvcReturnSupportsRequestBody(returnKind) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s with multipart body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
+		return mvcHandler{}, mvcHandlerError("with multipart body must return T, T,error, web.ResponseEntity, or web.ResponseEntity,error", fn.Name.Name)
 	}
 	if hasMVCResponseBodyAnnotation(annotations) && hasMVCModelParam(params) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s response-body must not be used with *mvc.Model", fn.Name.Name)
+		return mvcHandler{}, mvcHandlerError("response-body must not be used with *mvc.Model", fn.Name.Name)
 	}
 	if hasMVCValidatedAnnotation(annotations) && !hasMVCBodyParam(params) && !hasMVCRequestEntityParam(params) && !hasMVCMultipartBodyParam(params) && !hasMVCModelAttributeParam(params) && !hasMVCJSONRequestPartParam(params) {
-		return mvcHandler{}, fmt.Errorf("mvc handler method %s validated requires request body, request entity, multipart body, model attribute, or JSON request part parameter", fn.Name.Name)
+		return mvcHandler{}, mvcHandlerError("validated requires request body, request entity, multipart body, model attribute, or JSON request part parameter", fn.Name.Name)
 	}
 	return mvcHandler{
 		Params:     params,

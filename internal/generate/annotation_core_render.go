@@ -253,7 +253,7 @@ func requireAnnotationValueText(annotation Annotation) (string, error) {
 		return "", err
 	}
 	if len(values) > 1 {
-		return "", fmt.Errorf("annotation %q accepts exactly one value argument", annotation.Name)
+		return "", annotationError("accepts exactly one value argument", annotation.Name)
 	}
 	return values[0], nil
 }
@@ -261,13 +261,13 @@ func requireAnnotationValueText(annotation Annotation) (string, error) {
 func requireAnnotationValueTexts(annotation Annotation) ([]string, error) {
 	values := annotationValueTexts(annotation)
 	if len(values) == 0 {
-		return nil, fmt.Errorf("annotation %q requires value argument", annotation.Name)
+		return nil, annotationError("requires value argument", annotation.Name)
 	}
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value == "" {
-			return nil, fmt.Errorf("annotation %q requires value argument", annotation.Name)
+			return nil, annotationError("requires value argument", annotation.Name)
 		}
 		normalized = append(normalized, value)
 	}
@@ -276,7 +276,7 @@ func requireAnnotationValueTexts(annotation Annotation) ([]string, error) {
 
 func validateAtMostOneAnnotationValue(annotation Annotation) error {
 	if len(annotation.Values) > 1 {
-		return fmt.Errorf("annotation %q accepts at most one value argument", annotation.Name)
+		return annotationError("accepts at most one value argument", annotation.Name)
 	}
 	return nil
 }
@@ -287,7 +287,7 @@ func validateCoreNameAnnotation(annotation Annotation) error {
 	}
 	if _, hasName := annotation.Args["name"]; hasName {
 		if _, hasValue := annotation.Args["value"]; hasValue {
-			return fmt.Errorf("annotation %q accepts either name or value argument", annotation.Name)
+			return annotationError("accepts either name or value argument", annotation.Name)
 		}
 	}
 	return nil
@@ -299,7 +299,7 @@ func validateIntValue(annotation Annotation) error {
 		return err
 	}
 	if _, err := strconv.Atoi(value); err != nil {
-		return fmt.Errorf("annotation %q requires integer value: %w", annotation.Name, err)
+		return annotationError("requires integer value: %w", annotation.Name, err)
 	}
 	return nil
 }

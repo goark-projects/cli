@@ -346,3 +346,11 @@ func qualifyLocalIdentifiers(value string, types map[string]annotationTypeDeclar
 	}
 	return builder.String()
 }
+
+func annotationError(format string, args ...any) error {
+	return fmt.Errorf("annotation "+"%q "+format, args...)
+}
+
+func mvcHandlerError(format string, args ...any) error {
+	return fmt.Errorf("mvc handler method "+"%s "+format, args...)
+}
