@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildspec"
+	"goark.dev/cli/internal/projectfs"
 )
 
 type projectResolver struct {
@@ -209,7 +210,7 @@ func (p goarkProject) ResolveRunTarget(workingDir string) (string, error) {
 	if p.Build.Project.Main != "" {
 		targetDirectory := filepath.Join(p.Root, filepath.FromSlash(p.Build.Project.Main))
 		for _, item := range p.Packages {
-			if item.Name == "main" && samePath(item.Dir, targetDirectory) {
+			if item.Name == "main" && projectfs.SamePath(item.Dir, targetDirectory) {
 				return p.Build.Project.Main, nil
 			}
 		}
@@ -264,7 +265,7 @@ func (p goarkProject) ProjectName() string {
 func (p goarkProject) isMainPackage(dir string) bool {
 	dir = filepath.Clean(dir)
 	for _, item := range p.Packages {
-		if item.Name == "main" && samePath(item.Dir, dir) {
+		if item.Name == "main" && projectfs.SamePath(item.Dir, dir) {
 			return true
 		}
 	}

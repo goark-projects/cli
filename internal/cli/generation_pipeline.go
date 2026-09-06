@@ -18,6 +18,7 @@ import (
 	"github.com/gofrs/flock"
 	"goark.dev/cli/internal/atomicfile"
 	"goark.dev/cli/internal/generate"
+	"goark.dev/cli/internal/projectlock"
 	"goark.dev/cli/internal/version"
 )
 
@@ -269,7 +270,7 @@ func lockProjectGeneration(root string) (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析项目根目录失败: %w", err)
 	}
-	digest := sha256.Sum256([]byte(normalizeGenerationLockRoot(canonicalRoot)))
+	digest := sha256.Sum256([]byte(projectlock.NormalizeRoot(canonicalRoot)))
 	lock := flock.New(filepath.Join(lockRoot, hex.EncodeToString(digest[:])+".lock"))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
