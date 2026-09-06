@@ -105,8 +105,15 @@ func TestCommand_whenGenerateRegistryHelpRequested_shouldReturnSuccess(t *testin
 	}
 }
 
-func TestCommand_whenGenerateAnnotationsToStdout_shouldPrintGeneratedSource(t *testing.T) {
+func TestCommand_whenGenerateAnnotations_shouldWriteSplitGenFiles(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(dir, "go.mod"),
+		[]byte("module example.com/app\n\ngo 1.26.0\n"),
+		0o644,
+	); err != nil {
+		t.Fatalf("write go.mod failed: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(`package app
 
 //goark:service
@@ -120,44 +127,6 @@ type UserService struct{}
 	code := Main([]string{
 		"codegen", "annotations",
 		"--dir", dir,
-	}, &stdout, &stderr)
-
-	if code != 0 {
-		t.Fatalf("expected exit code 0, got %d, stderr=%s", code, stderr.String())
-	}
-	output := stdout.String()
-	expected := []string{
-		"package app",
-		"type GoarkPackageConfiguration struct{}",
-		"container.Register(registry, \"userService\"",
-	}
-	for _, fragment := range expected {
-		if !strings.Contains(output, fragment) {
-			t.Fatalf("generated annotations missing %q:\n%s", fragment, output)
-		}
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("stderr should be empty, got %q", stderr.String())
-	}
-}
-
-func TestCommand_whenGenerateAnnotationsToFile_shouldWriteFileAndReportToStderr(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(`package app
-
-//goark:service
-type UserService struct{}
-`), 0o644); err != nil {
-		t.Fatalf("write source failed: %v", err)
-	}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	output := filepath.Join(dir, "zz_goark_app_gen.go")
-
-	code := Main([]string{
-		"codegen", "annotations",
-		"--dir", dir,
-		"--output", output,
 	}, &stdout, &stderr)
 
 	if code != 0 {
@@ -166,15 +135,41 @@ type UserService struct{}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout should be empty, got %q", stdout.String())
 	}
+	output := filepath.Join(dir, "gen", "zz_goark_core_gen.go")
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read split annotation output failed: %v", err)
+	}
+	expected := []string{
+		"package gen",
+		`goarksource "example.com/app"`,
+		"type GoarkPackageConfiguration struct{}",
+		"container.Register(registry, \"userService\"",
+	}
+	for _, fragment := range expected {
+		if !strings.Contains(string(data), fragment) {
+			t.Fatalf("generated annotations missing %q:\n%s", fragment, data)
+		}
+	}
 	if !strings.Contains(stderr.String(), "generated "+output) {
 		t.Fatalf("expected generated path on stderr, got %q", stderr.String())
 	}
-	data, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatalf("read generated annotations failed: %v", err)
+	ignored, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if err != nil || string(ignored) != "**/gen/\n" {
+		t.Fatalf("generated directory should be ignored: %v\n%s", err, ignored)
 	}
-	if !strings.Contains(string(data), "type GoarkPackageConfiguration struct{}") {
-		t.Fatalf("unexpected generated annotations:\n%s", string(data))
+}
+
+func TestCommand_whenGenerateAnnotationsOutputFlagUsed_shouldRejectLegacyLayout(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := Main([]string{
+		"codegen", "annotations",
+		"--output", "zz_goark_app_gen.go",
+	}, &stdout, &stderr)
+
+	if code != 2 || !strings.Contains(stderr.String(), "flag provided but not defined: -output") {
+		t.Fatalf("legacy output flag should be rejected: code=%d stderr=%q", code, stderr.String())
 	}
 }
 

@@ -84,13 +84,14 @@ goark codegen annotations --dir <package-dir> [flags]
 | `--package <name>` | Select package name when a directory contains multiple packages. |
 | `--name <name>` | Configuration name used when no explicit configuration exists. |
 | `--type <name>` | Configuration type used when no explicit configuration exists. |
-| `--output <path>` | Write to a file instead of standard output. |
-
 ```bash
-goark codegen annotations \
-  --dir internal/app \
-  --output internal/app/zz_goark_app_gen.go
+goark codegen annotations --dir internal/app
 ```
+
+The directory must belong to a Go module. This command does not read `goark.build`; it scans only
+the selected package and writes the same responsibility-specific files as project generation to
+`<package-dir>/gen/`. It also ensures the module-root `.gitignore` contains `**/gen/`. The former
+single-file `--output` mode is not supported.
 
 ## Low-Level `configuration`
 

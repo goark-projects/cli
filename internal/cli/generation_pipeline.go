@@ -35,7 +35,10 @@ type projectGenerator interface {
 	Generate(project goarkProject, dryRun bool) ([]GenerationResult, error)
 }
 
-type annotationProjectGenerator struct{}
+type annotationProjectGenerator struct {
+	configurationName string
+	typeName          string
+}
 
 func (annotationProjectGenerator) Name() string {
 	return "annotations"
@@ -79,11 +82,16 @@ func (g annotationProjectGenerator) Generate(project goarkProject, dryRun bool) 
 			continue
 		}
 		files, err := generate.GenerateAnnotationFiles(generate.AnnotationScanSpec{
-			Dir:              item.Dir,
-			PackageName:      item.Name,
-			SourceImportPath: item.ImportPath,
-			GeneratorVersion: version.Current(),
-			Files:            append(append([]string(nil), item.GoFiles...), item.CgoFiles...),
+			Dir:               item.Dir,
+			PackageName:       item.Name,
+			SourceImportPath:  item.ImportPath,
+			GeneratorVersion:  version.Current(),
+			ConfigurationName: g.configurationName,
+			TypeName:          g.typeName,
+			Files: append(
+				append([]string(nil), item.GoFiles...),
+				item.CgoFiles...,
+			),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("生成 package %s 的 Goark 注解代码失败: %w", item.ImportPath, err)

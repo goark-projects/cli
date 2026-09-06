@@ -237,7 +237,11 @@ goark codegen registry --package <package> --configuration <type> [flags]
 goark codegen annotations --dir <package-dir> [flags]
 ```
 
-Low-level generators write to standard output unless `--output` is provided. Repeated `--import`, `--bean`, and `--configuration` options build explicit declarations. Use `goark help codegen <generator>` for the complete option grammar. Normal projects should prefer `goark generate`.
+The `configuration` and `registry` generators write to standard output unless `--output` is
+provided. The `annotations` generator writes responsibility-specific files directly to the source
+package's `gen` directory. Repeated `--import`, `--bean`, and `--configuration` options build
+explicit declarations. Use `goark help codegen <generator>` for the complete option grammar.
+Normal projects should prefer `goark generate`.
 
 ## Completion, Help, and Version
 

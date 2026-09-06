@@ -237,7 +237,10 @@ goark codegen registry --package <package> --configuration <type> [flags]
 goark codegen annotations --dir <package-dir> [flags]
 ```
 
-未提供 `--output` 时，低层生成器输出到标准输出。重复的 `--import`、`--bean`、`--configuration` 用于构造显式声明。使用 `goark help codegen <generator>` 查看完整参数语法。普通项目应优先使用 `goark generate`。
+`configuration` 和 `registry` 生成器未提供 `--output` 时输出到标准输出。`annotations`
+生成器直接将职责文件写入源码 package 的 `gen` 目录。重复的 `--import`、`--bean`、
+`--configuration` 用于构造显式声明。使用 `goark help codegen <generator>` 查看完整参数
+语法。普通项目应优先使用 `goark generate`。
 
 ## 补全、帮助和版本
 

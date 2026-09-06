@@ -81,13 +81,13 @@ goark codegen annotations --dir <package-dir> [flags]
 | `--package <name>` | 一个目录包含多个 package 时选择名称。 |
 | `--name <name>` | 没有显式 configuration 时使用的配置名。 |
 | `--type <name>` | 没有显式 configuration 时使用的配置类型。 |
-| `--output <path>` | 写入文件，不提供时输出到标准输出。 |
-
 ```bash
-goark codegen annotations \
-  --dir internal/app \
-  --output internal/app/zz_goark_app_gen.go
+goark codegen annotations --dir internal/app
 ```
+
+目标目录必须属于一个 Go 模块。该命令不读取 `goark.build`，只扫描选定 package，并将与
+项目级生成相同的职责文件写入 `<package-dir>/gen/`。它还会确保模块根目录 `.gitignore`
+包含 `**/gen/`。不再支持旧的单文件 `--output` 模式。
 
 ## 低层 `configuration`
 

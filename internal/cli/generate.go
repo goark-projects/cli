@@ -176,49 +176,6 @@ func (c Command) runCodegenRegistry(args []string) int {
 	return 0
 }
 
-func (c Command) runCodegenAnnotations(args []string) int {
-	var output string
-	spec := generate.AnnotationScanSpec{Dir: "."}
-	flags := flag.NewFlagSet("goark codegen annotations", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	flags.StringVar(&spec.Dir, "dir", ".", "待扫描 Go package 目录")
-	flags.StringVar(&spec.PackageName, "package", "", "待扫描 package 名称，默认自动推导")
-	flags.StringVar(&spec.ConfigurationName, "name", "", "无显式 configuration 时生成的配置名称")
-	flags.StringVar(&spec.TypeName, "type", "", "无显式 configuration 时生成的配置类型名")
-	flags.StringVar(&output, "output", "", "输出文件路径，留空时输出到 stdout")
-
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			c.printCodegenAnnotationsHelp(c.Out)
-			return 0
-		}
-		_, _ = fmt.Fprintf(c.Err, "%v\n\n", err)
-		c.printCodegenAnnotationsHelp(c.Err)
-		return 2
-	}
-	if flags.NArg() > 0 {
-		_, _ = fmt.Fprintf(c.Err, "多余参数: %s\n\n", strings.Join(flags.Args(), " "))
-		c.printCodegenAnnotationsHelp(c.Err)
-		return 2
-	}
-
-	source, err := generate.GenerateAnnotations(spec)
-	if err != nil {
-		_, _ = fmt.Fprintf(c.Err, "%v\n", err)
-		return 2
-	}
-	if output == "" {
-		_, _ = c.Out.Write(source)
-		return 0
-	}
-	if err := writeFile(output, source); err != nil {
-		_, _ = fmt.Fprintf(c.Err, "写入生成文件失败: %v\n", err)
-		return 1
-	}
-	_, _ = fmt.Fprintf(c.Err, "generated %s\n", output)
-	return 0
-}
-
 func parseImportSpec(raw string) (generate.ImportSpec, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -346,11 +303,10 @@ Flags:
   --package string    Package name to scan when directory contains multiple packages.
   --name string       Generated configuration name when no //goark:configuration exists.
   --type string       Generated configuration type when no //goark:configuration exists.
-  --output path       Output file path. Defaults to stdout.
 
 Examples:
   goark codegen annotations --dir .
-  goark codegen annotations --dir internal/app --output internal/app/zz_goark_app_gen.go
+  goark codegen annotations --dir internal/app
 
 `)
 }
