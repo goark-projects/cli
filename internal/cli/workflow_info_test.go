@@ -86,6 +86,37 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 	}
 }
 
+func TestCommand_whenInfoPackageHasMultipleOutputs_shouldCountPackageOnce(t *testing.T) {
+	root := writeTestModule(t, map[string]string{
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
+		"app/app.go": `package app
+
+//goark:service
+type UserService struct{}
+
+//goark:configuration-properties(prefix="app")
+type Settings struct {
+	Name string
+}
+`,
+	})
+	var stdout, stderr bytes.Buffer
+	command := Command{
+		Dir: root, Out: &stdout, Err: &stderr, Runner: &recordingProcessRunner{},
+		TrustDir: t.TempDir(), ToolCacheDir: t.TempDir(),
+	}
+	if code := command.Run([]string{"info", "--json"}); code != 0 {
+		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
+	}
+	var report infoReport
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("JSON 无效: %v\n%s", err, stdout.String())
+	}
+	if got := report.Generators[0].Packages; got != 1 {
+		t.Fatalf("生成 package 数量 = %d，期望 1", got)
+	}
+}
+
 func TestCommand_whenInfoContainsSecretEnvironment_shouldRedactWithoutSideEffects(t *testing.T) {
 	root := writeTestModule(t, map[string]string{
 		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",

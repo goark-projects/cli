@@ -172,9 +172,23 @@ func (c Command) createInfoReport(project goarkProject, control buildplan.Contro
 			Main: mainTarget, Description: project.Build.Project.Description,
 		},
 		Tools: toolService.Statuses(c.Context), Tasks: taskview.Snapshot(project.Build.Tasks),
-		Generators: []infoGenerator{{Name: "annotations", Patterns: append([]string(nil), project.Build.Generate.Patterns...), Packages: len(generated)}},
-		Profile:    control.Profile, Cache: cache, Plans: plans,
+		Generators: []infoGenerator{{
+			Name:     "annotations",
+			Patterns: append([]string(nil), project.Build.Generate.Patterns...),
+			Packages: generatedPackageCount(generated),
+		}},
+		Profile: control.Profile, Cache: cache, Plans: plans,
 	}, nil
+}
+
+func generatedPackageCount(results []GenerationResult) int {
+	packages := make(map[string]struct{}, len(results))
+	for _, result := range results {
+		if !result.Removed {
+			packages[result.Package] = struct{}{}
+		}
+	}
+	return len(packages)
 }
 
 func readGoMetadata(path string) (infoGo, error) {
