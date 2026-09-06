@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"goark.dev/cli/internal/generate/mvcrouting"
 )
 
 func mvcHTTPMethods(annotation Annotation) ([]string, bool, error) {
@@ -49,7 +51,7 @@ func parseMVCRequestMethods(annotation Annotation, value string) ([]string, erro
 		if method == "" {
 			return nil, annotationError("requires supported http method", annotation.Name)
 		}
-		if !isSupportedMVCRequestMethod(method) {
+		if !mvcrouting.SupportedMethod(method) {
 			return nil, annotationError("requires supported http method", annotation.Name)
 		}
 		if _, exists := seen[method]; exists {
@@ -64,17 +66,11 @@ func parseMVCRequestMethods(annotation Annotation, value string) ([]string, erro
 	return methods, nil
 }
 
-func isSupportedMVCRequestMethod(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions, http.MethodTrace:
-		return true
-	default:
-		return false
-	}
-}
-
 func mvcStatus(annotation Annotation, fallback int) (int, error) {
-	value := firstNonEmpty(argString(annotation, "status", ""), argString(annotation, "statusCode", ""))
+	value := firstNonEmpty(
+		argString(annotation, "status", ""),
+		argString(annotation, "statusCode", ""),
+	)
 	if strings.TrimSpace(value) == "" {
 		return fallback, nil
 	}
@@ -96,7 +92,10 @@ func mvcResponseStatus(annotation Annotation) (int, error) {
 	}
 	if len(namedValues) == 1 {
 		if strings.TrimSpace(value) != "" {
-			return 0, annotationError("accepts either value or named status argument", annotation.Name)
+			return 0, annotationError(
+				"accepts either value or named status argument",
+				annotation.Name,
+			)
 		}
 		value = namedValues[0]
 	}
@@ -136,61 +135,6 @@ func parseMVCStatus(annotation Annotation, label string, value string) (int, err
 	return status, nil
 }
 
-func defaultMVCStatus(methods []string) int {
-	if len(methods) == 1 && methods[0] == http.MethodPost {
-		return http.StatusCreated
-	}
-	return http.StatusOK
-}
-
-func routeConstructor(method string) string {
-	switch method {
-	case http.MethodGet:
-		return "GET"
-	case http.MethodHead:
-		return "HEAD"
-	case http.MethodPost:
-		return "POST"
-	case http.MethodPut:
-		return "PUT"
-	case http.MethodPatch:
-		return "PATCH"
-	case http.MethodDelete:
-		return "DELETE"
-	case http.MethodOptions:
-		return "OPTIONS"
-	case http.MethodTrace:
-		return "TRACE"
-	default:
-		return "Handle"
-	}
-}
-
-func normalizeMVCPath(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" || path == "/" {
-		return "/"
-	}
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	return strings.TrimRight(path, "/")
-}
-
-func normalizeMVCPaths(paths []string) []string {
-	out := make([]string, 0, len(paths))
-	seen := make(map[string]struct{}, len(paths))
-	for _, path := range paths {
-		path = normalizeMVCPath(path)
-		if _, exists := seen[path]; exists {
-			continue
-		}
-		seen[path] = struct{}{}
-		out = append(out, path)
-	}
-	return out
-}
-
 func expandMVCRoutePaths(controller *mvcController, route mvcRoute) ([]mvcRoute, error) {
 	basePaths := controller.BasePaths
 	if len(basePaths) == 0 {
@@ -204,9 +148,13 @@ func expandMVCRoutePaths(controller *mvcController, route mvcRoute) ([]mvcRoute,
 	if len(methods) == 0 {
 		methods = []string{route.HTTPMethod}
 	}
-	methods = combineMVCRequestMethods(controller.Methods, methods, route.HTTPMethodsSet)
+	methods = mvcrouting.CombineMethods(controller.Methods, methods, route.HTTPMethodsSet)
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("mvc route method %s.%s has no HTTP method after controller request-mapping combination", route.ControllerType, route.MethodName)
+		return nil, fmt.Errorf(
+			"mvc route method %s.%s has no HTTP method after controller request-mapping combination",
+			route.ControllerType,
+			route.MethodName,
+		)
 	}
 	out := make([]mvcRoute, 0, len(methods)*len(basePaths)*len(paths))
 	seen := make(map[string]struct{}, len(methods)*len(basePaths)*len(paths))
@@ -216,7 +164,7 @@ func expandMVCRoutePaths(controller *mvcController, route mvcRoute) ([]mvcRoute,
 				next := route
 				next.HTTPMethod = method
 				next.HTTPMethods = nil
-				next.Path = joinMVCPaths(basePath, path)
+				next.Path = mvcrouting.JoinPaths(basePath, path)
 				next.Paths = nil
 				next.ControllerKind = controller.Kind
 				key := next.HTTPMethod + "\x00" + next.Path
@@ -229,40 +177,6 @@ func expandMVCRoutePaths(controller *mvcController, route mvcRoute) ([]mvcRoute,
 		}
 	}
 	return out, nil
-}
-
-func combineMVCRequestMethods(controllerMethods []string, routeMethods []string, routeMethodsSet bool) []string {
-	if len(controllerMethods) == 0 {
-		return routeMethods
-	}
-	if !routeMethodsSet {
-		return append([]string(nil), controllerMethods...)
-	}
-	out := append([]string(nil), routeMethods...)
-	seen := make(map[string]struct{}, len(routeMethods)+len(controllerMethods))
-	for _, method := range routeMethods {
-		seen[method] = struct{}{}
-	}
-	for _, method := range controllerMethods {
-		if _, exists := seen[method]; exists {
-			continue
-		}
-		seen[method] = struct{}{}
-		out = append(out, method)
-	}
-	return out
-}
-
-func joinMVCPaths(base string, path string) string {
-	base = normalizeMVCPath(base)
-	path = normalizeMVCPath(path)
-	if base == "/" {
-		return path
-	}
-	if path == "/" {
-		return base
-	}
-	return base + path
 }
 
 func isArkWebContextExpr(file *ast.File, expr ast.Expr) bool {
@@ -314,7 +228,12 @@ func isGoarkWebDownloadResultExpr(file *ast.File, expr ast.Expr) bool {
 	return isImportedSelectorExpr(file, expr, goarkWebImportPath, "DownloadResult")
 }
 
-func isImportedSelectorExpr(file *ast.File, expr ast.Expr, importPath string, selectorName string) bool {
+func isImportedSelectorExpr(
+	file *ast.File,
+	expr ast.Expr,
+	importPath string,
+	selectorName string,
+) bool {
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != selectorName {
 		return false
