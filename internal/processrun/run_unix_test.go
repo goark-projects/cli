@@ -1,6 +1,6 @@
 //go:build !windows
 
-package cli
+package processrun
 
 import (
 	"errors"
@@ -26,7 +26,7 @@ func TestOSProcessRunner_whenParentReceivesInterrupt_shouldForwardSignalToChild(
 	result := make(chan error, 1)
 	output := &readinessWriter{ready: make(chan struct{})}
 	go func() {
-		result <- osProcessRunner{}.Run(ProcessRequest{
+		result <- OSRunner{}.Run(Request{
 			Name: "sh",
 			Args: []string{"-c", `trap 'exit 23' INT; echo ready; while :; do sleep 1; done`},
 			Out:  output,

@@ -10,8 +10,15 @@ import (
 	"strings"
 	"syscall"
 
+	"goark.dev/cli/internal/processrun"
 	"goark.dev/cli/internal/version"
 )
+
+type ProcessRequest = processrun.Request
+
+type ProcessRunner = processrun.Runner
+
+type osProcessRunner = processrun.OSRunner
 
 // Command 封装命令执行所需的输入参数与输出边界。
 type Command struct {
@@ -155,7 +162,7 @@ func (c Command) runGo(args []string) int {
 			return code
 		}
 	}
-	if code, ok := signaledProcessExitCode(err); ok {
+	if code, ok := processrun.ExitCode(err); ok {
 		return code
 	}
 	_, _ = fmt.Fprintf(c.Err, "启动 go 失败: %v\n", err)

@@ -1,6 +1,6 @@
 //go:build !windows
 
-package cli
+package processrun
 
 import (
 	"os/exec"
@@ -9,7 +9,7 @@ import (
 
 func TestSignaledProcessExitCode_whenChildReceivesTerm_shouldReturnShellExitCode(t *testing.T) {
 	err := exec.Command("sh", "-c", "kill -TERM $$").Run()
-	code, ok := signaledProcessExitCode(err)
+	code, ok := ExitCode(err)
 	if !ok || code != 143 {
 		t.Fatalf("信号退出码 = %d, %v, error=%v", code, ok, err)
 	}
