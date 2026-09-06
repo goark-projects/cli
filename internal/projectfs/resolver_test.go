@@ -17,8 +17,12 @@ func TestResolverResolve_whenPathIsInsideProject_shouldReturnCanonicalPath(t *te
 	if err != nil {
 		t.Fatalf("解析项目路径失败: %v", err)
 	}
-	if resolved != path {
-		t.Fatalf("路径 = %q, want %q", resolved, path)
+	want, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("解析预期路径失败: %v", err)
+	}
+	if resolved != want {
+		t.Fatalf("路径 = %q, want %q", resolved, want)
 	}
 }
 
@@ -28,7 +32,11 @@ func TestResolverResolve_whenMissingOutputIsInsideProject_shouldResolveExistingP
 	if err != nil {
 		t.Fatalf("解析输出路径失败: %v", err)
 	}
-	want := filepath.Join(root, "build", "output", "app")
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("解析预期根目录失败: %v", err)
+	}
+	want := filepath.Join(canonicalRoot, "build", "output", "app")
 	if resolved != want {
 		t.Fatalf("路径 = %q, want %q", resolved, want)
 	}

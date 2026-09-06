@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -58,6 +59,11 @@ type taskExecution struct {
 
 // New 创建任务运行器。
 func New(options Options) *Runner {
+	if root, err := filepath.Abs(options.Root); err == nil {
+		if canonical, canonicalErr := filepath.EvalSymlinks(root); canonicalErr == nil {
+			options.Root = filepath.Clean(canonical)
+		}
+	}
 	if options.Process == nil {
 		options.Process = processrun.OSRunner{}
 	}

@@ -124,6 +124,10 @@ func (r projectResolver) resolveModule() (goModule, error) {
 	if err != nil {
 		return goModule{}, fmt.Errorf("解析当前目录失败: %w", err)
 	}
+	currentDir, err = filepath.EvalSymlinks(currentDir)
+	if err != nil {
+		return goModule{}, fmt.Errorf("解析当前目录符号链接失败: %w", err)
+	}
 	decoder := json.NewDecoder(&output)
 	var selected goModule
 	for {
@@ -136,6 +140,10 @@ func (r projectResolver) resolveModule() (goModule, error) {
 		}
 		if strings.TrimSpace(module.Path) == "" || strings.TrimSpace(module.Dir) == "" || strings.TrimSpace(module.GoMod) == "" {
 			continue
+		}
+		module.Dir, err = filepath.EvalSymlinks(module.Dir)
+		if err != nil {
+			return goModule{}, fmt.Errorf("解析模块目录符号链接失败: %w", err)
 		}
 		module.Dir = filepath.Clean(module.Dir)
 		if !pathWithin(module.Dir, currentDir) {

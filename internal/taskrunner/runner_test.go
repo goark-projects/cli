@@ -45,6 +45,10 @@ func (r *recordingRunner) Run(request processrun.Request) error {
 
 func TestRunnerRun_whenExecTaskProvided_shouldExpandAndExecute(t *testing.T) {
 	root := t.TempDir()
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("解析项目根目录失败: %v", err)
+	}
 	process := &recordingRunner{}
 	var output bytes.Buffer
 	runner := New(Options{
@@ -67,8 +71,8 @@ func TestRunnerRun_whenExecTaskProvided_shouldExpandAndExecute(t *testing.T) {
 		t.Fatalf("进程数量 = %d", len(process.requests))
 	}
 	request := process.requests[0]
-	wantArgs := []string{"--root", root, "resource/config.toml", "build/demo"}
-	if request.Name != filepath.Join(root, "tool") || request.Dir != root || !reflect.DeepEqual(request.Args, wantArgs) {
+	wantArgs := []string{"--root", canonicalRoot, "resource/config.toml", "build/demo"}
+	if request.Name != filepath.Join(root, "tool") || request.Dir != canonicalRoot || !reflect.DeepEqual(request.Args, wantArgs) {
 		t.Fatalf("进程请求 = %#v", request)
 	}
 	if !containsEnvironment(request.Env, "TASK_NAME=demo") {
@@ -116,7 +120,11 @@ func TestRunnerRun_whenWorkingDirectoryUsesEnvironmentVariable_shouldValidateExp
 	if err := runner.Run(context.Background(), "working-directory", task); err != nil {
 		t.Fatalf("执行任务失败: %v", err)
 	}
-	if len(process.requests) != 1 || process.requests[0].Dir != workingDirectory {
+	canonicalWorkingDirectory, err := filepath.EvalSymlinks(workingDirectory)
+	if err != nil {
+		t.Fatalf("解析工作目录失败: %v", err)
+	}
+	if len(process.requests) != 1 || process.requests[0].Dir != canonicalWorkingDirectory {
 		t.Fatalf("工作目录 = %#v", process.requests)
 	}
 }
