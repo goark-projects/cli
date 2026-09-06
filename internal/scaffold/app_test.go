@@ -58,7 +58,6 @@ func TestCreateApp_whenWebDisabled_shouldWriteBootApplicationSkeleton(t *testing
 		t.Fatalf("app scaffold should not generate static resources: %v", statErr)
 	}
 
-	writeLocalReplaces(t, dir)
 	assertGeneratedAppBuilds(t, dir)
 }
 
@@ -121,7 +120,6 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		}
 	}
 
-	writeLocalReplaces(t, dir)
 	assertGeneratedAppBuilds(t, dir)
 }
 
@@ -240,16 +238,21 @@ replace goark.dev/goark => ` + filepath.ToSlash(filepath.Join(root, "goark")) + 
 
 func assertGeneratedAppBuilds(t *testing.T, dir string) {
 	t.Helper()
-
-	for _, args := range [][]string{{"mod", "tidy"}, {"test", "./..."}} {
-		cmd := exec.Command("go", args...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=", "GOTOOLCHAIN=local")
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("generated app command go %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
+	t.Run("本地集成编译", func(t *testing.T) {
+		if os.Getenv("GOARK_INTEGRATION_TESTS") != "1" {
+			t.Skip("设置 GOARK_INTEGRATION_TESTS=1 后执行本地兄弟仓库集成编译")
 		}
-	}
+		writeLocalReplaces(t, dir)
+		for _, args := range [][]string{{"mod", "tidy"}, {"test", "./..."}} {
+			cmd := exec.Command("go", args...)
+			cmd.Dir = dir
+			cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=", "GOTOOLCHAIN=local")
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("generated app command go %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
+			}
+		}
+	})
 }
 
 func projectRoot(t *testing.T) string {

@@ -1345,11 +1345,15 @@ func NewMapper() {}
 
 func assertGeneratedPackageBuilds(t *testing.T, dir string, generated []byte) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, "zz_goark_app_gen.go"), generated, 0o644); err != nil {
-		t.Fatalf("write generated source failed: %v", err)
-	}
-	goarkRoot := filepath.ToSlash(filepath.Clean(filepath.Join(projectRoot(t), "..", "goark")))
-	mod := fmt.Sprintf(`module example.com/goark-generated-test
+	t.Run("本地集成编译", func(t *testing.T) {
+		if os.Getenv("GOARK_INTEGRATION_TESTS") != "1" {
+			t.Skip("设置 GOARK_INTEGRATION_TESTS=1 后执行本地兄弟仓库集成编译")
+		}
+		if err := os.WriteFile(filepath.Join(dir, "zz_goark_app_gen.go"), generated, 0o644); err != nil {
+			t.Fatalf("write generated source failed: %v", err)
+		}
+		goarkRoot := filepath.ToSlash(filepath.Clean(filepath.Join(projectRoot(t), "..", "goark")))
+		mod := fmt.Sprintf(`module example.com/goark-generated-test
 
 go 1.25
 
@@ -1357,16 +1361,17 @@ require goark.dev/goark v0.0.0
 
 replace goark.dev/goark => %s
 `, goarkRoot)
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
-		t.Fatalf("write generated test module failed: %v", err)
-	}
-	cmd := exec.Command("go", "test", "-mod=mod", ".")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("generated package should compile: %v\n%s", err, string(output))
-	}
+		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
+			t.Fatalf("write generated test module failed: %v", err)
+		}
+		cmd := exec.Command("go", "test", "-mod=mod", ".")
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("generated package should compile: %v\n%s", err, string(output))
+		}
+	})
 }
 
 func projectRoot(t *testing.T) string {
