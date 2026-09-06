@@ -46,7 +46,7 @@ Each release publishes the following archives:
 ## Release Pipeline
 
 1. Complete feature, test, documentation, and changelog changes on `dev`.
-2. Run `GOWORK=off` tests, race detection, vet, workflow validation, and a GoReleaser snapshot.
+2. Run `GOWORK=off` tests, race detection, vet, workflow validation, and a GoReleaser snapshot. In a complete local Goark workspace, also run the suite with `GOARK_INTEGRATION_TESTS=1` to compile generated projects against sibling repositories.
 3. Push `dev` and require the Windows, Ubuntu, macOS, and race jobs to pass.
 4. Fast-forward `main` to the verified `dev` commit.
 5. Create and push an annotated semantic-version tag from that exact commit.
@@ -57,14 +57,21 @@ The release workflow has read-only repository permissions during validation. Onl
 
 ## Installation and Upgrade
 
-Install an exact release for reproducible environments:
+Install or upgrade to the latest release:
+
+```bash
+go install goark.dev/cli/cmd/goark@latest
+goark version
+```
+
+Use an exact release only for reproducible environments or rollback:
 
 ```bash
 go install goark.dev/cli/cmd/goark@v0.0.1
 goark version
 ```
 
-Use the same command with a newer tag to upgrade. To roll back, reinstall the required earlier tag. Project caches and lock files are not silently rewritten by `go install`.
+Project caches and lock files are not silently rewritten by `go install`.
 
 ## Release Records
 

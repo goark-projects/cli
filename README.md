@@ -124,6 +124,8 @@ go vet ./...
 go run ./cmd/goark --help
 ```
 
+In a complete Goark sibling-repository workspace, set `GOARK_INTEGRATION_TESTS=1` to additionally compile generated application and annotation code. These local integration tests do not make framework repositories dependencies of the CLI module or release pipeline.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).

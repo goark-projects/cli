@@ -124,6 +124,8 @@ go vet ./...
 go run ./cmd/goark --help
 ```
 
+在完整的 Goark 兄弟仓库工作区中，可设置 `GOARK_INTEGRATION_TESTS=1`，额外编译脚手架和注解生成代码。这些本地集成测试不会让框架仓库成为 CLI 模块或发布流水线的依赖。
+
 ## 许可证
 
 Apache License 2.0，见 [LICENSE](LICENSE)。

@@ -46,7 +46,7 @@ CLI 版本变化不会自动改变两个文件格式。只有解析契约发生�
 ## 发布流水线
 
 1. 在 `dev` 完成功能、测试、文档和变更日志。
-2. 执行 `GOWORK=off` 测试、竞态检测、vet、工作流校验和 GoReleaser 快照。
+2. 执行 `GOWORK=off` 测试、竞态检测、vet、工作流校验和 GoReleaser 快照。在完整的 Goark 本地工作区中，还需设置 `GOARK_INTEGRATION_TESTS=1` 运行测试，以便针对兄弟仓库编译生成项目。
 3. 推送 `dev`，等待 Windows、Ubuntu、macOS 和 race 任务全部通过。
 4. 将 `main` 快进到已验证的 `dev` 提交。
 5. 从完全相同的提交创建并推送带注释的语义化版本标签。
@@ -57,14 +57,21 @@ CLI 版本变化不会自动改变两个文件格式。只有解析契约发生�
 
 ## 安装、升级与回滚
 
-可复现环境应安装精确版本：
+安装或升级到最新版本：
+
+```bash
+go install goark.dev/cli/cmd/goark@latest
+goark version
+```
+
+只有可复现环境或回滚场景才安装精确版本：
 
 ```bash
 go install goark.dev/cli/cmd/goark@v0.0.1
 goark version
 ```
 
-使用更新标签执行同一命令即可升级。需要回滚时，重新安装指定的旧标签。`go install` 不会静默改写项目缓存和锁文件。
+`go install` 不会静默改写项目缓存和锁文件。
 
 ## 发布记录
 
