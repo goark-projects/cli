@@ -159,7 +159,10 @@ func (p *expressionParser) parsePrimary() (expressionValue, error) {
 		p.consume()
 		return value, nil
 	default:
-		return expressionValue{}, syntaxError(current.position, fmt.Sprintf("意外内容 %q", current.text))
+		return expressionValue{}, syntaxError(
+			current.position,
+			fmt.Sprintf("意外内容 %q", current.text),
+		)
 	}
 }
 
@@ -182,7 +185,12 @@ func (p *expressionParser) resolveIdentifier(current token) (string, error) {
 	return "", syntaxError(current.position, fmt.Sprintf("未知变量 %q", current.text))
 }
 
-func logical(operator token, left expressionValue, right expressionValue, and bool) (expressionValue, error) {
+func logical(
+	operator token,
+	left expressionValue,
+	right expressionValue,
+	and bool,
+) (expressionValue, error) {
 	if left.kind != valueBoolean || right.kind != valueBoolean {
 		return expressionValue{}, syntaxError(operator.position, "逻辑操作符只接受布尔值")
 	}

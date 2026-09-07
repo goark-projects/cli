@@ -38,7 +38,8 @@ func TestCommand_whenTasksRequested_shouldListStableTaskMetadataWithoutProcesses
 	if err := json.Unmarshal(stdout.Bytes(), &tasks); err != nil {
 		t.Fatalf("JSON 无效: %v\n%s", err, stdout.String())
 	}
-	if len(tasks) != 2 || tasks[0].Name != "assets" || tasks[1].Name != "prepare" || tasks[0].DependsOn[0] != "prepare" {
+	if len(tasks) != 2 || tasks[0].Name != "assets" || tasks[1].Name != "prepare" ||
+		tasks[0].DependsOn[0] != "prepare" {
 		t.Fatalf("任务列表错误: %#v", tasks)
 	}
 	if len(runner.requests) != 0 {
@@ -62,7 +63,12 @@ func TestCommand_whenGraphFormatRequested_shouldRenderStableGraph(t *testing.T) 
 	for _, test := range tests {
 		t.Run(test.format, func(t *testing.T) {
 			var stdout bytes.Buffer
-			command := Command{Dir: root, Out: &stdout, Err: io.Discard, Runner: &recordingProcessRunner{}}
+			command := Command{
+				Dir:    root,
+				Out:    &stdout,
+				Err:    io.Discard,
+				Runner: &recordingProcessRunner{},
+			}
 			if code := command.Run([]string{"graph", "--format=" + test.format}); code != 0 {
 				t.Fatalf("退出码 = %d", code)
 			}
@@ -73,7 +79,9 @@ func TestCommand_whenGraphFormatRequested_shouldRenderStableGraph(t *testing.T) 
 	}
 }
 
-func TestCommand_whenTaskDryRunRequested_shouldExecuteDependenciesInOrderWithoutProcesses(t *testing.T) {
+func TestCommand_whenTaskDryRunRequested_shouldExecuteDependenciesInOrderWithoutProcesses(
+	t *testing.T,
+) {
 	root := writeTestModule(t, map[string]string{
 		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
 		"goark.build": taskCommandBuildFile,
@@ -84,7 +92,11 @@ func TestCommand_whenTaskDryRunRequested_shouldExecuteDependenciesInOrderWithout
 	if code := command.Run([]string{"task", "assets", "--goark-dry-run"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	assertOrderedFragments(t, stderr.String(), []string{"would run task prepare", "would run task assets"})
+	assertOrderedFragments(
+		t,
+		stderr.String(),
+		[]string{"would run task prepare", "would run task assets"},
+	)
 	if len(runner.requests) != 0 {
 		t.Fatalf("模拟执行不应启动进程: %#v", runner.requests)
 	}

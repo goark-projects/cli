@@ -66,7 +66,10 @@ func TestCommand_whenGenerateRegistryToFile_shouldWriteFileAndReportToStderr(t *
 	if err != nil {
 		t.Fatalf("read generated registry failed: %v", err)
 	}
-	if !strings.Contains(string(data), "func RegisterConfigurations(app *goark.ApplicationContext) error") {
+	if !strings.Contains(
+		string(data),
+		"func RegisterConfigurations(app *goark.ApplicationContext) error",
+	) {
 		t.Fatalf("unexpected generated registry:\n%s", string(data))
 	}
 }
@@ -97,7 +100,10 @@ func TestCommand_whenGenerateRegistryHelpRequested_shouldReturnSuccess(t *testin
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
-	if !strings.Contains(stdout.String(), "goark codegen registry --package <package> --configuration <type>") {
+	if !strings.Contains(
+		stdout.String(),
+		"goark codegen registry --package <package> --configuration <type>",
+	) {
 		t.Fatalf("expected registry help in stdout, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {

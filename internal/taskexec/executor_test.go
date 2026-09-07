@@ -163,10 +163,14 @@ func TestExecutor_whenContextCanceledBeforeStart_shouldReturnCause(t *testing.T)
 	graph := mustGraph(t, map[string]buildspec.Task{"one": {}})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	executor := Executor{Graph: graph, MaxParallel: 1, Runner: RunnerFunc(func(context.Context, string, buildspec.Task) error {
-		t.Fatal("取消后不应启动任务")
-		return nil
-	})}
+	executor := Executor{
+		Graph:       graph,
+		MaxParallel: 1,
+		Runner: RunnerFunc(func(context.Context, string, buildspec.Task) error {
+			t.Fatal("取消后不应启动任务")
+			return nil
+		}),
+	}
 	if err := executor.Execute(ctx, []string{"one"}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("错误 = %v", err)
 	}

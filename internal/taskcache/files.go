@@ -51,7 +51,10 @@ func collect(root string, patterns []string, requireEach bool) ([]fileDigest, er
 	for _, item := range files {
 		result = append(result, item)
 	}
-	sort.Slice(result, func(left int, right int) bool { return result[left].Path < result[right].Path })
+	sort.Slice(
+		result,
+		func(left int, right int) bool { return result[left].Path < result[right].Path },
+	)
 	return result, nil
 }
 

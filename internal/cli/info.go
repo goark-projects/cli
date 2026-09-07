@@ -81,7 +81,15 @@ func (c Command) runInfo(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	profilePlan, err := buildplan.Create(project.Build, "generate", control, nil, nil, nil, c.environment())
+	profilePlan, err := buildplan.Create(
+		project.Build,
+		"generate",
+		control,
+		nil,
+		nil,
+		nil,
+		c.environment(),
+	)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
@@ -134,7 +142,10 @@ func parseInfoArguments(args []string) (bool, buildplan.Control, error) {
 	return jsonOutput, control, nil
 }
 
-func (c Command) createInfoReport(project goarkProject, control buildplan.Control) (infoReport, error) {
+func (c Command) createInfoReport(
+	project goarkProject,
+	control buildplan.Control,
+) (infoReport, error) {
 	if err := validateProjectTaskGraph(project); err != nil {
 		return infoReport{}, err
 	}
@@ -154,7 +165,15 @@ func (c Command) createInfoReport(project goarkProject, control buildplan.Contro
 	if err != nil {
 		return infoReport{}, err
 	}
-	toolPlan, err := buildplan.Create(project.Build, "tools", control, nil, nil, nil, c.environment())
+	toolPlan, err := buildplan.Create(
+		project.Build,
+		"tools",
+		control,
+		nil,
+		nil,
+		nil,
+		c.environment(),
+	)
 	if err != nil {
 		return infoReport{}, err
 	}
@@ -240,7 +259,12 @@ func inspectCache(root string) (infoCache, error) {
 	return result, nil
 }
 
-func createInfoPlans(project goarkProject, workingDirectory string, environment []string, control buildplan.Control) ([]infoPlan, error) {
+func createInfoPlans(
+	project goarkProject,
+	workingDirectory string,
+	environment []string,
+	control buildplan.Control,
+) ([]infoPlan, error) {
 	commands := []string{"build", "fix", "generate", "install", "list", "run", "test", "vet"}
 	plans := make([]infoPlan, 0, len(commands))
 	for _, name := range commands {
@@ -260,13 +284,20 @@ func createInfoPlans(project goarkProject, workingDirectory string, environment 
 			if err != nil {
 				return nil, err
 			}
-			arguments = composeEnhancedGoArguments(name, applyCommandOutput(name, arguments, plan.Output))
+			arguments = composeEnhancedGoArguments(
+				name,
+				applyCommandOutput(name, arguments, plan.Output),
+			)
 		}
 		plans = append(plans, infoPlan{
 			Command: name, GoArguments: arguments,
 			ApplicationArguments: append([]string{}, plan.ApplicationArguments...),
-			Environment:          buildplan.RedactEnvironment(lifecycleOverrides(project.Build, plan)),
-			Before:               append([]string{}, configuration.Before...), After: append([]string{}, configuration.After...),
+			Environment: buildplan.RedactEnvironment(
+				lifecycleOverrides(project.Build, plan),
+			),
+			Before: append(
+				[]string{},
+				configuration.Before...), After: append([]string{}, configuration.After...),
 			Finally: append([]string{}, configuration.Finally...), Output: plan.Output,
 		})
 	}

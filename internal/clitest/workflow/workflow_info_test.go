@@ -18,7 +18,14 @@ func TestCommand_whenInfoRequested_shouldReportProjectAndGenerationPlan(t *testi
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	runner := &recordingProcessRunner{}
-	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: runner, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
+	command := Command{
+		Dir:          root,
+		Out:          &stdout,
+		Err:          &stderr,
+		Runner:       runner,
+		TrustDir:     t.TempDir(),
+		ToolCacheDir: t.TempDir(),
+	}
 
 	if code := command.Run([]string{"info"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
@@ -38,7 +45,14 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	runner := &recordingProcessRunner{}
-	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: runner, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
+	command := Command{
+		Dir:          root,
+		Out:          &stdout,
+		Err:          &stderr,
+		Runner:       runner,
+		TrustDir:     t.TempDir(),
+		ToolCacheDir: t.TempDir(),
+	}
 
 	if code := command.Run([]string{"info", "--json"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
@@ -66,20 +80,27 @@ func TestCommand_whenInfoJSONRequested_shouldReportMachineReadableDiagnostics(t 
 	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
 		t.Fatalf("JSON 无效: %v\n%s", err, stdout.String())
 	}
-	if info.CLIVersion != "devel" || info.Project.Module != "example.com/app" || info.Project.Main != "./cmd/server" || info.Profile != "" {
+	if info.CLIVersion != "devel" || info.Project.Module != "example.com/app" ||
+		info.Project.Main != "./cmd/server" ||
+		info.Profile != "" {
 		t.Fatalf("诊断信息错误: %#v", info)
 	}
-	if len(info.Generators) != 1 || info.Generators[0].Packages != 1 || len(info.Generators[0].Patterns) != 1 || info.Generators[0].Patterns[0] != "./..." {
+	if len(info.Generators) != 1 || info.Generators[0].Packages != 1 ||
+		len(info.Generators[0].Patterns) != 1 ||
+		info.Generators[0].Patterns[0] != "./..." {
 		t.Fatalf("生成信息错误: %#v", info.Generators)
 	}
 	if len(info.Plans) != 8 || info.Plans[0].Command != "build" {
 		t.Fatalf("执行计划错误: %#v", info.Plans)
 	}
 	for _, plan := range info.Plans {
-		if plan.GoArguments == nil || plan.ApplicationArguments == nil || plan.Before == nil || plan.After == nil || plan.Finally == nil {
+		if plan.GoArguments == nil || plan.ApplicationArguments == nil || plan.Before == nil ||
+			plan.After == nil ||
+			plan.Finally == nil {
 			t.Fatalf("执行计划数组必须稳定输出为空数组而不是 null: %#v", plan)
 		}
-		if plan.Command == "run" && !reflect.DeepEqual(plan.GoArguments, []string{"run", "./cmd/server"}) {
+		if plan.Command == "run" &&
+			!reflect.DeepEqual(plan.GoArguments, []string{"run", "./cmd/server"}) {
 			t.Fatalf("run 最终执行计划错误: %#v", plan.GoArguments)
 		}
 	}
@@ -129,15 +150,19 @@ func TestCommand_whenInfoContainsSecretEnvironment_shouldRedactWithoutSideEffect
 	var stderr bytes.Buffer
 	command := Command{
 		Dir: root, Out: &stdout, Err: &stderr, Runner: runner,
-		Env: []string{"UNDECLARED_PROCESS_VALUE=must-not-appear"}, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir(),
+		Env: []string{
+			"UNDECLARED_PROCESS_VALUE=must-not-appear",
+		}, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir(),
 	}
 	if code := command.Run([]string{"info", "--json"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	if strings.Contains(stdout.String(), "top-secret-value") || !strings.Contains(stdout.String(), `"API_TOKEN":"******"`) {
+	if strings.Contains(stdout.String(), "top-secret-value") ||
+		!strings.Contains(stdout.String(), `"API_TOKEN":"******"`) {
 		t.Fatalf("info 密钥脱敏错误: %s", stdout.String())
 	}
-	if strings.Contains(stdout.String(), "UNDECLARED_PROCESS_VALUE") || strings.Contains(stdout.String(), "must-not-appear") {
+	if strings.Contains(stdout.String(), "UNDECLARED_PROCESS_VALUE") ||
+		strings.Contains(stdout.String(), "must-not-appear") {
 		t.Fatalf("info 不应输出未声明的进程环境: %s", stdout.String())
 	}
 	if len(runner.requests) != 0 {
@@ -163,7 +188,14 @@ API_TOKEN = "profile-secret"
 	})
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	command := Command{Dir: root, Out: &stdout, Err: &stderr, Runner: &recordingProcessRunner{}, TrustDir: t.TempDir(), ToolCacheDir: t.TempDir()}
+	command := Command{
+		Dir:          root,
+		Out:          &stdout,
+		Err:          &stderr,
+		Runner:       &recordingProcessRunner{},
+		TrustDir:     t.TempDir(),
+		ToolCacheDir: t.TempDir(),
+	}
 
 	if code := command.Run([]string{"info", "--goark-profile=dev", "--json"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())

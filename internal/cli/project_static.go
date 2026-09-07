@@ -44,7 +44,11 @@ func (r projectResolver) resolveModuleStatic() (goModule, error) {
 	}
 }
 
-func (r projectResolver) listPackagesStatic(root string, modulePath string, patterns []string) ([]goPackage, error) {
+func (r projectResolver) listPackagesStatic(
+	root string,
+	modulePath string,
+	patterns []string,
+) ([]goPackage, error) {
 	buildContext := build.Default
 	buildContext.BuildTags = buildTags(r.BuildFlags)
 	if value := environmentValue(r.Env, "GOOS"); value != "" {
@@ -95,19 +99,25 @@ func (r projectResolver) listPackagesStatic(root string, modulePath string, patt
 		}
 		packages = append(packages, goPackage{
 			Dir: directory, ImportPath: importPath, Name: item.Name,
-			GoFiles: append([]string(nil), item.GoFiles...), CgoFiles: append([]string(nil), item.CgoFiles...),
+			GoFiles: append(
+				[]string(nil),
+				item.GoFiles...), CgoFiles: append([]string(nil), item.CgoFiles...),
 		})
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("静态发现 Go package 失败: %w", err)
 	}
-	sort.Slice(packages, func(i, j int) bool { return packages[i].ImportPath < packages[j].ImportPath })
+	sort.Slice(
+		packages,
+		func(i, j int) bool { return packages[i].ImportPath < packages[j].ImportPath },
+	)
 	return packages, nil
 }
 
 func shouldSkipPackageDirectory(name string) bool {
-	return name == "vendor" || name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")
+	return name == "vendor" || name == "testdata" || strings.HasPrefix(name, ".") ||
+		strings.HasPrefix(name, "_")
 }
 
 func matchesAnyPackagePattern(packagePath string, patterns []string) bool {

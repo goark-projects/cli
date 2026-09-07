@@ -15,9 +15,14 @@ func TestFingerprint_whenDeclaredInputChanges_shouldChange(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "input/source.go", "package input\n")
 	context := Context{
-		Root:        root,
-		TaskName:    "generate",
-		Task:        buildspec.Task{Type: buildspec.TaskTypeExec, Inputs: []string{"input/**/*.go"}, Outputs: []string{"output/*.go"}, EnvironmentInputs: []string{"CONFIG"}},
+		Root:     root,
+		TaskName: "generate",
+		Task: buildspec.Task{
+			Type:              buildspec.TaskTypeExec,
+			Inputs:            []string{"input/**/*.go"},
+			Outputs:           []string{"output/*.go"},
+			EnvironmentInputs: []string{"CONFIG"},
+		},
 		Tool:        &toollock.Entry{Name: "generator", SHA256: strings.Repeat("a", 64)},
 		GoVersion:   "go1.27.0",
 		GOOS:        "linux",
@@ -126,7 +131,12 @@ func TestStoreLookup_whenManifestIsCorrupted_shouldMissWithoutFailingTask(t *tes
 	if err != nil {
 		t.Fatalf("计算缓存指纹失败: %v", err)
 	}
-	writeFile(t, root, filepath.ToSlash(filepath.Join(".goark", "cache", "tasks", "copy", fingerprint+".json")), "{broken")
+	writeFile(
+		t,
+		root,
+		filepath.ToSlash(filepath.Join(".goark", "cache", "tasks", "copy", fingerprint+".json")),
+		"{broken",
+	)
 
 	hit, err := store.Lookup(context)
 	if err != nil {

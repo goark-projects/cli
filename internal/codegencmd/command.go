@@ -59,7 +59,11 @@ func runConfiguration(args []string, out io.Writer, errOut io.Writer) int {
 	flags.IntVar(&spec.Order, "order", 0, "配置排序值")
 	flags.StringVar(&output, "output", "", "输出文件路径，留空时输出到 stdout")
 	flags.Var(&imports, "import", "额外导入，格式为 path 或 alias=path，可重复")
-	flags.Var(&beans, "bean", "Bean 注册项，格式为 name=provider[;deps=a,b][;scope=prototype][;lazy][;primary]，可重复")
+	flags.Var(
+		&beans,
+		"bean",
+		"Bean 注册项，格式为 name=provider[;deps=a,b][;scope=prototype][;lazy][;primary]，可重复",
+	)
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -126,7 +130,11 @@ func runRegistry(args []string, out io.Writer, errOut io.Writer) int {
 	flags.StringVar(&spec.FunctionName, "function", "", "注册函数名，默认 RegisterConfigurations")
 	flags.StringVar(&output, "output", "", "输出文件路径，留空时输出到 stdout")
 	flags.Var(&imports, "import", "额外导入，格式为 path 或 alias=path，可重复")
-	flags.Var(&configurations, "configuration", "配置类型表达式，例如 AdminConfiguration 或 cfg.AdminConfiguration，可重复")
+	flags.Var(
+		&configurations,
+		"configuration",
+		"配置类型表达式，例如 AdminConfiguration 或 cfg.AdminConfiguration，可重复",
+	)
 
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {

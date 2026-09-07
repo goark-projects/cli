@@ -21,7 +21,8 @@ func Read(root string) (File, error) {
 	if err != nil {
 		return File{}, fmt.Errorf("读取 %s 失败: %w", buildspec.LockFileName, err)
 	}
-	if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) || !utf8.Valid(data) || bytes.ContainsRune(data, '\r') {
+	if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) || !utf8.Valid(data) ||
+		bytes.ContainsRune(data, '\r') {
 		return File{}, fmt.Errorf("%s 必须使用 UTF-8 无 BOM、LF", buildspec.LockFileName)
 	}
 	var file File

@@ -85,7 +85,8 @@ func (s Store) Verify(root string, digest string) error {
 	if err != nil {
 		return fmt.Errorf("项目不受信任: %w", err)
 	}
-	if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) || bytes.ContainsRune(data, '\r') || !utf8.Valid(data) {
+	if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) || bytes.ContainsRune(data, '\r') ||
+		!utf8.Valid(data) {
 		return fmt.Errorf("项目不受信任: 信任记录编码无效")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -97,7 +98,8 @@ func (s Store) Verify(root string, digest string) error {
 	if err := ensureJSONEnd(decoder); err != nil {
 		return fmt.Errorf("项目不受信任: %w", err)
 	}
-	if stored.Version != currentVersion || !sameRoot(stored.Root, canonical) || stored.BuildSHA256 != digest {
+	if stored.Version != currentVersion || !sameRoot(stored.Root, canonical) ||
+		stored.BuildSHA256 != digest {
 		return fmt.Errorf("项目不受信任: 根路径或 goark.build 摘要不匹配")
 	}
 	return nil

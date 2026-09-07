@@ -13,7 +13,10 @@ func RedactArguments(arguments []string, environment map[string]string) []string
 			secretValues = append(secretValues, value)
 		}
 	}
-	sort.Slice(secretValues, func(i, j int) bool { return len(secretValues[i]) > len(secretValues[j]) })
+	sort.Slice(
+		secretValues,
+		func(i, j int) bool { return len(secretValues[i]) > len(secretValues[j]) },
+	)
 	result := make([]string, len(arguments))
 	for index, argument := range arguments {
 		argument = redactAssignment(argument)

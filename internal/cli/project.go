@@ -65,7 +65,11 @@ func (r projectResolver) Resolve() (goarkProject, error) {
 		return goarkProject{}, err
 	}
 	if r.MetadataOnly {
-		return goarkProject{Root: filepath.Clean(module.Dir), ModulePath: module.Path, Build: document}, nil
+		return goarkProject{
+			Root:       filepath.Clean(module.Dir),
+			ModulePath: module.Path,
+			Build:      document,
+		}, nil
 	}
 	patterns := append([]string(nil), document.Generate.Patterns...)
 	if len(r.Patterns) > 0 {
@@ -139,7 +143,8 @@ func (r projectResolver) resolveModule() (goModule, error) {
 			}
 			return goModule{}, fmt.Errorf("解析 go list -m 输出失败: %w", err)
 		}
-		if strings.TrimSpace(module.Path) == "" || strings.TrimSpace(module.Dir) == "" || strings.TrimSpace(module.GoMod) == "" {
+		if strings.TrimSpace(module.Path) == "" || strings.TrimSpace(module.Dir) == "" ||
+			strings.TrimSpace(module.GoMod) == "" {
 			continue
 		}
 		module.Dir, err = filepath.EvalSymlinks(module.Dir)
@@ -282,7 +287,8 @@ func commandFailure(action string, err error, diagnostic string) error {
 
 func pathWithin(root string, target string) bool {
 	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(target))
-	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+	return err == nil && relative != ".." &&
+		!strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func validateLocalProjectPattern(value string) error {
@@ -296,7 +302,8 @@ func validateLocalProjectPattern(value string) error {
 	}
 	cleanedPath := filepath.Clean(value)
 	cleaned := filepath.ToSlash(cleanedPath)
-	if cleaned == ".." || strings.HasPrefix(cleaned, "../") || filepath.IsAbs(value) || filepath.IsAbs(cleanedPath) {
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") || filepath.IsAbs(value) ||
+		filepath.IsAbs(cleanedPath) {
 		return fmt.Errorf("路径 %q 不能位于项目外", value)
 	}
 	return nil

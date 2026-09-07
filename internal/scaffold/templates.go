@@ -8,13 +8,17 @@ func appFiles(spec appSpec) []fileSpec {
 		{path: "goark.build", content: goarkBuildTemplate(spec)},
 	}
 	if spec.projectType == ProjectTypeApp {
-		return append(files,
+		return append(
+			files,
 			fileSpec{path: "README.md", content: applicationReadmeTemplate(spec)},
 			fileSpec{path: "go.mod", content: applicationGoModTemplate(spec)},
 			fileSpec{path: "resource/app.yml", content: applicationConfigTemplate(spec)},
 			fileSpec{path: "cmd/app/main.go", content: minimalMainTemplate()},
 			fileSpec{path: "cmd/app/goark.go", content: applicationGoarkTemplate(spec)},
-			fileSpec{path: "internal/app/configuration.go", content: applicationConfigurationTemplate(spec)},
+			fileSpec{
+				path:    "internal/app/configuration.go",
+				content: applicationConfigurationTemplate(spec),
+			},
 		)
 	}
 	return append(files,

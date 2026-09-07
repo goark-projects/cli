@@ -21,7 +21,11 @@ func run(ctx context.Context, command *exec.Cmd) error {
 	if err := command.Start(); err != nil {
 		return err
 	}
-	process, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(command.Process.Pid))
+	process, err := windows.OpenProcess(
+		windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE,
+		false,
+		uint32(command.Process.Pid),
+	)
 	if err != nil {
 		_ = command.Process.Kill()
 		_ = command.Wait()

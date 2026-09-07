@@ -34,7 +34,10 @@ func (c Command) runDoctor(args []string) int {
 		checks = append(checks, doctorCheck{Name: "task graph", Passed: true, Detail: fmt.Sprintf("%d tasks", len(project.Build.Tasks))})
 	}
 	goVersion := c.captureGoVersion()
-	checks = append(checks, doctorCheck{Name: "go toolchain", Passed: goVersion != "unavailable", Detail: goVersion})
+	checks = append(
+		checks,
+		doctorCheck{Name: "go toolchain", Passed: goVersion != "unavailable", Detail: goVersion},
+	)
 	service, serviceErr := c.projectToolService()
 	if serviceErr != nil {
 		checks = append(checks, doctorCheck{Name: "tools", Detail: serviceErr.Error()})

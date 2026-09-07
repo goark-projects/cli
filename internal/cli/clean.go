@@ -27,7 +27,9 @@ func (c Command) runClean(args []string) int {
 		return 2
 	}
 	clean := func() int {
-		removed, err := (projectclean.Cleaner{Root: project.Root, Document: project.Build}).Run(dryRun)
+		removed, err := (projectclean.Cleaner{Root: project.Root, Document: project.Build}).Run(
+			dryRun,
+		)
 		if err != nil {
 			_, _ = fmt.Fprintln(c.Err, err)
 			return 1

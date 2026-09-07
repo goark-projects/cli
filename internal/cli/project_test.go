@@ -9,7 +9,9 @@ import (
 	"testing"
 )
 
-func TestProjectResolver_whenContextCanceled_shouldPropagateCancellationToGoDiscovery(t *testing.T) {
+func TestProjectResolver_whenContextCanceled_shouldPropagateCancellationToGoDiscovery(
+	t *testing.T,
+) {
 	runner := &recordingProcessRunner{err: context.Canceled}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -93,7 +95,9 @@ func TestProjectResolver_whenCurrentPackageIsMain_shouldPreferCurrentDirectory(t
 	}
 }
 
-func TestGoarkProject_whenWorkingDirectoryUsesPathAlias_shouldPreferCurrentMainPackage(t *testing.T) {
+func TestGoarkProject_whenWorkingDirectoryUsesPathAlias_shouldPreferCurrentMainPackage(
+	t *testing.T,
+) {
 	parent := t.TempDir()
 	root := filepath.Join(parent, "project")
 	alias := filepath.Join(parent, "alias")
@@ -131,7 +135,8 @@ func TestProjectResolver_whenMultipleCommandsExist_shouldRequireExplicitTarget(t
 		t.Fatalf("发现项目失败: %v", err)
 	}
 	_, err = project.ResolveRunTarget(root)
-	if err == nil || !strings.Contains(err.Error(), "./cmd/admin") || !strings.Contains(err.Error(), "./cmd/worker") {
+	if err == nil || !strings.Contains(err.Error(), "./cmd/admin") ||
+		!strings.Contains(err.Error(), "./cmd/worker") {
 		t.Fatalf("多入口错误不完整: %v", err)
 	}
 }
@@ -170,7 +175,9 @@ type OtherComponent struct{}
 	}
 }
 
-func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingModule(t *testing.T) {
+func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingModule(
+	t *testing.T,
+) {
 	workspace := t.TempDir()
 	first := filepath.Join(workspace, "first")
 	second := filepath.Join(workspace, "second")

@@ -102,7 +102,8 @@ func (c Command) generateAnnotationPackage(
 
 func modulePackagePattern(root string, directory string) (string, error) {
 	relative, err := filepath.Rel(root, directory)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+	if err != nil || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("package 目录必须位于当前 Go 模块内: %s", directory)
 	}
 	if relative == "." {

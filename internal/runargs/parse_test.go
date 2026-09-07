@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
-func TestParseRunArguments_whenGoarkAndApplicationArgumentsMixed_shouldClassifyWithoutReordering(t *testing.T) {
+func TestParseRunArguments_whenGoarkAndApplicationArgumentsMixed_shouldClassifyWithoutReordering(
+	t *testing.T,
+) {
 	plan, err := Parse([]string{
 		"-race",
 		"-tags=dev,integration",
@@ -21,10 +23,16 @@ func TestParseRunArguments_whenGoarkAndApplicationArgumentsMixed_shouldClassifyW
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
 
-	if !reflect.DeepEqual(plan.GoArguments, []string{"-race", "-tags=dev,integration", "./cmd/server"}) {
+	if !reflect.DeepEqual(
+		plan.GoArguments,
+		[]string{"-race", "-tags=dev,integration", "./cmd/server"},
+	) {
 		t.Fatalf("GoArguments = %#v", plan.GoArguments)
 	}
-	if !reflect.DeepEqual(plan.PropertyArguments, []string{"-Dserver.port=9090", "--goark.profiles.active=dev"}) {
+	if !reflect.DeepEqual(
+		plan.PropertyArguments,
+		[]string{"-Dserver.port=9090", "--goark.profiles.active=dev"},
+	) {
 		t.Fatalf("PropertyArguments = %#v", plan.PropertyArguments)
 	}
 	if !reflect.DeepEqual(plan.ApplicationArguments, []string{"--job=sync", "input.json"}) {
@@ -51,7 +59,10 @@ func TestParseRunArguments_whenBuildFlagConsumesValue_shouldKeepTargetBoundary(t
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
-	if !reflect.DeepEqual(plan.GoArguments, []string{"-tags", "dev", "-ldflags", "-s -w", "./cmd/server"}) {
+	if !reflect.DeepEqual(
+		plan.GoArguments,
+		[]string{"-tags", "dev", "-ldflags", "-s -w", "./cmd/server"},
+	) {
 		t.Fatalf("GoArguments = %#v", plan.GoArguments)
 	}
 	if !reflect.DeepEqual(plan.ApplicationArguments, []string{"arg"}) {
@@ -59,8 +70,19 @@ func TestParseRunArguments_whenBuildFlagConsumesValue_shouldKeepTargetBoundary(t
 	}
 }
 
-func TestParseRunArguments_whenCurrentGoBuildFlagsConsumeValues_shouldKeepTargetBoundary(t *testing.T) {
-	flags := []string{"-buildvcs", "true", "-covermode", "atomic", "-coverpkg", "./...", "-pgo", "auto"}
+func TestParseRunArguments_whenCurrentGoBuildFlagsConsumeValues_shouldKeepTargetBoundary(
+	t *testing.T,
+) {
+	flags := []string{
+		"-buildvcs",
+		"true",
+		"-covermode",
+		"atomic",
+		"-coverpkg",
+		"./...",
+		"-pgo",
+		"auto",
+	}
 	plan, err := Parse(append(flags, "./cmd/server", "application-argument"))
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
@@ -89,7 +111,9 @@ func TestParseRunArguments_whenGoFilesProvided_shouldKeepAllGoFilesAsTargets(t *
 	}
 }
 
-func TestComposeRunArguments_whenApplicationUsesGlobalFlagName_shouldNotMoveApplicationArgument(t *testing.T) {
+func TestComposeRunArguments_whenApplicationUsesGlobalFlagName_shouldNotMoveApplicationArgument(
+	t *testing.T,
+) {
 	plan, err := Parse([]string{"./cmd/server", "--", "-C=application-value"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
@@ -101,7 +125,9 @@ func TestComposeRunArguments_whenApplicationUsesGlobalFlagName_shouldNotMoveAppl
 	}
 }
 
-func TestParseRunArguments_whenNoTargetProvided_shouldKeepPropertiesForResolvedTarget(t *testing.T) {
+func TestParseRunArguments_whenNoTargetProvided_shouldKeepPropertiesForResolvedTarget(
+	t *testing.T,
+) {
 	plan, err := Parse([]string{"-Dserver.port=9090", "--feature.enabled=true"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
@@ -109,12 +135,17 @@ func TestParseRunArguments_whenNoTargetProvided_shouldKeepPropertiesForResolvedT
 	if plan.TargetExplicit || len(plan.GoArguments) != 0 {
 		t.Fatalf("不应存在显式目标: %#v", plan)
 	}
-	if !reflect.DeepEqual(plan.PropertyArguments, []string{"-Dserver.port=9090", "--feature.enabled=true"}) {
+	if !reflect.DeepEqual(
+		plan.PropertyArguments,
+		[]string{"-Dserver.port=9090", "--feature.enabled=true"},
+	) {
 		t.Fatalf("PropertyArguments = %#v", plan.PropertyArguments)
 	}
 }
 
-func TestParseRunArguments_whenLongPropertyUsesSeparateValue_shouldNotTreatValueAsTarget(t *testing.T) {
+func TestParseRunArguments_whenLongPropertyUsesSeparateValue_shouldNotTreatValueAsTarget(
+	t *testing.T,
+) {
 	plan, err := Parse([]string{"--server.port", "9090", "--feature.enabled", "true"})
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
@@ -122,17 +153,31 @@ func TestParseRunArguments_whenLongPropertyUsesSeparateValue_shouldNotTreatValue
 	if plan.TargetExplicit {
 		t.Fatalf("属性值不应成为运行目标: %#v", plan)
 	}
-	if !reflect.DeepEqual(plan.PropertyArguments, []string{"--server.port", "9090", "--feature.enabled", "true"}) {
+	if !reflect.DeepEqual(
+		plan.PropertyArguments,
+		[]string{"--server.port", "9090", "--feature.enabled", "true"},
+	) {
 		t.Fatalf("PropertyArguments = %#v", plan.PropertyArguments)
 	}
 }
 
 func TestParseRunArguments_whenControlFlagsProvided_shouldSetExecutionMode(t *testing.T) {
-	plan, err := Parse([]string{"--goark-profile=dev", "--goark-env=PORT=9090", "--goark-offline", "--goark-locked", "--goark-dry-run", "."})
+	plan, err := Parse(
+		[]string{
+			"--goark-profile=dev",
+			"--goark-env=PORT=9090",
+			"--goark-offline",
+			"--goark-locked",
+			"--goark-dry-run",
+			".",
+		},
+	)
 	if err != nil {
 		t.Fatalf("解析 run 参数失败: %v", err)
 	}
-	if plan.Control.Profile != "dev" || !plan.Control.DryRun || !plan.Control.Offline || !plan.Control.Locked || plan.Control.Environment["PORT"] != "9090" {
+	if plan.Control.Profile != "dev" || !plan.Control.DryRun || !plan.Control.Offline ||
+		!plan.Control.Locked ||
+		plan.Control.Environment["PORT"] != "9090" {
 		t.Fatalf("控制参数解析错误: %#v", plan)
 	}
 }

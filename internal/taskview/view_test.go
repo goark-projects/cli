@@ -15,7 +15,9 @@ func TestSnapshot_whenTasksUnordered_shouldReturnCopiedStableOrder(t *testing.T)
 	}
 	snapshot := Snapshot(tasks)
 	tasks["assets"] = buildspec.Task{Type: buildspec.TaskTypeDelete}
-	if len(snapshot) != 2 || snapshot[0].Name != "assets" || snapshot[0].DependsOn[0] != "prepare" || snapshot[1].Name != "prepare" {
+	if len(snapshot) != 2 || snapshot[0].Name != "assets" ||
+		snapshot[0].DependsOn[0] != "prepare" ||
+		snapshot[1].Name != "prepare" {
 		t.Fatalf("任务快照错误: %#v", snapshot)
 	}
 }

@@ -60,7 +60,11 @@ func (r *Runner) workingDirectory(value string) (string, error) {
 	return projectfs.New(r.options.Root).Resolve(value, projectfs.MustExist)
 }
 
-func (r *Runner) cacheContext(name string, task buildspec.Task, environment map[string]string) taskcache.Context {
+func (r *Runner) cacheContext(
+	name string,
+	task buildspec.Task,
+	environment map[string]string,
+) taskcache.Context {
 	upstream := make(map[string]string, len(task.DependsOn))
 	r.mu.Lock()
 	for _, dependency := range task.DependsOn {

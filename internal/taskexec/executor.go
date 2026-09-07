@@ -169,7 +169,11 @@ type taskResult struct {
 	err  error
 }
 
-func (e Executor) runBatch(ctx context.Context, cancel context.CancelFunc, names []string) (map[string]error, taskResult) {
+func (e Executor) runBatch(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	names []string,
+) (map[string]error, taskResult) {
 	results := make(chan taskResult, len(names))
 	for _, name := range names {
 		task, _ := e.Graph.Task(name)

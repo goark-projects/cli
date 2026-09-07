@@ -13,24 +13,24 @@ const CurrentVersion = 1
 
 // File 是 goark.build.lock 的稳定数据模型。
 type File struct {
-	Version     int     `toml:"version" json:"version"`
+	Version     int     `toml:"version"      json:"version"`
 	BuildSHA256 string  `toml:"build-sha256" json:"buildSha256"`
-	Tools       []Entry `toml:"tools" json:"tools"`
+	Tools       []Entry `toml:"tools"        json:"tools"`
 }
 
 // Entry 锁定一个工具在指定平台上的解析结果。
 type Entry struct {
-	Name          string             `toml:"name" json:"name"`
-	Type          buildspec.ToolType `toml:"type" json:"type"`
-	GOOS          string             `toml:"goos" json:"goos"`
-	GOARCH        string             `toml:"goarch" json:"goarch"`
-	Package       string             `toml:"package,omitempty" json:"package,omitempty"`
-	Version       string             `toml:"version,omitempty" json:"version,omitempty"`
-	Module        string             `toml:"module,omitempty" json:"module,omitempty"`
+	Name          string             `toml:"name"                     json:"name"`
+	Type          buildspec.ToolType `toml:"type"                     json:"type"`
+	GOOS          string             `toml:"goos"                     json:"goos"`
+	GOARCH        string             `toml:"goarch"                   json:"goarch"`
+	Package       string             `toml:"package,omitempty"        json:"package,omitempty"`
+	Version       string             `toml:"version,omitempty"        json:"version,omitempty"`
+	Module        string             `toml:"module,omitempty"         json:"module,omitempty"`
 	ModuleVersion string             `toml:"module-version,omitempty" json:"moduleVersion,omitempty"`
-	ModuleSum     string             `toml:"module-sum,omitempty" json:"moduleSum,omitempty"`
-	Path          string             `toml:"path" json:"path"`
-	SHA256        string             `toml:"sha256" json:"sha256"`
+	ModuleSum     string             `toml:"module-sum,omitempty"     json:"moduleSum,omitempty"`
+	Path          string             `toml:"path"                     json:"path"`
+	SHA256        string             `toml:"sha256"                   json:"sha256"`
 }
 
 // VerifyBuild 检查锁文件是否对应当前项目描述文件。
@@ -87,15 +87,26 @@ func validate(file File) error {
 		}
 		switch entry.Type {
 		case buildspec.ToolTypeGo:
-			if entry.Package == "" || entry.Version == "" || entry.Module == "" || entry.ModuleVersion == "" || entry.ModuleSum == "" {
-				return fmt.Errorf("go 工具 %q 必须包含 package、version、module、module-version 和 module-sum", entry.Name)
+			if entry.Package == "" || entry.Version == "" || entry.Module == "" ||
+				entry.ModuleVersion == "" ||
+				entry.ModuleSum == "" {
+				return fmt.Errorf(
+					"go 工具 %q 必须包含 package、version、module、module-version 和 module-sum",
+					entry.Name,
+				)
 			}
 			if !validGoCachePath(entry.Path) {
 				return fmt.Errorf("go 工具 %q 的 path 必须是 Goark 隔离缓存逻辑路径", entry.Name)
 			}
 		case buildspec.ToolTypeSystem, buildspec.ToolTypeLocal:
-			if entry.Package != "" || entry.Version != "" || entry.Module != "" || entry.ModuleVersion != "" || entry.ModuleSum != "" {
-				return fmt.Errorf("%s 工具 %q 不能包含 package、version 或 Go module 元数据", entry.Type, entry.Name)
+			if entry.Package != "" || entry.Version != "" || entry.Module != "" ||
+				entry.ModuleVersion != "" ||
+				entry.ModuleSum != "" {
+				return fmt.Errorf(
+					"%s 工具 %q 不能包含 package、version 或 Go module 元数据",
+					entry.Type,
+					entry.Name,
+				)
 			}
 			if entry.Type == buildspec.ToolTypeSystem && !validSystemPath(entry.Path) {
 				return fmt.Errorf("system 工具 %q 的 path 必须是规范绝对路径", entry.Name)
@@ -115,17 +126,23 @@ func validGoCachePath(value string) bool {
 		return false
 	}
 	parts := strings.Split(value, "/")
-	return len(parts) == 4 && parts[0] == "go" && validDigest(parts[1]) && parts[2] == "bin" && parts[3] != ""
+	return len(parts) == 4 && parts[0] == "go" && validDigest(parts[1]) && parts[2] == "bin" &&
+		parts[3] != ""
 }
 
 func validLocalPath(value string) bool {
-	return value != "" && value != "." && !strings.Contains(value, "\\") && !portableAbsolutePath(value) &&
-		path.Clean(value) == value && !containsParentSegment(value)
+	return value != "" && value != "." && !strings.Contains(value, "\\") &&
+		!portableAbsolutePath(value) &&
+		path.Clean(value) == value &&
+		!containsParentSegment(value)
 }
 
 func validSystemPath(value string) bool {
 	return value != "" && !strings.Contains(value, "\\") && portableAbsolutePath(value) &&
-		!strings.HasSuffix(value, "/") && canonicalSystemPath(value) && !containsParentSegment(value)
+		!strings.HasSuffix(
+			value,
+			"/",
+		) && canonicalSystemPath(value) && !containsParentSegment(value)
 }
 
 func canonicalSystemPath(value string) bool {

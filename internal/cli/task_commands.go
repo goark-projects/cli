@@ -54,7 +54,8 @@ func (c Command) runGraph(args []string) int {
 			return c.graphUsageError(args)
 		}
 		format = taskview.Format(strings.TrimPrefix(args[0], "--format="))
-		if format != taskview.FormatText && format != taskview.FormatJSON && format != taskview.FormatDOT {
+		if format != taskview.FormatText && format != taskview.FormatJSON &&
+			format != taskview.FormatDOT {
 			return c.graphUsageError(args)
 		}
 	}
@@ -75,7 +76,11 @@ func (c Command) runGraph(args []string) int {
 }
 
 func (c Command) graphUsageError(args []string) int {
-	_, _ = fmt.Fprintf(c.Err, "goark graph 仅支持 --format=text、json、dot: %s\n", strings.Join(args, " "))
+	_, _ = fmt.Fprintf(
+		c.Err,
+		"goark graph 仅支持 --format=text、json、dot: %s\n",
+		strings.Join(args, " "),
+	)
 	return 2
 }
 
@@ -137,7 +142,10 @@ func (c Command) printTasksHelp(writer io.Writer) {
 }
 
 func (c Command) printTaskHelp(writer io.Writer) {
-	_, _ = fmt.Fprint(writer, "Usage:\n  goark task <name> [--goark-profile=<name>] [--goark-dry-run]\n")
+	_, _ = fmt.Fprint(
+		writer,
+		"Usage:\n  goark task <name> [--goark-profile=<name>] [--goark-dry-run]\n",
+	)
 }
 
 func (c Command) printGraphHelp(writer io.Writer) {

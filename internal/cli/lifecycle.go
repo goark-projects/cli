@@ -14,7 +14,12 @@ import (
 	"goark.dev/cli/internal/taskexec"
 )
 
-func (c Command) executeEnhancedLifecycle(command string, project goarkProject, plan buildplan.Plan, goArguments []string) int {
+func (c Command) executeEnhancedLifecycle(
+	command string,
+	project goarkProject,
+	plan buildplan.Plan,
+	goArguments []string,
+) int {
 	lifecycle, err := c.prepareLifecycle(project, plan)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
@@ -130,7 +135,11 @@ func (l *preparedLifecycle) finish(code int, finally []string) int {
 
 func (l *preparedLifecycle) runGo(arguments []string) int {
 	if l.plan.Control.DryRun {
-		_, _ = fmt.Fprintf(l.command.Err, "would run: go %s\n", joinArguments(arguments, l.plan.Environment))
+		_, _ = fmt.Fprintf(
+			l.command.Err,
+			"would run: go %s\n",
+			joinArguments(arguments, l.plan.Environment),
+		)
 		return 0
 	}
 	configured := l.command

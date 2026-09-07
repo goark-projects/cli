@@ -11,7 +11,11 @@ import (
 func TestNew_whenGraphIsValid_shouldReturnDeterministicTopologicalClosure(t *testing.T) {
 	graph, err := New(map[string]buildspec.Task{
 		"package": {Type: buildspec.TaskTypeGroup, DependsOn: []string{"test", "generate"}},
-		"test":    {Type: buildspec.TaskTypeGo, Args: []string{"test", "./..."}, DependsOn: []string{"generate"}},
+		"test": {
+			Type:      buildspec.TaskTypeGo,
+			Args:      []string{"test", "./..."},
+			DependsOn: []string{"generate"},
+		},
 		"generate": {
 			Type: buildspec.TaskTypeExec,
 			Tool: "generator",
@@ -89,8 +93,16 @@ func TestNew_whenOutputsMayOverlap_shouldReject(t *testing.T) {
 		{name: "same file", first: "build/app", second: "./build/app"},
 		{name: "parent directory", first: "build", second: "build/app"},
 		{name: "matching glob", first: "generated/**/*.go", second: "generated/app/*.go"},
-		{name: "glob matches fixed path", first: "generated/*/one.go", second: "generated/admin/one.go"},
-		{name: "variable may match static output", first: "${env:OUTPUT}/*.go", second: "generated/*.go"},
+		{
+			name:   "glob matches fixed path",
+			first:  "generated/*/one.go",
+			second: "generated/admin/one.go",
+		},
+		{
+			name:   "variable may match static output",
+			first:  "${env:OUTPUT}/*.go",
+			second: "generated/*.go",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -111,9 +123,21 @@ func TestNew_whenOutputsAreDisjoint_shouldAccept(t *testing.T) {
 		first  string
 		second string
 	}{
-		{name: "different directories", first: "generated/first/*.go", second: "generated/second/*.go"},
-		{name: "different files below wildcard", first: "generated/*/one.go", second: "generated/*/two.go"},
-		{name: "glob excludes fixed path", first: "generated/*/one.go", second: "generated/admin/two.go"},
+		{
+			name:   "different directories",
+			first:  "generated/first/*.go",
+			second: "generated/second/*.go",
+		},
+		{
+			name:   "different files below wildcard",
+			first:  "generated/*/one.go",
+			second: "generated/*/two.go",
+		},
+		{
+			name:   "glob excludes fixed path",
+			first:  "generated/*/one.go",
+			second: "generated/admin/two.go",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

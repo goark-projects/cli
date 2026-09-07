@@ -22,7 +22,10 @@ func TestEvaluate_whenExpressionIsValid_shouldReturnBoolean(t *testing.T) {
 		{expression: "false", want: false},
 		{expression: `profile == "production"`, want: true},
 		{expression: `profile != "dev" && env.FEATURE == "enabled"`, want: true},
-		{expression: `!(goos == "unsupported") && (goarch == "` + runtime.GOARCH + `" || false)`, want: true},
+		{
+			expression: `!(goos == "unsupported") && (goarch == "` + runtime.GOARCH + `" || false)`,
+			want:       true,
+		},
 		{expression: `env.EMPTY == ""`, want: true},
 	}
 	for _, tt := range tests {
@@ -71,7 +74,10 @@ func TestEvaluate_whenWindowsEnvironmentNameUsesDifferentCase_shouldResolve(t *t
 	if runtime.GOOS != "windows" {
 		t.Skip("仅适用于 Windows 环境名语义")
 	}
-	got, err := Evaluate(`env.PATH == "configured"`, Values{Environment: map[string]string{"Path": "configured"}})
+	got, err := Evaluate(
+		`env.PATH == "configured"`,
+		Values{Environment: map[string]string{"Path": "configured"}},
+	)
 	if err != nil || !got {
 		t.Fatalf("条件结果 = %t, err=%v", got, err)
 	}

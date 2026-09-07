@@ -39,7 +39,9 @@ func TestCleanerRun_whenOutputsDeclared_shouldDeleteOnlyOutputsAndCache(t *testi
 func TestCleanerRun_whenDryRunRequested_shouldNotDelete(t *testing.T) {
 	root := t.TempDir()
 	writeCleanerFile(t, root, "build/app", "binary")
-	document := buildspec.Document{Commands: map[string]buildspec.Command{"build": {Output: "build/app"}}}
+	document := buildspec.Document{
+		Commands: map[string]buildspec.Command{"build": {Output: "build/app"}},
+	}
 	removed, err := (Cleaner{Root: root, Document: document}).Run(true)
 	if err != nil || len(removed) != 1 {
 		t.Fatalf("模拟清理 = %#v, err=%v", removed, err)
@@ -60,7 +62,9 @@ func TestCleanerRun_whenOutputSymlinkEscapesProject_shouldReject(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(root, "output")); err != nil {
 		t.Skipf("当前环境无法创建符号链接: %v", err)
 	}
-	document := buildspec.Document{Commands: map[string]buildspec.Command{"build": {Output: "output"}}}
+	document := buildspec.Document{
+		Commands: map[string]buildspec.Command{"build": {Output: "output"}},
+	}
 	_, err := (Cleaner{Root: root, Document: document}).Run(false)
 	if err == nil || !strings.Contains(err.Error(), "符号链接") {
 		t.Fatalf("错误 = %v", err)

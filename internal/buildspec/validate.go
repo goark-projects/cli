@@ -109,7 +109,8 @@ func validateTools(tools map[string]Tool) error {
 			if tool.Package != "" || tool.Version != "" || tool.Path != "" {
 				return fmt.Errorf("系统工具 %q 不能声明 package、version 或 path", name)
 			}
-			if tool.Command == "." || tool.Command == ".." || strings.ContainsAny(tool.Command, `/\:`) {
+			if tool.Command == "." || tool.Command == ".." ||
+				strings.ContainsAny(tool.Command, `/\:`) {
 				return fmt.Errorf("系统工具 %q 的 command 必须是从 PATH 查找的命令名", name)
 			}
 			if tool.Install != "manual" {

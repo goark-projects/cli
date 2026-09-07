@@ -10,9 +10,21 @@ import (
 )
 
 func TestRedactArguments_whenSecretsProvided_shouldPreserveNamesAndHideValues(t *testing.T) {
-	arguments := []string{"build", "-Ddb.password=property-secret", "--token=argument-secret", "plain-secret", "value with spaces"}
+	arguments := []string{
+		"build",
+		"-Ddb.password=property-secret",
+		"--token=argument-secret",
+		"plain-secret",
+		"value with spaces",
+	}
 	environment := map[string]string{"API_TOKEN": "plain-secret"}
-	want := []string{"build", "-Ddb.password=******", "--token=******", "******", "value with spaces"}
+	want := []string{
+		"build",
+		"-Ddb.password=******",
+		"--token=******",
+		"******",
+		"value with spaces",
+	}
 	got := RedactArguments(arguments, environment)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("脱敏参数 = %#v, want %#v", got, want)
@@ -39,26 +51,38 @@ func TestParseControlArguments_whenValid_shouldSeparateWithoutReorderingGoArgume
 	if control.Profile != "production" || !control.Offline || !control.Locked || !control.DryRun {
 		t.Fatalf("控制参数 = %#v", control)
 	}
-	if !reflect.DeepEqual(control.Environment, map[string]string{"PORT": "9090", "TOKEN": "secret"}) {
+	if !reflect.DeepEqual(
+		control.Environment,
+		map[string]string{"PORT": "9090", "TOKEN": "secret"},
+	) {
 		t.Fatalf("控制环境 = %#v", control.Environment)
 	}
 }
 
-func TestParseControlArguments_whenPassthroughStarts_shouldLeaveApplicationArgumentsUntouched(t *testing.T) {
-	remaining, control, err := ParseControlArguments([]string{"./cmd/app", "--", "--goark-profile=application"})
+func TestParseControlArguments_whenPassthroughStarts_shouldLeaveApplicationArgumentsUntouched(
+	t *testing.T,
+) {
+	remaining, control, err := ParseControlArguments(
+		[]string{"./cmd/app", "--", "--goark-profile=application"},
+	)
 	if err != nil {
 		t.Fatalf("解析控制参数失败: %v", err)
 	}
-	if control.Profile != "" || !reflect.DeepEqual(remaining, []string{"./cmd/app", "--", "--goark-profile=application"}) {
+	if control.Profile != "" ||
+		!reflect.DeepEqual(remaining, []string{"./cmd/app", "--", "--goark-profile=application"}) {
 		t.Fatalf("参数被错误解析: remaining=%#v control=%#v", remaining, control)
 	}
 }
 
-func TestParseControlArguments_whenWindowsEnvironmentNamesDifferOnlyByCase_shouldUseLastValue(t *testing.T) {
+func TestParseControlArguments_whenWindowsEnvironmentNamesDifferOnlyByCase_shouldUseLastValue(
+	t *testing.T,
+) {
 	if runtime.GOOS != "windows" {
 		t.Skip("仅适用于 Windows 环境名语义")
 	}
-	_, control, err := ParseControlArguments([]string{"--goark-env=PATH=first", "--goark-env=Path=second"})
+	_, control, err := ParseControlArguments(
+		[]string{"--goark-env=PATH=first", "--goark-env=Path=second"},
+	)
 	if err != nil {
 		t.Fatalf("解析控制参数失败: %v", err)
 	}
@@ -102,16 +126,33 @@ func TestCreate_whenLayersOverlap_shouldUseDefinedPrecedence(t *testing.T) {
 			},
 		},
 	}
-	control := Control{Profile: "production", Environment: map[string]string{"SOURCE": "cli", "CLI": "true"}}
+	control := Control{
+		Profile:     "production",
+		Environment: map[string]string{"SOURCE": "cli", "CLI": "true"},
+	}
 
-	plan, err := Create(document, "build", control, []string{"-tags=cli", "./..."}, nil, []string{"--cli-argument"}, []string{"SOURCE=process", "PROCESS=true"})
+	plan, err := Create(
+		document,
+		"build",
+		control,
+		[]string{"-tags=cli", "./..."},
+		nil,
+		[]string{"--cli-argument"},
+		[]string{"SOURCE=process", "PROCESS=true"},
+	)
 	if err != nil {
 		t.Fatalf("创建执行计划失败: %v", err)
 	}
-	if !reflect.DeepEqual(plan.GoArguments, []string{"-tags=command", "-p=1", "-tags=profile", "-trimpath", "-tags=cli", "./..."}) {
+	if !reflect.DeepEqual(
+		plan.GoArguments,
+		[]string{"-tags=command", "-p=1", "-tags=profile", "-trimpath", "-tags=cli", "./..."},
+	) {
 		t.Fatalf("Go 参数 = %#v", plan.GoArguments)
 	}
-	if !reflect.DeepEqual(plan.ApplicationArguments, []string{"--profile-argument", "--cli-argument"}) {
+	if !reflect.DeepEqual(
+		plan.ApplicationArguments,
+		[]string{"--profile-argument", "--cli-argument"},
+	) {
 		t.Fatalf("应用参数 = %#v", plan.ApplicationArguments)
 	}
 	wantEnvironment := map[string]string{

@@ -66,7 +66,12 @@ func NewManager(root string, cacheDir string, environment map[string]string) Man
 }
 
 // Resolve 校验并解析一个工具。
-func (m Manager) Resolve(ctx context.Context, name string, tool buildspec.Tool, options ResolveOptions) (Resolved, error) {
+func (m Manager) Resolve(
+	ctx context.Context,
+	name string,
+	tool buildspec.Tool,
+	options ResolveOptions,
+) (Resolved, error) {
 	switch tool.Type {
 	case buildspec.ToolTypeSystem:
 		return m.resolveSystem(name, tool)
@@ -100,10 +105,21 @@ func (m Manager) resolveLocal(name string, tool buildspec.Tool) (Resolved, error
 	if err != nil {
 		return Resolved{}, fmt.Errorf("本地工具 %q 无效: %w", name, err)
 	}
-	return m.resolved(name, tool, resolvedPath, filepath.ToSlash(filepath.Clean(tool.Path)), BuildMetadata{})
+	return m.resolved(
+		name,
+		tool,
+		resolvedPath,
+		filepath.ToSlash(filepath.Clean(tool.Path)),
+		BuildMetadata{},
+	)
 }
 
-func (m Manager) resolveGo(ctx context.Context, name string, tool buildspec.Tool, options ResolveOptions) (Resolved, error) {
+func (m Manager) resolveGo(
+	ctx context.Context,
+	name string,
+	tool buildspec.Tool,
+	options ResolveOptions,
+) (Resolved, error) {
 	key := toolCacheKey(tool.Package, tool.Version, m.GOOS, m.GOARCH)
 	logicalPath := path.Join("go", key, "bin", executableName(path.Base(tool.Package)))
 	resolvedPath := filepath.Join(m.CacheDir, filepath.FromSlash(logicalPath))
@@ -142,7 +158,13 @@ func (m Manager) resolveGo(ctx context.Context, name string, tool buildspec.Tool
 	return m.resolved(name, tool, resolvedPath, logicalPath, metadata)
 }
 
-func (m Manager) resolved(name string, tool buildspec.Tool, resolvedPath string, lockPath string, metadata BuildMetadata) (Resolved, error) {
+func (m Manager) resolved(
+	name string,
+	tool buildspec.Tool,
+	resolvedPath string,
+	lockPath string,
+	metadata BuildMetadata,
+) (Resolved, error) {
 	digest, err := digestFile(resolvedPath)
 	if err != nil {
 		return Resolved{}, err
@@ -168,7 +190,8 @@ func Verify(resolved Resolved, locked toollock.Entry) error {
 	actual := resolved.Entry
 	if actual.Name != locked.Name || actual.Type != locked.Type || actual.GOOS != locked.GOOS || actual.GOARCH != locked.GOARCH ||
 		actual.Package != locked.Package || actual.Version != locked.Version || actual.Module != locked.Module ||
-		actual.ModuleVersion != locked.ModuleVersion || actual.ModuleSum != locked.ModuleSum || actual.Path != locked.Path {
+		actual.ModuleVersion != locked.ModuleVersion || actual.ModuleSum != locked.ModuleSum ||
+		actual.Path != locked.Path {
 		return fmt.Errorf("工具 %q 的锁定元数据不一致", resolved.Name)
 	}
 	if actual.SHA256 != locked.SHA256 {
@@ -182,7 +205,11 @@ func readBuildMetadata(file string) (BuildMetadata, error) {
 	if err != nil {
 		return BuildMetadata{}, err
 	}
-	return BuildMetadata{Module: info.Main.Path, Version: info.Main.Version, Sum: info.Main.Sum}, nil
+	return BuildMetadata{
+		Module:  info.Main.Path,
+		Version: info.Main.Version,
+		Sum:     info.Main.Sum,
+	}, nil
 }
 
 func digestFile(file string) (string, error) {

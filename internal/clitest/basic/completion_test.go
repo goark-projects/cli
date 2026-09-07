@@ -26,7 +26,8 @@ func TestCommand_whenCompletionRequested_shouldGenerateSupportedShellScript(t *t
 			if code := command.Run([]string{"completion", test.shell}); code != 0 {
 				t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 			}
-			if !strings.Contains(stdout.String(), test.want) || !strings.Contains(stdout.String(), "generate") {
+			if !strings.Contains(stdout.String(), test.want) ||
+				!strings.Contains(stdout.String(), "generate") {
 				t.Fatalf("%s 补全脚本不完整:\n%s", test.shell, stdout.String())
 			}
 		})

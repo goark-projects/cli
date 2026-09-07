@@ -91,7 +91,13 @@ func TestCommand_whenGlobalGoFlagsProvided_shouldDelegateInOriginalOrder(t *test
 
 func TestCommand_whenEnvironmentProvided_shouldDelegateWithoutModification(t *testing.T) {
 	runner := &recordingProcessRunner{}
-	environment := []string{"GOOS=linux", "GOARCH=arm64", "GOWORK=off", "GOTOOLCHAIN=local", "CUSTOM_VALUE=original"}
+	environment := []string{
+		"GOOS=linux",
+		"GOARCH=arm64",
+		"GOWORK=off",
+		"GOTOOLCHAIN=local",
+		"CUSTOM_VALUE=original",
+	}
 	command := Command{Out: io.Discard, Err: io.Discard, Env: environment, Runner: runner}
 
 	if code := command.Run([]string{"go", "env", "GOOS"}); code != 0 {
@@ -103,7 +109,9 @@ func TestCommand_whenEnvironmentProvided_shouldDelegateWithoutModification(t *te
 	}
 }
 
-func TestCommand_whenEnhancedBuildUsesGlobalDirectoryFlag_shouldPlaceFlagBeforeGoCommand(t *testing.T) {
+func TestCommand_whenEnhancedBuildUsesGlobalDirectoryFlag_shouldPlaceFlagBeforeGoCommand(
+	t *testing.T,
+) {
 	got := composeEnhancedGoArguments("build", []string{"-C", "service", "./..."})
 	want := []string{"-C", "service", "build", "./..."}
 	if !reflect.DeepEqual(got, want) {
@@ -119,12 +127,15 @@ func TestCommand_whenInstallingVersionedPackageOutsideProject_shouldRequireBuild
 	if code := command.Run([]string{"install", "example.com/tool@latest"}); code != 2 {
 		t.Fatalf("退出码 = %d", code)
 	}
-	if len(runner.requests) != 1 || runner.requests[0].Args[0] != "list" || !strings.Contains(stderr.String(), "本地 Go 模块") {
+	if len(runner.requests) != 1 || runner.requests[0].Args[0] != "list" ||
+		!strings.Contains(stderr.String(), "本地 Go 模块") {
 		t.Fatalf("请求 = %#v, stderr=%q", runner.requests, stderr.String())
 	}
 }
 
-func TestCommand_whenEnhancedTestApplicationUsesDirectoryFlag_shouldKeepItAfterArgsBoundary(t *testing.T) {
+func TestCommand_whenEnhancedTestApplicationUsesDirectoryFlag_shouldKeepItAfterArgsBoundary(
+	t *testing.T,
+) {
 	remaining, _, err := parseWorkflowArguments([]string{"./...", "-args", "-C", "test-value"})
 	if err != nil {
 		t.Fatalf("解析参数失败: %v", err)
@@ -136,7 +147,9 @@ func TestCommand_whenEnhancedTestApplicationUsesDirectoryFlag_shouldKeepItAfterA
 	}
 }
 
-func TestCommand_whenEnhancedTestApplicationRequestsHelp_shouldPassThroughAfterArgsBoundary(t *testing.T) {
+func TestCommand_whenEnhancedTestApplicationRequestsHelp_shouldPassThroughAfterArgsBoundary(
+	t *testing.T,
+) {
 	remaining, _, err := parseWorkflowArguments([]string{"./...", "-args", "--help"})
 	if err != nil {
 		t.Fatalf("解析参数失败: %v", err)
@@ -178,7 +191,8 @@ func TestCommand_whenGoProcessCannotStart_shouldReturnOneAndReportCause(t *testi
 	if code := command.Run([]string{"go", "version"}); code != 1 {
 		t.Fatalf("退出码 = %d", code)
 	}
-	if !strings.Contains(stderr.String(), "启动 go 失败") || !strings.Contains(stderr.String(), "executable file not found") {
+	if !strings.Contains(stderr.String(), "启动 go 失败") ||
+		!strings.Contains(stderr.String(), "executable file not found") {
 		t.Fatalf("启动错误不完整: %q", stderr.String())
 	}
 }

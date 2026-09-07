@@ -44,12 +44,21 @@ func Create(
 	goArguments = append(goArguments, profile.GoArgs...)
 	goArguments = append(goArguments, cliGoArguments...)
 
-	applicationArguments := make([]string, 0, len(command.ApplicationArgs)+len(profile.ApplicationArgs)+len(cliApplicationArguments))
+	applicationArguments := make(
+		[]string,
+		0,
+		len(command.ApplicationArgs)+len(profile.ApplicationArgs)+len(cliApplicationArguments),
+	)
 	applicationArguments = append(applicationArguments, command.ApplicationArgs...)
 	applicationArguments = append(applicationArguments, profile.ApplicationArgs...)
 	applicationArguments = append(applicationArguments, cliApplicationArguments...)
 
-	environment := buildEnvironment(processEnvironment, command.Environment, profile.Environment, control.Environment)
+	environment := buildEnvironment(
+		processEnvironment,
+		command.Environment,
+		profile.Environment,
+		control.Environment,
+	)
 
 	return Plan{
 		Command:              commandName,

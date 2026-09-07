@@ -85,12 +85,16 @@ func TestCommand_whenNewProjectNameProvided_shouldUseSimpleDefaults(t *testing.T
 	assertGeneratedFileContains(t, filepath.Join(root, "goark.build"), "name = \"ac\"")
 	assertGeneratedFileContains(t, filepath.Join(root, "goark.build"), "main = \"./cmd/app\"")
 	assertGeneratedFileContains(t, filepath.Join(root, "goark.build"), "output = \"./build/ac\"")
-	if _, err := os.Stat(filepath.Join(root, "resource", "static", "index.html")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "resource", "static", "index.html")); !os.IsNotExist(
+		err,
+	) {
 		t.Fatalf("app scaffold should not generate web resources: %v", err)
 	}
 }
 
-func TestCommand_whenNewWebProjectUsesExplicitModuleAndDirectory_shouldApplyFlagsBeforeName(t *testing.T) {
+func TestCommand_whenNewWebProjectUsesExplicitModuleAndDirectory_shouldApplyFlagsBeforeName(
+	t *testing.T,
+) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	dir := filepath.Join(t.TempDir(), "ac")
@@ -151,7 +155,10 @@ func TestCommand_whenNewAppHelpRequested_shouldReturnSuccess(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
-	if !strings.Contains(stdout.String(), "goark new [-type app|web] [-module <module-path>] [-dir <path>] <name>") {
+	if !strings.Contains(
+		stdout.String(),
+		"goark new [-type app|web] [-module <module-path>] [-dir <path>] <name>",
+	) {
 		t.Fatalf("expected new app help in stdout, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
@@ -200,7 +207,9 @@ func TestCommand_whenGenerateConfigurationToFile_shouldWriteFileAndReportToStder
 	}
 }
 
-func TestCommand_whenGenerateConfigurationMissingRequiredFlags_shouldReturnUsageError(t *testing.T) {
+func TestCommand_whenGenerateConfigurationMissingRequiredFlags_shouldReturnUsageError(
+	t *testing.T,
+) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
@@ -226,7 +235,10 @@ func TestCommand_whenGenerateConfigurationHelpRequested_shouldReturnSuccess(t *t
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
-	if !strings.Contains(stdout.String(), "goark codegen configuration --name <name> --package <package>") {
+	if !strings.Contains(
+		stdout.String(),
+		"goark codegen configuration --name <name> --package <package>",
+	) {
 		t.Fatalf("expected configuration help in stdout, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {

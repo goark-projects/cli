@@ -15,7 +15,13 @@ func validateOutputConflicts(tasks map[string]buildspec.Task) error {
 			for _, rightName := range names[leftIndex+1:] {
 				for _, rightOutput := range tasks[rightName].Outputs {
 					if outputsMayOverlap(leftOutput, rightOutput) {
-						return fmt.Errorf("任务 %q 的输出 %q 与任务 %q 的输出 %q 存在输出冲突", leftName, leftOutput, rightName, rightOutput)
+						return fmt.Errorf(
+							"任务 %q 的输出 %q 与任务 %q 的输出 %q 存在输出冲突",
+							leftName,
+							leftOutput,
+							rightName,
+							rightOutput,
+						)
 					}
 				}
 			}
@@ -43,7 +49,8 @@ func outputsMayOverlap(left string, right string) bool {
 	if patternsProvablyDisjoint(left, right) {
 		return false
 	}
-	return leftPrefix == rightPrefix || pathWithinOutput(leftPrefix, rightPrefix) || pathWithinOutput(rightPrefix, leftPrefix)
+	return leftPrefix == rightPrefix || pathWithinOutput(leftPrefix, rightPrefix) ||
+		pathWithinOutput(rightPrefix, leftPrefix)
 }
 
 func patternsProvablyDisjoint(left string, right string) bool {

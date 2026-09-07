@@ -61,9 +61,17 @@ func TestLoadFile_whenEncodingOrLineEndingIsInvalid_shouldReject(t *testing.T) {
 		content []byte
 		want    string
 	}{
-		{name: "bom", content: append([]byte{0xef, 0xbb, 0xbf}, []byte("version = 1\n")...), want: "BOM"},
+		{
+			name:    "bom",
+			content: append([]byte{0xef, 0xbb, 0xbf}, []byte("version = 1\n")...),
+			want:    "BOM",
+		},
 		{name: "crlf", content: []byte("version = 1\r\n"), want: "LF"},
-		{name: "invalid utf8", content: []byte{'v', 'e', 'r', 's', 'i', 'o', 'n', ' ', '=', ' ', 0xff, '\n'}, want: "UTF-8"},
+		{
+			name:    "invalid utf8",
+			content: []byte{'v', 'e', 'r', 's', 'i', 'o', 'n', ' ', '=', ' ', 0xff, '\n'},
+			want:    "UTF-8",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,34 +97,146 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 		{name: "future version", content: "version = 2\n", want: "不支持"},
 		{name: "unknown field", content: "version = 1\nunknown = true\n", want: "未知字段"},
 		{name: "duplicate field", content: "version = 1\nversion = 1\n", want: "重复"},
-		{name: "invalid timeout", content: "version = 1\n[execution]\ndefault-timeout = \"soon\"\n", want: "duration"},
-		{name: "invalid parallelism", content: "version = 1\n[execution]\nmax-parallel = 0\n", want: "max-parallel"},
-		{name: "unknown task type", content: "version = 1\n[tasks.bad]\ntype = \"shell\"\n", want: "任务类型"},
-		{name: "missing dependency", content: "version = 1\n[tasks.one]\ntype = \"group\"\ndepends-on = [\"missing\"]\n", want: "missing"},
-		{name: "missing tool", content: "version = 1\n[tasks.one]\ntype = \"exec\"\ntool = \"missing\"\n", want: "missing"},
-		{name: "cached task missing inputs", content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\noutputs = [\"build/out\"]\ncache = true\n", want: "inputs"},
-		{name: "cached task missing outputs", content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\ninputs = [\"**/*.go\"]\ncache = true\n", want: "outputs"},
-		{name: "unknown command task", content: "version = 1\n[commands.build]\nbefore = [\"missing\"]\n", want: "missing"},
-		{name: "task output escapes", content: "version = 1\n[tasks.one]\ntype = \"delete\"\noutputs = [\"../outside\"]\n", want: "项目根目录"},
-		{name: "delete task cache", content: "version = 1\n[tasks.one]\ntype = \"delete\"\ninputs = [\"input\"]\noutputs = [\"output\"]\ncache = true\n", want: "不能启用 cache"},
-		{name: "invalid profile name", content: "version = 1\n[profiles.\"bad name\"]\ngo-args = []\n", want: "Profile 名称"},
-		{name: "invalid task environment", content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
-		{name: "invalid command environment", content: "version = 1\n[commands.build.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
-		{name: "invalid profile environment", content: "version = 1\n[profiles.dev.environment]\n\"BAD-NAME\" = \"value\"\n", want: "environment 名称"},
-		{name: "case duplicate environment", content: "version = 1\n[commands.build.environment]\nPATH = \"first\"\nPath = \"second\"\n", want: "重复"},
-		{name: "generate pattern escapes", content: "version = 1\n[generate]\npatterns = [\"../outside/...\"]\n", want: "generate.patterns"},
-		{name: "generate pattern is external module", content: "version = 1\n[generate]\npatterns = [\"example.com/outside/...\"]\n", want: "generate.patterns"},
-		{name: "generate patterns empty", content: "version = 1\n[generate]\npatterns = []\n", want: "generate.patterns"},
-		{name: "go tool latest version", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"latest\"\ninstall = \"auto\"\n", want: "精确 version"},
-		{name: "go tool branch version", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"main\"\ninstall = \"auto\"\n", want: "精确 version"},
-		{name: "tool missing install", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\n", want: "install"},
-		{name: "system tool uses path", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"./demo\"\ninstall = \"manual\"\n", want: "PATH"},
-		{name: "go tool has system command", content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"v1.0.0\"\ncommand = \"demo\"\ninstall = \"auto\"\n", want: "command"},
-		{name: "system tool has Go package", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\npackage = \"example.com/tools/demo\"\ninstall = \"manual\"\n", want: "package"},
-		{name: "local tool has system command", content: "version = 1\n[tools.demo]\ntype = \"local\"\npath = \"./tools/demo\"\ncommand = \"demo\"\ninstall = \"manual\"\n", want: "command"},
-		{name: "go task has external tool", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"go\"\ntool = \"demo\"\nargs = [\"version\"]\n", want: "tool"},
-		{name: "delete task has external tool", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"delete\"\ntool = \"demo\"\noutputs = [\"build/out\"]\n", want: "tool"},
-		{name: "group task has external tool", content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.base]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one]\ntype = \"group\"\ntool = \"demo\"\ndepends-on = [\"base\"]\n", want: "tool"},
+		{
+			name:    "invalid timeout",
+			content: "version = 1\n[execution]\ndefault-timeout = \"soon\"\n",
+			want:    "duration",
+		},
+		{
+			name:    "invalid parallelism",
+			content: "version = 1\n[execution]\nmax-parallel = 0\n",
+			want:    "max-parallel",
+		},
+		{
+			name:    "unknown task type",
+			content: "version = 1\n[tasks.bad]\ntype = \"shell\"\n",
+			want:    "任务类型",
+		},
+		{
+			name:    "missing dependency",
+			content: "version = 1\n[tasks.one]\ntype = \"group\"\ndepends-on = [\"missing\"]\n",
+			want:    "missing",
+		},
+		{
+			name:    "missing tool",
+			content: "version = 1\n[tasks.one]\ntype = \"exec\"\ntool = \"missing\"\n",
+			want:    "missing",
+		},
+		{
+			name:    "cached task missing inputs",
+			content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\noutputs = [\"build/out\"]\ncache = true\n",
+			want:    "inputs",
+		},
+		{
+			name:    "cached task missing outputs",
+			content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\ninputs = [\"**/*.go\"]\ncache = true\n",
+			want:    "outputs",
+		},
+		{
+			name:    "unknown command task",
+			content: "version = 1\n[commands.build]\nbefore = [\"missing\"]\n",
+			want:    "missing",
+		},
+		{
+			name:    "task output escapes",
+			content: "version = 1\n[tasks.one]\ntype = \"delete\"\noutputs = [\"../outside\"]\n",
+			want:    "项目根目录",
+		},
+		{
+			name:    "delete task cache",
+			content: "version = 1\n[tasks.one]\ntype = \"delete\"\ninputs = [\"input\"]\noutputs = [\"output\"]\ncache = true\n",
+			want:    "不能启用 cache",
+		},
+		{
+			name:    "invalid profile name",
+			content: "version = 1\n[profiles.\"bad name\"]\ngo-args = []\n",
+			want:    "Profile 名称",
+		},
+		{
+			name:    "invalid task environment",
+			content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one.environment]\n\"BAD-NAME\" = \"value\"\n",
+			want:    "environment 名称",
+		},
+		{
+			name:    "invalid command environment",
+			content: "version = 1\n[commands.build.environment]\n\"BAD-NAME\" = \"value\"\n",
+			want:    "environment 名称",
+		},
+		{
+			name:    "invalid profile environment",
+			content: "version = 1\n[profiles.dev.environment]\n\"BAD-NAME\" = \"value\"\n",
+			want:    "environment 名称",
+		},
+		{
+			name:    "case duplicate environment",
+			content: "version = 1\n[commands.build.environment]\nPATH = \"first\"\nPath = \"second\"\n",
+			want:    "重复",
+		},
+		{
+			name:    "generate pattern escapes",
+			content: "version = 1\n[generate]\npatterns = [\"../outside/...\"]\n",
+			want:    "generate.patterns",
+		},
+		{
+			name:    "generate pattern is external module",
+			content: "version = 1\n[generate]\npatterns = [\"example.com/outside/...\"]\n",
+			want:    "generate.patterns",
+		},
+		{
+			name:    "generate patterns empty",
+			content: "version = 1\n[generate]\npatterns = []\n",
+			want:    "generate.patterns",
+		},
+		{
+			name:    "go tool latest version",
+			content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"latest\"\ninstall = \"auto\"\n",
+			want:    "精确 version",
+		},
+		{
+			name:    "go tool branch version",
+			content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"main\"\ninstall = \"auto\"\n",
+			want:    "精确 version",
+		},
+		{
+			name:    "tool missing install",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\n",
+			want:    "install",
+		},
+		{
+			name:    "system tool uses path",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"./demo\"\ninstall = \"manual\"\n",
+			want:    "PATH",
+		},
+		{
+			name:    "go tool has system command",
+			content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"v1.0.0\"\ncommand = \"demo\"\ninstall = \"auto\"\n",
+			want:    "command",
+		},
+		{
+			name:    "system tool has Go package",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\npackage = \"example.com/tools/demo\"\ninstall = \"manual\"\n",
+			want:    "package",
+		},
+		{
+			name:    "local tool has system command",
+			content: "version = 1\n[tools.demo]\ntype = \"local\"\npath = \"./tools/demo\"\ncommand = \"demo\"\ninstall = \"manual\"\n",
+			want:    "command",
+		},
+		{
+			name:    "go task has external tool",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"go\"\ntool = \"demo\"\nargs = [\"version\"]\n",
+			want:    "tool",
+		},
+		{
+			name:    "delete task has external tool",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"delete\"\ntool = \"demo\"\noutputs = [\"build/out\"]\n",
+			want:    "tool",
+		},
+		{
+			name:    "group task has external tool",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.base]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one]\ntype = \"group\"\ntool = \"demo\"\ndepends-on = [\"base\"]\n",
+			want:    "tool",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -44,7 +44,9 @@ func Snapshot(tasks map[string]buildspec.Task) []Task {
 		task := tasks[name]
 		result = append(result, Task{
 			Name: name, Type: task.Type, DependsOn: append([]string(nil), task.DependsOn...),
-			Inputs: append([]string(nil), task.Inputs...), Outputs: append([]string(nil), task.Outputs...),
+			Inputs: append(
+				[]string(nil),
+				task.Inputs...), Outputs: append([]string(nil), task.Outputs...),
 			Cache: task.Cache, ParallelSafe: task.ParallelSafe,
 		})
 	}

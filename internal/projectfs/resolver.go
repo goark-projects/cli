@@ -118,7 +118,8 @@ func patternPrefix(pattern string) string {
 
 func within(root string, target string) bool {
 	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(target))
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+	if err != nil || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return false
 	}
 	if runtime.GOOS == "windows" {

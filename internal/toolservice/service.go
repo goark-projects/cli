@@ -42,7 +42,10 @@ type Status struct {
 }
 
 // Sync 解析全部工具并更新当前平台锁项；锁定模式只验证。
-func (s Service) Sync(ctx context.Context, options SyncOptions) (result toollock.File, resultErr error) {
+func (s Service) Sync(
+	ctx context.Context,
+	options SyncOptions,
+) (result toollock.File, resultErr error) {
 	if options.Locked {
 		return s.Verify(ctx)
 	}
@@ -67,7 +70,13 @@ func (s Service) sync(ctx context.Context, options SyncOptions) (toollock.File, 
 	if err != nil {
 		return toollock.File{}, err
 	}
-	resolved, err := s.resolve(ctx, sortedToolNames(s.Document.Tools), !options.Offline, false, options.Offline)
+	resolved, err := s.resolve(
+		ctx,
+		sortedToolNames(s.Document.Tools),
+		!options.Offline,
+		false,
+		options.Offline,
+	)
 	if err != nil {
 		return toollock.File{}, err
 	}
@@ -119,14 +128,23 @@ func (s Service) Verify(ctx context.Context) (toollock.File, error) {
 			continue
 		}
 		if _, ok := s.Document.Tools[entry.Name]; !ok {
-			return toollock.File{}, fmt.Errorf("锁文件包含未声明工具 %q 的 %s/%s 锁定项", entry.Name, s.GOOS, s.GOARCH)
+			return toollock.File{}, fmt.Errorf(
+				"锁文件包含未声明工具 %q 的 %s/%s 锁定项",
+				entry.Name,
+				s.GOOS,
+				s.GOARCH,
+			)
 		}
 	}
 	return locked, nil
 }
 
 // Install 显式安装或解析指定工具，并合并当前平台锁项。
-func (s Service) Install(ctx context.Context, name string, offline bool) (result tooling.Resolved, resultErr error) {
+func (s Service) Install(
+	ctx context.Context,
+	name string,
+	offline bool,
+) (result tooling.Resolved, resultErr error) {
 	if _, ok := s.Document.Tools[name]; !ok {
 		return tooling.Resolved{}, fmt.Errorf("工具 %q 不存在", name)
 	}
@@ -213,7 +231,13 @@ func (s Service) Statuses(ctx context.Context) []Status {
 	return result
 }
 
-func (s Service) resolve(ctx context.Context, names []string, allowAutoInstall bool, forceInstall bool, offline bool) (map[string]tooling.Resolved, error) {
+func (s Service) resolve(
+	ctx context.Context,
+	names []string,
+	allowAutoInstall bool,
+	forceInstall bool,
+	offline bool,
+) (map[string]tooling.Resolved, error) {
 	manager := s.Manager
 	manager.GOOS = s.GOOS
 	manager.GOARCH = s.GOARCH
@@ -221,7 +245,9 @@ func (s Service) resolve(ctx context.Context, names []string, allowAutoInstall b
 	for _, name := range names {
 		tool := s.Document.Tools[name]
 		item, err := manager.Resolve(ctx, name, tool, tooling.ResolveOptions{
-			AllowInstall: forceInstall || allowAutoInstall && tool.Install == "auto", ForceInstall: forceInstall, Offline: offline,
+			AllowInstall: forceInstall ||
+				allowAutoInstall &&
+					tool.Install == "auto", ForceInstall: forceInstall, Offline: offline,
 		})
 		if err != nil {
 			return nil, err
@@ -268,7 +294,12 @@ func resolvedEntries(resolved map[string]tooling.Resolved) []toollock.Entry {
 	return entries
 }
 
-func mergePlatformEntries(existing []toollock.Entry, current []toollock.Entry, goos string, goarch string) []toollock.Entry {
+func mergePlatformEntries(
+	existing []toollock.Entry,
+	current []toollock.Entry,
+	goos string,
+	goarch string,
+) []toollock.Entry {
 	result := make([]toollock.Entry, 0, len(existing)+len(current))
 	for _, entry := range existing {
 		if entry.GOOS != goos || entry.GOARCH != goarch {
@@ -281,7 +312,8 @@ func mergePlatformEntries(existing []toollock.Entry, current []toollock.Entry, g
 func mergeOneEntry(existing []toollock.Entry, current toollock.Entry) []toollock.Entry {
 	result := make([]toollock.Entry, 0, len(existing)+1)
 	for _, entry := range existing {
-		if entry.Name != current.Name || entry.GOOS != current.GOOS || entry.GOARCH != current.GOARCH {
+		if entry.Name != current.Name || entry.GOOS != current.GOOS ||
+			entry.GOARCH != current.GOARCH {
 			result = append(result, entry)
 		}
 	}

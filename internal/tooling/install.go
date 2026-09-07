@@ -16,7 +16,12 @@ import (
 	"goark.dev/cli/internal/buildspec"
 )
 
-func (m Manager) installGoCached(ctx context.Context, tool buildspec.Tool, key string, force bool) error {
+func (m Manager) installGoCached(
+	ctx context.Context,
+	tool buildspec.Tool,
+	key string,
+	force bool,
+) error {
 	goCache := filepath.Join(m.CacheDir, "go")
 	if err := os.MkdirAll(goCache, 0o755); err != nil {
 		return err
@@ -86,7 +91,13 @@ func publishGoToolCache(cacheRoot string, key string, source string, target stri
 	return nil
 }
 
-func installGo(ctx context.Context, packagePath string, version string, destination string, environment map[string]string) error {
+func installGo(
+	ctx context.Context,
+	packagePath string,
+	version string,
+	destination string,
+	environment map[string]string,
+) error {
 	command := exec.CommandContext(ctx, "go", "install", packagePath+"@"+version)
 	command.Env = append(environmentList(environment), "GOBIN="+destination, "GOWORK=off")
 	output, err := command.CombinedOutput()

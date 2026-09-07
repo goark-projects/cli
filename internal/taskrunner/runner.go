@@ -201,7 +201,13 @@ func (r *Runner) run(ctx context.Context, name string, task buildspec.Task) erro
 	return nil
 }
 
-func (r *Runner) execute(ctx context.Context, task buildspec.Task, args []string, workingDirectory string, environment map[string]string) error {
+func (r *Runner) execute(
+	ctx context.Context,
+	task buildspec.Task,
+	args []string,
+	workingDirectory string,
+	environment map[string]string,
+) error {
 	timeout := task.Timeout.Duration
 	if timeout == 0 {
 		timeout = r.options.DefaultTimeout
@@ -229,14 +235,24 @@ func (r *Runner) execute(ctx context.Context, task buildspec.Task, args []string
 	}
 }
 
-func (r *Runner) runProcess(ctx context.Context, executable string, args []string, directory string, environment map[string]string) error {
+func (r *Runner) runProcess(
+	ctx context.Context,
+	executable string,
+	args []string,
+	directory string,
+	environment map[string]string,
+) error {
 	return r.options.Process.Run(processrun.Request{
 		Context: ctx, Name: executable, Args: args, Dir: directory, Env: environmentList(environment),
 		In: r.options.In, Out: r.options.Out, Err: r.options.Err,
 	})
 }
 
-func (r *Runner) recordOutput(name string, task buildspec.Task, cacheContext taskcache.Context) error {
+func (r *Runner) recordOutput(
+	name string,
+	task buildspec.Task,
+	cacheContext taskcache.Context,
+) error {
 	if task.Type == buildspec.TaskTypeDelete {
 		r.setUpstream(name, "deleted")
 		return nil
@@ -253,7 +269,12 @@ func (r *Runner) recordOutput(name string, task buildspec.Task, cacheContext tas
 	return nil
 }
 
-func (r *Runner) printDryRun(name string, task buildspec.Task, args []string, environment map[string]string) {
+func (r *Runner) printDryRun(
+	name string,
+	task buildspec.Task,
+	args []string,
+	environment map[string]string,
+) {
 	executable := string(task.Type)
 	if task.Type == buildspec.TaskTypeExec {
 		if tool, ok := r.options.Tools[task.Tool]; ok {

@@ -29,11 +29,22 @@ type preparedLifecycle struct {
 	taskRunner *taskrunner.Runner
 }
 
-func (c Command) prepareLifecycle(project goarkProject, plan buildplan.Plan) (*preparedLifecycle, error) {
-	return c.prepareLifecycleTargets(project, plan, lifecycleTaskTargets(project.Build, plan.Command))
+func (c Command) prepareLifecycle(
+	project goarkProject,
+	plan buildplan.Plan,
+) (*preparedLifecycle, error) {
+	return c.prepareLifecycleTargets(
+		project,
+		plan,
+		lifecycleTaskTargets(project.Build, plan.Command),
+	)
 }
 
-func (c Command) prepareLifecycleTargets(project goarkProject, plan buildplan.Plan, targets []string) (*preparedLifecycle, error) {
+func (c Command) prepareLifecycleTargets(
+	project goarkProject,
+	plan buildplan.Plan,
+	targets []string,
+) (*preparedLifecycle, error) {
 	graph, err := taskgraph.New(project.Build.Tasks)
 	if err != nil {
 		return nil, err
@@ -62,10 +73,21 @@ func (c Command) prepareLifecycleTargets(project goarkProject, plan buildplan.Pl
 		GoVersion: goVersion, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
 		BuildTags: buildTags(plan.GoArguments),
 	})
-	return &preparedLifecycle{command: c, project: project, plan: plan, graph: graph, taskRunner: runner}, nil
+	return &preparedLifecycle{
+		command:    c,
+		project:    project,
+		plan:       plan,
+		graph:      graph,
+		taskRunner: runner,
+	}, nil
 }
 
-func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan, graph *taskgraph.Graph, targets []string) (map[string]tooling.Resolved, error) {
+func (c Command) resolveLifecycleTools(
+	project goarkProject,
+	plan buildplan.Plan,
+	graph *taskgraph.Graph,
+	targets []string,
+) (map[string]tooling.Resolved, error) {
 	names, err := requiredToolNames(graph, targets)
 	if err != nil {
 		return nil, err
@@ -98,7 +120,11 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 	if err != nil {
 		return nil, fmt.Errorf("解析用户缓存目录失败: %w", err)
 	}
-	manager := tooling.NewManager(project.Root, filepath.Join(cacheRoot, "goark", "tools"), plan.Environment)
+	manager := tooling.NewManager(
+		project.Root,
+		filepath.Join(cacheRoot, "goark", "tools"),
+		plan.Environment,
+	)
 	for _, name := range names {
 		tool := project.Build.Tools[name]
 		locked, ok := lock.Find(name, runtime.GOOS, runtime.GOARCH)
@@ -108,8 +134,18 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 		if !lockMatchesDeclaration(locked, tool) {
 			return nil, fmt.Errorf("工具 %q 的声明与锁定项不一致", name)
 		}
-		allowInstall := tool.Type == buildspec.ToolTypeGo && tool.Install == "auto" && trusted && !plan.Control.DryRun && !plan.Control.Offline
-		item, err := resolveVerifiedLifecycleTool(c.Context, manager, name, tool, locked, allowInstall, plan.Control.Offline)
+		allowInstall := tool.Type == buildspec.ToolTypeGo && tool.Install == "auto" && trusted &&
+			!plan.Control.DryRun &&
+			!plan.Control.Offline
+		item, err := resolveVerifiedLifecycleTool(
+			c.Context,
+			manager,
+			name,
+			tool,
+			locked,
+			allowInstall,
+			plan.Control.Offline,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +154,12 @@ func (c Command) resolveLifecycleTools(project goarkProject, plan buildplan.Plan
 	return resolved, nil
 }
 
-func validateLockedToolDeclarations(lock toollock.File, tools map[string]buildspec.Tool, goos string, goarch string) error {
+func validateLockedToolDeclarations(
+	lock toollock.File,
+	tools map[string]buildspec.Tool,
+	goos string,
+	goarch string,
+) error {
 	for _, name := range sortedBuildToolNames(tools) {
 		entry, ok := lock.Find(name, goos, goarch)
 		if !ok {
@@ -158,7 +199,12 @@ func resolveVerifiedLifecycleTool(
 	offline bool,
 ) (tooling.Resolved, error) {
 	restore := func() (tooling.Resolved, error) {
-		item, err := manager.Resolve(ctx, name, tool, tooling.ResolveOptions{AllowInstall: true, ForceInstall: true})
+		item, err := manager.Resolve(
+			ctx,
+			name,
+			tool,
+			tooling.ResolveOptions{AllowInstall: true, ForceInstall: true},
+		)
 		if err != nil {
 			return tooling.Resolved{}, err
 		}
@@ -167,7 +213,12 @@ func resolveVerifiedLifecycleTool(
 		}
 		return item, nil
 	}
-	item, err := manager.Resolve(ctx, name, tool, tooling.ResolveOptions{AllowInstall: allowRestore, Offline: offline})
+	item, err := manager.Resolve(
+		ctx,
+		name,
+		tool,
+		tooling.ResolveOptions{AllowInstall: allowRestore, Offline: offline},
+	)
 	if err != nil {
 		if !allowRestore {
 			return tooling.Resolved{}, err
@@ -271,7 +322,12 @@ func buildTags(arguments []string) []string {
 			value = arguments[index]
 		}
 		if value != "" {
-			tags = append(tags, strings.FieldsFunc(value, func(char rune) bool { return char == ',' || char == ' ' })...)
+			tags = append(
+				tags,
+				strings.FieldsFunc(
+					value,
+					func(char rune) bool { return char == ',' || char == ' ' },
+				)...)
 		}
 	}
 	sort.Strings(tags)

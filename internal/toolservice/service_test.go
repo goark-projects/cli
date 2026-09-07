@@ -18,7 +18,8 @@ func TestServiceSync_whenGoToolIsManual_shouldRequireExplicitInstall(t *testing.
 	root, document := writeGoToolProject(t, "manual")
 	installCount := 0
 	service := fakeGoToolService(t, root, document, &installCount)
-	if _, err := service.Sync(context.Background(), SyncOptions{}); err == nil || !strings.Contains(err.Error(), "尚未安装") {
+	if _, err := service.Sync(context.Background(), SyncOptions{}); err == nil ||
+		!strings.Contains(err.Error(), "尚未安装") {
 		t.Fatalf("错误 = %v", err)
 	}
 	if installCount != 0 {
@@ -36,7 +37,8 @@ func TestServiceSync_whenGoToolIsAuto_shouldInstallUnlessOffline(t *testing.T) {
 	root, document := writeGoToolProject(t, "auto")
 	installCount := 0
 	service := fakeGoToolService(t, root, document, &installCount)
-	if _, err := service.Sync(context.Background(), SyncOptions{Offline: true}); err == nil || !strings.Contains(err.Error(), "离线") {
+	if _, err := service.Sync(context.Background(), SyncOptions{Offline: true}); err == nil ||
+		!strings.Contains(err.Error(), "离线") {
 		t.Fatalf("离线错误 = %v", err)
 	}
 	if installCount != 0 {
@@ -125,7 +127,8 @@ func TestServiceVerify_whenBuildChanged_shouldRejectLockDrift(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, buildspec.FileName), []byte("version = 1\n# changed\n"), 0o644); err != nil {
 		t.Fatalf("修改描述文件失败: %v", err)
 	}
-	if _, err := service.Verify(context.Background()); err == nil || !strings.Contains(err.Error(), "摘要不一致") {
+	if _, err := service.Verify(context.Background()); err == nil ||
+		!strings.Contains(err.Error(), "摘要不一致") {
 		t.Fatalf("错误 = %v", err)
 	}
 }
@@ -148,7 +151,11 @@ func writeToolProject(t *testing.T) (string, buildspec.Document) {
 func newTestService(root string, document buildspec.Document, trust projecttrust.Store) Service {
 	return Service{
 		Root: root, Document: document, Environment: environmentMap(os.Environ()),
-		Manager: tooling.NewManager(root, tCacheDir(root), environmentMap(os.Environ())), Trust: trust,
+		Manager: tooling.NewManager(
+			root,
+			tCacheDir(root),
+			environmentMap(os.Environ()),
+		), Trust: trust,
 		GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
 	}
 }
@@ -183,7 +190,12 @@ func writeGoToolProject(t *testing.T, install string) (string, buildspec.Documen
 	return root, document
 }
 
-func fakeGoToolService(t *testing.T, root string, document buildspec.Document, installCount *int) Service {
+func fakeGoToolService(
+	t *testing.T,
+	root string,
+	document buildspec.Document,
+	installCount *int,
+) Service {
 	t.Helper()
 	cache := filepath.Join(root, "tool-cache")
 	manager := tooling.NewManager(root, cache, environmentMap(os.Environ()))
@@ -196,7 +208,11 @@ func fakeGoToolService(t *testing.T, root string, document buildspec.Document, i
 		return os.WriteFile(path, []byte("tool\n"), 0o755)
 	}
 	manager.ReadBuild = func(string) (tooling.BuildMetadata, error) {
-		return tooling.BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:sum"}, nil
+		return tooling.BuildMetadata{
+			Module:  "example.com/tools",
+			Version: "v1.0.0",
+			Sum:     "h1:sum",
+		}, nil
 	}
 	return Service{
 		Root: root, Document: document, Environment: environmentMap(os.Environ()), Manager: manager,

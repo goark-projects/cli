@@ -20,11 +20,17 @@ func TestManagerResolve_whenSystemToolExists_shouldCreateVerifiableLockEntry(t *
 		return executable, nil
 	}
 
-	resolved, err := manager.Resolve(context.Background(), "sha256", buildspec.Tool{Type: buildspec.ToolTypeSystem, Command: "sha256sum"}, ResolveOptions{})
+	resolved, err := manager.Resolve(
+		context.Background(),
+		"sha256",
+		buildspec.Tool{Type: buildspec.ToolTypeSystem, Command: "sha256sum"},
+		ResolveOptions{},
+	)
 	if err != nil {
 		t.Fatalf("解析系统工具失败: %v", err)
 	}
-	if !sameFile(t, resolved.Path, executable) || resolved.Entry.Name != "sha256" || resolved.Entry.Type != buildspec.ToolTypeSystem {
+	if !sameFile(t, resolved.Path, executable) || resolved.Entry.Name != "sha256" ||
+		resolved.Entry.Type != buildspec.ToolTypeSystem {
 		t.Fatalf("解析结果 = %#v", resolved)
 	}
 	if err := Verify(resolved, resolved.Entry); err != nil {
@@ -43,7 +49,12 @@ func TestManagerResolve_whenPathComesFromMergedEnvironment_shouldFindSystemTool(
 	writeExecutable(t, directory, executableName("custom-tool"))
 	manager := NewManager(t.TempDir(), t.TempDir(), map[string]string{"PATH": directory})
 
-	resolved, err := manager.Resolve(context.Background(), "custom", buildspec.Tool{Type: buildspec.ToolTypeSystem, Command: "custom-tool"}, ResolveOptions{})
+	resolved, err := manager.Resolve(
+		context.Background(),
+		"custom",
+		buildspec.Tool{Type: buildspec.ToolTypeSystem, Command: "custom-tool"},
+		ResolveOptions{},
+	)
 	if err != nil {
 		t.Fatalf("从合并环境解析工具失败: %v", err)
 	}
@@ -55,7 +66,12 @@ func TestManagerResolve_whenPathComesFromMergedEnvironment_shouldFindSystemTool(
 func TestManagerResolve_whenLocalToolEscapesProject_shouldReject(t *testing.T) {
 	root := t.TempDir()
 	manager := NewManager(root, t.TempDir(), nil)
-	_, err := manager.Resolve(context.Background(), "local", buildspec.Tool{Type: buildspec.ToolTypeLocal, Path: "../outside"}, ResolveOptions{})
+	_, err := manager.Resolve(
+		context.Background(),
+		"local",
+		buildspec.Tool{Type: buildspec.ToolTypeLocal, Path: "../outside"},
+		ResolveOptions{},
+	)
 	if err == nil || !strings.Contains(err.Error(), "项目根目录") {
 		t.Fatalf("错误 = %v", err)
 	}
@@ -81,11 +97,25 @@ func TestManagerResolve_whenGoToolInstallationAllowed_shouldInstallOnce(t *testi
 		return nil
 	}
 	manager.ReadBuild = func(string) (BuildMetadata, error) {
-		return BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:module-sum"}, nil
+		return BuildMetadata{
+			Module:  "example.com/tools",
+			Version: "v1.0.0",
+			Sum:     "h1:module-sum",
+		}, nil
 	}
-	spec := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
+	spec := buildspec.Tool{
+		Type:    buildspec.ToolTypeGo,
+		Package: "example.com/tools/cmd/demo",
+		Version: "v1.0.0",
+		Install: "auto",
+	}
 
-	first, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true})
+	first, err := manager.Resolve(
+		context.Background(),
+		"demo",
+		spec,
+		ResolveOptions{AllowInstall: true},
+	)
 	if err != nil {
 		t.Fatalf("安装 Go 工具失败: %v", err)
 	}
@@ -111,18 +141,37 @@ func TestManagerResolve_whenGoToolExecutableMissingFromExistingCache_shouldResto
 		return nil
 	}
 	manager.ReadBuild = func(string) (BuildMetadata, error) {
-		return BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:module-sum"}, nil
+		return BuildMetadata{
+			Module:  "example.com/tools",
+			Version: "v1.0.0",
+			Sum:     "h1:module-sum",
+		}, nil
 	}
-	spec := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
+	spec := buildspec.Tool{
+		Type:    buildspec.ToolTypeGo,
+		Package: "example.com/tools/cmd/demo",
+		Version: "v1.0.0",
+		Install: "auto",
+	}
 
-	first, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true})
+	first, err := manager.Resolve(
+		context.Background(),
+		"demo",
+		spec,
+		ResolveOptions{AllowInstall: true},
+	)
 	if err != nil {
 		t.Fatalf("首次安装失败: %v", err)
 	}
 	if err := os.Remove(first.Path); err != nil {
 		t.Fatalf("模拟工具文件缺失失败: %v", err)
 	}
-	second, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true})
+	second, err := manager.Resolve(
+		context.Background(),
+		"demo",
+		spec,
+		ResolveOptions{AllowInstall: true},
+	)
 	if err != nil {
 		t.Fatalf("恢复工具失败: %v", err)
 	}
@@ -141,15 +190,34 @@ func TestManagerResolve_whenForceInstallRequested_shouldReplaceExistingTool(t *t
 		return os.WriteFile(path, []byte(fmt.Sprintf("tool-%d\n", installCount)), 0o755)
 	}
 	manager.ReadBuild = func(string) (BuildMetadata, error) {
-		return BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:module-sum"}, nil
+		return BuildMetadata{
+			Module:  "example.com/tools",
+			Version: "v1.0.0",
+			Sum:     "h1:module-sum",
+		}, nil
 	}
-	spec := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
+	spec := buildspec.Tool{
+		Type:    buildspec.ToolTypeGo,
+		Package: "example.com/tools/cmd/demo",
+		Version: "v1.0.0",
+		Install: "auto",
+	}
 
-	first, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true})
+	first, err := manager.Resolve(
+		context.Background(),
+		"demo",
+		spec,
+		ResolveOptions{AllowInstall: true},
+	)
 	if err != nil {
 		t.Fatalf("首次安装失败: %v", err)
 	}
-	second, err := manager.Resolve(context.Background(), "demo", spec, ResolveOptions{AllowInstall: true, ForceInstall: true})
+	second, err := manager.Resolve(
+		context.Background(),
+		"demo",
+		spec,
+		ResolveOptions{AllowInstall: true, ForceInstall: true},
+	)
 	if err != nil {
 		t.Fatalf("强制重装失败: %v", err)
 	}
@@ -157,8 +225,15 @@ func TestManagerResolve_whenForceInstallRequested_shouldReplaceExistingTool(t *t
 	if err != nil {
 		t.Fatalf("读取重装工具失败: %v", err)
 	}
-	if installCount != 2 || first.Entry.SHA256 == second.Entry.SHA256 || string(data) != "tool-2\n" {
-		t.Fatalf("强制重装结果错误: count=%d first=%#v second=%#v data=%q", installCount, first.Entry, second.Entry, data)
+	if installCount != 2 || first.Entry.SHA256 == second.Entry.SHA256 ||
+		string(data) != "tool-2\n" {
+		t.Fatalf(
+			"强制重装结果错误: count=%d first=%#v second=%#v data=%q",
+			installCount,
+			first.Entry,
+			second.Entry,
+			data,
+		)
 	}
 }
 

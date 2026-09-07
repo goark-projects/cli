@@ -57,7 +57,10 @@ func parseSyncOptions(args []string) (toolservice.SyncOptions, error) {
 			}
 			options.Offline = true
 		default:
-			return toolservice.SyncOptions{}, fmt.Errorf("goark sync 仅支持 --locked 和 --offline: %s", argument)
+			return toolservice.SyncOptions{}, fmt.Errorf(
+				"goark sync 仅支持 --locked 和 --offline: %s",
+				argument,
+			)
 		}
 	}
 	return options, nil
@@ -143,14 +146,25 @@ func (c Command) projectToolService() (toolservice.Service, error) {
 	if err != nil {
 		return toolservice.Service{}, err
 	}
-	plan, err := buildplan.Create(project.Build, "tools", buildplan.Control{}, nil, nil, nil, c.environment())
+	plan, err := buildplan.Create(
+		project.Build,
+		"tools",
+		buildplan.Control{},
+		nil,
+		nil,
+		nil,
+		c.environment(),
+	)
 	if err != nil {
 		return toolservice.Service{}, err
 	}
 	return c.newProjectToolService(project, plan.Environment)
 }
 
-func (c Command) newProjectToolService(project goarkProject, environment map[string]string) (toolservice.Service, error) {
+func (c Command) newProjectToolService(
+	project goarkProject,
+	environment map[string]string,
+) (toolservice.Service, error) {
 	cacheDirectory := c.ToolCacheDir
 	if cacheDirectory == "" {
 		userCache, err := os.UserCacheDir()

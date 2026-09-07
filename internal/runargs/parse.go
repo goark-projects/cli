@@ -74,7 +74,8 @@ func Parse(args []string) (Plan, error) {
 		}
 		if strings.HasPrefix(arg, "--") {
 			plan.PropertyArguments = append(plan.PropertyArguments, arg)
-			if !strings.Contains(arg, "=") && index+1 < len(args) && args[index+1] != "--" && !strings.HasPrefix(args[index+1], "-") {
+			if !strings.Contains(arg, "=") && index+1 < len(args) && args[index+1] != "--" &&
+				!strings.HasPrefix(args[index+1], "-") {
 				index++
 				plan.PropertyArguments = append(plan.PropertyArguments, args[index])
 			}
@@ -133,7 +134,11 @@ func BuildFlagConsumesValue(arg string) bool {
 
 // GoRunArguments 返回传给 go run 的最终参数，不包含 run 子命令本身。
 func (p Plan) GoRunArguments() []string {
-	args := make([]string, 0, len(p.GoArguments)+len(p.PropertyArguments)+len(p.ApplicationArguments))
+	args := make(
+		[]string,
+		0,
+		len(p.GoArguments)+len(p.PropertyArguments)+len(p.ApplicationArguments),
+	)
 	args = append(args, p.GoArguments...)
 	args = append(args, p.PropertyArguments...)
 	args = append(args, p.ApplicationArguments...)

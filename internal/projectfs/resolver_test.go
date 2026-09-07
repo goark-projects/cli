@@ -26,7 +26,9 @@ func TestResolverResolve_whenPathIsInsideProject_shouldReturnCanonicalPath(t *te
 	}
 }
 
-func TestResolverResolve_whenMissingOutputIsInsideProject_shouldResolveExistingParent(t *testing.T) {
+func TestResolverResolve_whenMissingOutputIsInsideProject_shouldResolveExistingParent(
+	t *testing.T,
+) {
 	root := t.TempDir()
 	resolved, err := New(root).Resolve("build/output/app", AllowMissing)
 	if err != nil {

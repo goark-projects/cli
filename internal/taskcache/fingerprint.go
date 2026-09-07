@@ -56,9 +56,15 @@ func Fingerprint(context Context) (string, error) {
 	environment := make([]environmentHash, 0, len(context.Task.EnvironmentInputs))
 	for _, name := range context.Task.EnvironmentInputs {
 		value, present := envutil.Lookup(context.Environment, name)
-		environment = append(environment, environmentHash{Name: name, Present: present, SHA256: hashBytes([]byte(value))})
+		environment = append(
+			environment,
+			environmentHash{Name: name, Present: present, SHA256: hashBytes([]byte(value))},
+		)
 	}
-	sort.Slice(environment, func(left int, right int) bool { return environment[left].Name < environment[right].Name })
+	sort.Slice(
+		environment,
+		func(left int, right int) bool { return environment[left].Name < environment[right].Name },
+	)
 	buildTags := append([]string(nil), context.BuildTags...)
 	sort.Strings(buildTags)
 	model := fingerprintModel{

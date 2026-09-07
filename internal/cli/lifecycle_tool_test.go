@@ -14,7 +14,9 @@ import (
 	"goark.dev/cli/internal/toollock"
 )
 
-func TestResolveVerifiedLifecycleTool_whenTrustedToolDigestDrifts_shouldRestoreAndVerify(t *testing.T) {
+func TestResolveVerifiedLifecycleTool_whenTrustedToolDigestDrifts_shouldRestoreAndVerify(
+	t *testing.T,
+) {
 	cache := t.TempDir()
 	manager := tooling.NewManager(t.TempDir(), cache, nil)
 	installCount := 0
@@ -34,10 +36,24 @@ func TestResolveVerifiedLifecycleTool_whenTrustedToolDigestDrifts_shouldRestoreA
 		if string(data) != "locked-tool\n" {
 			return tooling.BuildMetadata{}, fmt.Errorf("invalid Go build info")
 		}
-		return tooling.BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:sum"}, nil
+		return tooling.BuildMetadata{
+			Module:  "example.com/tools",
+			Version: "v1.0.0",
+			Sum:     "h1:sum",
+		}, nil
 	}
-	tool := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
-	locked, err := manager.Resolve(context.Background(), "demo", tool, tooling.ResolveOptions{AllowInstall: true})
+	tool := buildspec.Tool{
+		Type:    buildspec.ToolTypeGo,
+		Package: "example.com/tools/cmd/demo",
+		Version: "v1.0.0",
+		Install: "auto",
+	}
+	locked, err := manager.Resolve(
+		context.Background(),
+		"demo",
+		tool,
+		tooling.ResolveOptions{AllowInstall: true},
+	)
 	if err != nil {
 		t.Fatalf("准备锁定工具失败: %v", err)
 	}
@@ -45,16 +61,31 @@ func TestResolveVerifiedLifecycleTool_whenTrustedToolDigestDrifts_shouldRestoreA
 		t.Fatalf("模拟工具损坏失败: %v", err)
 	}
 
-	restored, err := resolveVerifiedLifecycleTool(context.Background(), manager, "demo", tool, locked.Entry, true, false)
+	restored, err := resolveVerifiedLifecycleTool(
+		context.Background(),
+		manager,
+		"demo",
+		tool,
+		locked.Entry,
+		true,
+		false,
+	)
 	if err != nil {
 		t.Fatalf("可信工具恢复失败: %v", err)
 	}
 	if installCount != 2 || restored.Entry.SHA256 != locked.Entry.SHA256 {
-		t.Fatalf("恢复结果错误: count=%d restored=%#v locked=%#v", installCount, restored.Entry, locked.Entry)
+		t.Fatalf(
+			"恢复结果错误: count=%d restored=%#v locked=%#v",
+			installCount,
+			restored.Entry,
+			locked.Entry,
+		)
 	}
 }
 
-func TestResolveVerifiedLifecycleTool_whenUntrustedToolDigestDrifts_shouldRejectWithoutRestore(t *testing.T) {
+func TestResolveVerifiedLifecycleTool_whenUntrustedToolDigestDrifts_shouldRejectWithoutRestore(
+	t *testing.T,
+) {
 	cache := t.TempDir()
 	manager := tooling.NewManager(t.TempDir(), cache, nil)
 	installCount := 0
@@ -63,13 +94,31 @@ func TestResolveVerifiedLifecycleTool_whenUntrustedToolDigestDrifts_shouldReject
 		if err := os.MkdirAll(destination, 0o755); err != nil {
 			return err
 		}
-		return os.WriteFile(filepath.Join(destination, lifecycleToolExecutableName("demo")), []byte("locked-tool\n"), 0o755)
+		return os.WriteFile(
+			filepath.Join(destination, lifecycleToolExecutableName("demo")),
+			[]byte("locked-tool\n"),
+			0o755,
+		)
 	}
 	manager.ReadBuild = func(string) (tooling.BuildMetadata, error) {
-		return tooling.BuildMetadata{Module: "example.com/tools", Version: "v1.0.0", Sum: "h1:sum"}, nil
+		return tooling.BuildMetadata{
+			Module:  "example.com/tools",
+			Version: "v1.0.0",
+			Sum:     "h1:sum",
+		}, nil
 	}
-	tool := buildspec.Tool{Type: buildspec.ToolTypeGo, Package: "example.com/tools/cmd/demo", Version: "v1.0.0", Install: "auto"}
-	locked, err := manager.Resolve(context.Background(), "demo", tool, tooling.ResolveOptions{AllowInstall: true})
+	tool := buildspec.Tool{
+		Type:    buildspec.ToolTypeGo,
+		Package: "example.com/tools/cmd/demo",
+		Version: "v1.0.0",
+		Install: "auto",
+	}
+	locked, err := manager.Resolve(
+		context.Background(),
+		"demo",
+		tool,
+		tooling.ResolveOptions{AllowInstall: true},
+	)
 	if err != nil {
 		t.Fatalf("准备锁定工具失败: %v", err)
 	}
@@ -85,7 +134,9 @@ func TestResolveVerifiedLifecycleTool_whenUntrustedToolDigestDrifts_shouldReject
 	}
 }
 
-func TestValidateTaskPaths_whenWorkingDirectoryContainsVariable_shouldDeferValidation(t *testing.T) {
+func TestValidateTaskPaths_whenWorkingDirectoryContainsVariable_shouldDeferValidation(
+	t *testing.T,
+) {
 	project := goarkProject{
 		Root: t.TempDir(),
 		Build: buildspec.Document{Tasks: map[string]buildspec.Task{
@@ -97,7 +148,9 @@ func TestValidateTaskPaths_whenWorkingDirectoryContainsVariable_shouldDeferValid
 	}
 }
 
-func TestPrepareLifecycle_whenCapturingGoVersion_shouldUseProjectRootAndPlanEnvironment(t *testing.T) {
+func TestPrepareLifecycle_whenCapturingGoVersion_shouldUseProjectRootAndPlanEnvironment(
+	t *testing.T,
+) {
 	root := t.TempDir()
 	runner := &recordingProcessRunner{}
 	plan := buildplan.Plan{Environment: map[string]string{"GOTOOLCHAIN": "local", "GOENV": "off"}}
@@ -120,12 +173,15 @@ func TestPrepareLifecycle_whenCapturingGoVersion_shouldUseProjectRootAndPlanEnvi
 	if request.Dir != root {
 		t.Fatalf("Go 版本探测目录 = %q, want %q", request.Dir, root)
 	}
-	if !containsEnvironmentEntry(request.Env, "GOTOOLCHAIN=local") || !containsEnvironmentEntry(request.Env, "GOENV=off") {
+	if !containsEnvironmentEntry(request.Env, "GOTOOLCHAIN=local") ||
+		!containsEnvironmentEntry(request.Env, "GOENV=off") {
 		t.Fatalf("Go 版本探测环境未使用最终计划: %#v", request.Env)
 	}
 }
 
-func TestValidateLockedToolDeclarations_whenCurrentPlatformEntriesAreIncomplete_shouldReject(t *testing.T) {
+func TestValidateLockedToolDeclarations_whenCurrentPlatformEntriesAreIncomplete_shouldReject(
+	t *testing.T,
+) {
 	tools := map[string]buildspec.Tool{
 		"demo": {Type: buildspec.ToolTypeSystem, Command: "demo", Install: "manual"},
 	}

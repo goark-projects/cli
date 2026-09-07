@@ -73,7 +73,9 @@ func (s Store) Save(context Context) error {
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(manifest{Version: manifestVersion, Fingerprint: fingerprint, Outputs: outputs})
+	data, err := json.Marshal(
+		manifest{Version: manifestVersion, Fingerprint: fingerprint, Outputs: outputs},
+	)
 	if err != nil {
 		return err
 	}
