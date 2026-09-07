@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
-	golang.org/x/sys v0.37.0
+	golang.org/x/sys v0.47.0
 )
 
-require golang.org/x/mod v0.28.0
+require golang.org/x/mod v0.40.0
