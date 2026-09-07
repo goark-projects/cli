@@ -3,7 +3,6 @@ package generate
 import (
 	"bytes"
 	"go/ast"
-	"go/printer"
 	"go/token"
 	"sort"
 	"strconv"
@@ -215,32 +214,15 @@ func annotationsBySelector(annotations []Annotation) map[string][]Annotation {
 }
 
 func receiverTypeName(recv *ast.FieldList) string {
-	if recv == nil || len(recv.List) == 0 {
-		return ""
-	}
-	switch typ := recv.List[0].Type.(type) {
-	case *ast.Ident:
-		return typ.Name
-	case *ast.StarExpr:
-		if ident, ok := typ.X.(*ast.Ident); ok {
-			return ident.Name
-		}
-	}
-	return ""
+	return annotationmeta.ReceiverTypeName(recv)
 }
 
 func exprString(fset *token.FileSet, expr ast.Expr) string {
-	var builder bytes.Buffer
-	_ = printer.Fprint(&builder, fset, expr)
-	return builder.String()
+	return annotationmeta.ExprString(fset, expr)
 }
 
 func wrapExpressions(expressions []string) []string {
-	out := make([]string, 0, len(expressions))
-	for _, expression := range expressions {
-		out = append(out, "("+expression+")")
-	}
-	return out
+	return annotationmeta.WrapExpressions(expressions)
 }
 
 func firstNonEmpty(values ...string) string {
