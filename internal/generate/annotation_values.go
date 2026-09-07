@@ -11,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"goark.dev/cli/internal/generate/annotationmeta"
 	"goark.dev/cli/internal/generate/annotationparse"
 )
 
@@ -174,12 +175,7 @@ func parseAnnotations(group *ast.CommentGroup) ([]Annotation, error) {
 }
 
 func hasAnnotation(annotations []Annotation, name string) bool {
-	for _, annotation := range annotations {
-		if annotation.Name == name {
-			return true
-		}
-	}
-	return false
+	return annotationmeta.Has(annotations, name)
 }
 
 func annotationName(annotations []Annotation, name string, fallback string) string {
@@ -190,46 +186,15 @@ func annotationName(annotations []Annotation, name string, fallback string) stri
 }
 
 func annotationString(annotations []Annotation, name string, fallback string) string {
-	for _, annotation := range annotations {
-		if annotation.Name != name {
-			continue
-		}
-		for _, key := range []string{"name", "value"} {
-			if value, ok := annotation.Args[key]; ok {
-				return value.Text()
-			}
-		}
-	}
-	return fallback
+	return annotationmeta.String(annotations, name, fallback)
 }
 
 func annotationStrings(annotations []Annotation, name string) []string {
-	values := make([]string, 0)
-	for _, annotation := range annotations {
-		if annotation.Name != name {
-			continue
-		}
-		for _, value := range annotationValueTexts(annotation) {
-			if value != "" {
-				values = append(values, value)
-			}
-		}
-	}
-	return values
+	return annotationmeta.Strings(annotations, name)
 }
 
 func annotationValueTexts(annotation Annotation) []string {
-	if len(annotation.Values) > 0 {
-		values := make([]string, 0, len(annotation.Values))
-		for _, value := range annotation.Values {
-			values = append(values, value.Text())
-		}
-		return values
-	}
-	if value, ok := annotation.Args["value"]; ok {
-		return []string{value.Text()}
-	}
-	return nil
+	return annotationmeta.ValueTexts(annotation)
 }
 
 func annotationInt(annotations []Annotation, name string, fallback int) int {
@@ -275,18 +240,7 @@ func argString(annotation Annotation, key string, fallback string) string {
 }
 
 func annotationsBySelector(annotations []Annotation) map[string][]Annotation {
-	out := make(map[string][]Annotation)
-	for _, annotation := range annotations {
-		selector := annotation.Selector
-		if strings.HasPrefix(selector, "param=") {
-			selector = strings.Trim(strings.TrimPrefix(selector, "param="), "\"")
-		}
-		if selector == "" {
-			continue
-		}
-		out[selector] = append(out[selector], annotation)
-	}
-	return out
+	return annotationmeta.BySelector(annotations)
 }
 
 func receiverTypeName(recv *ast.FieldList) string {
