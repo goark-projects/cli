@@ -75,6 +75,7 @@ Project caches and lock files are not silently rewritten by `go install`.
 
 ## Release Records
 
+- [V0.0.3 release notes](releases/v0.0.3.md)
 - [V0.0.2 release notes](releases/v0.0.2.md)
 - [Changelog](../CHANGELOG.md)
 - [V0.0.1 release notes](releases/v0.0.1.md)

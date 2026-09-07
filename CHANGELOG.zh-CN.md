@@ -8,6 +8,26 @@
 
 暂无未发布变更。
 
+## [0.0.3] - 2026-09-07
+
+### 变更
+
+- 在生成子包中完成注解式 App、Web 启动、Service 与接口注入。
+- 精简应用 YAML，新生成项目最低要求 Go 1.27。
+- CI 和发布构建采用 Go 1.27，以验证新生成项目。
+
+### 修复
+
+- 补齐新项目依赖，同时保留显式及持久化模块模式。
+- 包发现遵循命令最终环境与 Go 工作区。
+- 测试透传参数和参数值不再影响构建及缓存决策。
+- 拒绝重复应用注解，并保留启动失败诊断。
+
+### 质量
+
+- 增加真实子进程参数与依赖回归测试、共享参数扫描及模糊测试。
+- 验证公共模块骨架、Web 生命周期错误、静态分析及已知漏洞。
+
 ## [0.0.2] - 2026-09-07
 
 ### 变更
@@ -48,6 +68,7 @@
 - 精简的 `app`、`web` 项目骨架，默认包含 `goark.dev/gbc-log`。
 - 英文优先的双语文档、跨平台 CI，以及包含 SHA-256 校验和的可复现发布归档。
 
-[未发布]: https://github.com/goark-projects/cli/compare/v0.0.2...HEAD
+[未发布]: https://github.com/goark-projects/cli/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/goark-projects/cli/releases/tag/v0.0.3
 [0.0.2]: https://github.com/goark-projects/cli/releases/tag/v0.0.2
 [0.0.1]: https://github.com/goark-projects/cli/releases/tag/v0.0.1

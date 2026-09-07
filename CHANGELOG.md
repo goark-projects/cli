@@ -8,6 +8,26 @@ All notable changes to Goark CLI are recorded in this file. The project follows 
 
 No unreleased changes.
 
+## [0.0.3] - 2026-09-07
+
+### Changed
+
+- Generate annotated App and Web startup, services, and interface injection in child packages.
+- Minimize application YAML and set the generated-project baseline to Go 1.27.
+- Use Go 1.27 in CI and release builds to validate the generated projects.
+
+### Fixed
+
+- Resolve new-project dependencies while preserving explicit and persisted module modes.
+- Honor command environments and Go workspaces during package discovery.
+- Isolate test passthrough arguments and flag values from build and cache decisions.
+- Reject duplicate application annotations and preserve startup error diagnostics.
+
+### Quality
+
+- Add real-process argument and dependency regressions, shared argument scanning, and fuzz tests.
+- Verify public-module scaffolds, Web lifecycle failures, static analysis, and vulnerabilities.
+
 ## [0.0.2] - 2026-09-07
 
 ### Changed
@@ -51,6 +71,7 @@ No unreleased changes.
 - Simplified `app` and `web` project scaffolds with `goark.dev/gbc-log` included by default.
 - English-first bilingual documentation, cross-platform CI, and reproducible release archives with SHA-256 checksums.
 
-[Unreleased]: https://github.com/goark-projects/cli/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/goark-projects/cli/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/goark-projects/cli/releases/tag/v0.0.3
 [0.0.2]: https://github.com/goark-projects/cli/releases/tag/v0.0.2
 [0.0.1]: https://github.com/goark-projects/cli/releases/tag/v0.0.1
