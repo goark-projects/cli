@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"goark.dev/cli/internal/generate/annotationmeta"
 	"goark.dev/cli/internal/generate/mvcrouting"
 )
 
@@ -234,42 +235,9 @@ func isImportedSelectorExpr(
 	importPath string,
 	selectorName string,
 ) bool {
-	selector, ok := expr.(*ast.SelectorExpr)
-	if !ok || selector.Sel.Name != selectorName {
-		return false
-	}
-	ident, ok := selector.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-	aliases := importAliases(file, importPath)
-	_, ok = aliases[ident.Name]
-	return ok
+	return annotationmeta.ImportedSelector(file, expr, importPath, selectorName)
 }
 
 func importAliases(file *ast.File, importPath string) map[string]struct{} {
-	aliases := make(map[string]struct{}, 1)
-	if file == nil {
-		return aliases
-	}
-	for _, spec := range file.Imports {
-		if spec.Path == nil {
-			continue
-		}
-		path, err := strconv.Unquote(spec.Path.Value)
-		if err != nil || path != importPath {
-			continue
-		}
-		if spec.Name == nil {
-			aliases[defaultImportName(importPath)] = struct{}{}
-			continue
-		}
-		switch spec.Name.Name {
-		case "", "_", ".":
-			continue
-		default:
-			aliases[spec.Name.Name] = struct{}{}
-		}
-	}
-	return aliases
+	return annotationmeta.ImportAliases(file, importPath)
 }
