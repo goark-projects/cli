@@ -84,7 +84,10 @@ func validateConfigurationSpec(spec *ConfigurationSpec) error {
 		spec.TypeName = ToPascalIdentifier(spec.ConfigurationName) + "Configuration"
 	}
 	if !isExportedIdentifier(spec.TypeName) {
-		return fmt.Errorf("configuration type must be an exported Go identifier, got %q", spec.TypeName)
+		return fmt.Errorf(
+			"configuration type must be an exported Go identifier, got %q",
+			spec.TypeName,
+		)
 	}
 	if err := validateImports(spec.Imports); err != nil {
 		return err

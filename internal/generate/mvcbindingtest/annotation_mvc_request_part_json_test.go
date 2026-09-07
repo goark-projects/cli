@@ -26,7 +26,10 @@ type UploadController struct{}
 
 //goark:post("/uploads", consumes="multipart/form-data")
 //goark:request-part[metadata]("metadata")
-func (c *UploadController) Upload(ctx *arkweb.Context, metadata UploadMetadata) (map[string]string, error) {
+func (c *UploadController) Upload(
+	ctx *arkweb.Context,
+	metadata UploadMetadata,
+) (map[string]string, error) {
 	return map[string]string{"name": metadata.Name}, nil
 }
 `
@@ -52,7 +55,7 @@ func (c *UploadController) Upload(ctx *arkweb.Context, metadata UploadMetadata) 
 	}
 }
 
-func TestGenerateAnnotations_whenMVCRequestPartStructValidatedExists_shouldGenerateValidatedJSONPartBinding(
+func TestGenerateAnnotations_whenMVCValidatedRequestPartExists_shouldGenerateJSONBinding(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -83,7 +86,8 @@ func (c *UploadController) Upload(metadata UploadMetadata) (map[string]string, e
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
-		`metadata, err := mvc.ValidatedRequestPartJSON[UploadMetadata](ctx, "metadata", []string{"create"}, mvc.WithRequired(false))`,
+		`metadata, err := mvc.ValidatedRequestPartJSON[UploadMetadata](` +
+			`ctx, "metadata", []string{"create"}, mvc.WithRequired(false))`,
 		`return controller.Upload(metadata)`,
 	}
 	for _, fragment := range expected {

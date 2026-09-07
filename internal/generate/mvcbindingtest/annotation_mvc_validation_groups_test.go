@@ -96,7 +96,9 @@ func (c *UserController) Create(input CreateUserRequest) (goweb.ResponseEntity[U
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
-		`mvc.BindEntityGroups[CreateUserRequest, User](func(ctx *arkweb.Context, input CreateUserRequest) (goweb.ResponseEntity[User], error)`,
+		`mvc.BindEntityGroups[CreateUserRequest, User](` +
+			`func(ctx *arkweb.Context, input CreateUserRequest) ` +
+			`(goweb.ResponseEntity[User], error)`,
 		`return controller.Create(input)`,
 		`}, "create")`,
 	}
@@ -149,7 +151,7 @@ func (c *UploadController) Upload(input UploadRequest) map[string]string {
 	}
 }
 
-func TestGenerateAnnotations_whenMVCModelAttributeValidatedExists_shouldGenerateModelAttributeGroups(
+func TestGenerateAnnotations_whenMVCValidatedModelAttributeExists_shouldGenerateGroups(
 	t *testing.T,
 ) {
 	dir := t.TempDir()

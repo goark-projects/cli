@@ -2,12 +2,26 @@ package generate_test
 
 import (
 	"fmt"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 )
+
+func assertGeneratedSourceParses(t *testing.T, generated []byte) {
+	t.Helper()
+	if _, err := parser.ParseFile(
+		token.NewFileSet(),
+		"zz_goark_app_gen.go",
+		generated,
+		parser.ParseComments,
+	); err != nil {
+		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
+	}
+}
 
 func assertGeneratedPackageBuilds(t *testing.T, dir string, generated []byte) {
 	t.Helper()

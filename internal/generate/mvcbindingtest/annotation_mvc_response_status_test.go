@@ -98,7 +98,7 @@ func (c *JobController) Delete() {}
 	}
 }
 
-func TestGenerateAnnotations_whenMVCResponseStatusDuplicatesMappingStatus_shouldReturnValidationError(
+func TestGenerateAnnotations_whenMVCResponseStatusConflictsWithMapping_shouldReturnError(
 	t *testing.T,
 ) {
 	dir := t.TempDir()

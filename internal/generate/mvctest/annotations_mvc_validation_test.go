@@ -1,8 +1,6 @@
 package generate_test
 
 import (
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,17 +53,17 @@ func (a *AdminAdvice) NotFound(ctx *arkweb.Context, err *UserNotFoundError) arkw
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
 		"container.Register(registry, \"adminAdvice\"",
 		"container.Register[goweb.Configurer](registry, \"adminAdvice.mvcAdviceConfigurer\"",
-		"advice, err := container.GetByType[*AdminAdvice](ctx, resolver, container.WithQualifier(\"adminAdvice\"))",
+		"advice, err := container.GetByType[*AdminAdvice](ctx, resolver, " +
+			"container.WithQualifier(\"adminAdvice\"))",
 		"mvc.NewConfigurer().WithControllerAdvices(mvc.NewControllerAdvice(\"adminAdvice\"",
-		"mvc.ExceptionHandlerAs[*UserNotFoundError](func(ctx *arkweb.Context, err *UserNotFoundError) arkweb.Result",
+		"mvc.ExceptionHandlerAs[*UserNotFoundError](func(ctx *arkweb.Context, " +
+			"err *UserNotFoundError) arkweb.Result",
 		"return advice.NotFound(ctx, err)",
 		"container.WithFactoryDependencies(\"adminAdvice\")",
 	}
@@ -139,7 +137,7 @@ func (c *AdminController) Search(criteria *UserSearchCriteria) map[string]any {
 	}
 }
 
-func TestGenerateAnnotations_whenMVCRequestBodyAndModelAttributeCombined_shouldReturnValidationError(
+func TestGenerateAnnotations_whenMVCBodyAndModelAttributeCombined_shouldReturnError(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -154,7 +152,10 @@ type AdminController struct{}
 //goark:post("/users")
 //goark:request-body[input]
 //goark:model-attribute[criteria]
-func (c *AdminController) Create(input CreateUserRequest, criteria UserSearchCriteria) map[string]any {
+func (c *AdminController) Create(
+	input CreateUserRequest,
+	criteria UserSearchCriteria,
+) map[string]any {
 	return nil
 }
 `
@@ -238,11 +239,11 @@ type AdminConfiguration struct{}
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
-	expected := `coreenv.LoadPropertiesPropertySource(ctx, loader, "config/app.properties", coreenv.WithPropertySourceName("admin-config"), coreenv.WithIgnoreResourceNotFound(true))`
+	expected := `coreenv.LoadPropertiesPropertySource(ctx, loader, "config/app.properties", ` +
+		`coreenv.WithPropertySourceName("admin-config"), ` +
+		`coreenv.WithIgnoreResourceNotFound(true))`
 	if !strings.Contains(text, expected) {
 		t.Fatalf(
 			"generated property source should use location value and source name separately:\n%s",

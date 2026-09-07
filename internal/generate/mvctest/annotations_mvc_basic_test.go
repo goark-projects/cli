@@ -1,8 +1,6 @@
 package generate_test
 
 import (
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,9 +46,7 @@ func (c *AdminController) Clear() {}
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
@@ -59,10 +55,12 @@ func (c *AdminController) Clear() {}
 		"\"goark.dev/goark/web/mvc\"",
 		"type GoarkWebMVCConfiguration struct{}",
 		"container.Register(registry, \"adminController\"",
-		"container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *AdminController) error",
+		"container.WithTypedDependencyInjector(func(ctx context.Context, " +
+			"resolver container.Resolver, out *AdminController) error",
 		"container.WithInjectionDependencies(\"userService\")",
 		"container.Register[goweb.Configurer](registry, \"adminController.mvcConfigurer\"",
-		"container.GetByType[*AdminController](ctx, resolver, container.WithQualifier(\"adminController\"))",
+		"container.GetByType[*AdminController](ctx, resolver, " +
+			"container.WithQualifier(\"adminController\"))",
 		"mvc.NewController(\"adminController\"",
 		"mvc.GET(\"/admin/users\", mvc.Return[any](200",
 		"return controller.Users(ctx)",
@@ -215,7 +213,13 @@ type AdminController struct{}
 //goark:request-param[query](name="q", defaultValue="all")
 //goark:request-header[requestID]("X-Request-ID")
 //goark:cookie-value[theme]("theme", required=false)
-func (c *AdminController) Detail(ctx *arkweb.Context, id int64, query string, requestID string, theme string) (map[string]any, error) {
+func (c *AdminController) Detail(
+	ctx *arkweb.Context,
+	id int64,
+	query string,
+	requestID string,
+	theme string,
+) (map[string]any, error) {
 	return map[string]any{
 		"id": id,
 		"query": query,

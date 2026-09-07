@@ -25,14 +25,22 @@ import (
 //goark:web-interceptor("traceInterceptor")
 type TraceInterceptor struct{}
 
-func (i *TraceInterceptor) Intercept(ctx *arkweb.Context, next arkweb.Handler) (arkweb.Result, error) {
+func (i *TraceInterceptor) Intercept(
+	ctx *arkweb.Context,
+	next arkweb.Handler,
+) (arkweb.Result, error) {
 	return next.Handle(ctx)
 }
 
 //goark:web-filter("auditFilter")
 type AuditFilter struct{}
 
-func (f *AuditFilter) Filter(ctx context.Context, req *servlet.Request, res servlet.Response, chain servlet.Chain) error {
+func (f *AuditFilter) Filter(
+	ctx context.Context,
+	req *servlet.Request,
+	res servlet.Response,
+	chain servlet.Chain,
+) error {
 	return chain.Next(ctx, req, res)
 }
 `
@@ -53,7 +61,8 @@ func (f *AuditFilter) Filter(ctx context.Context, req *servlet.Request, res serv
 		"container.Register[goweb.Configurer](registry, \"auditFilter.webFilterConfigurer\"",
 		"container.Register[goweb.Configurer](registry, \"traceInterceptor.webInterceptorConfigurer\"",
 		"container.GetByType[*AuditFilter](ctx, resolver, container.WithQualifier(\"auditFilter\"))",
-		"container.GetByType[*TraceInterceptor](ctx, resolver, container.WithQualifier(\"traceInterceptor\"))",
+		"container.GetByType[*TraceInterceptor](ctx, resolver, " +
+			"container.WithQualifier(\"traceInterceptor\"))",
 		"webRegistry.AddFilter(filter)",
 		"webRegistry.Use(interceptor)",
 		"container.WithFactoryDependencies(\"auditFilter\")",

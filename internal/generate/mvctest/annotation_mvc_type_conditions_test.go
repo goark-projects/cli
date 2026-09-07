@@ -9,7 +9,7 @@ import (
 	"goark.dev/cli/internal/generate"
 )
 
-func TestGenerateAnnotations_whenControllerRequestMappingHasConditions_shouldGenerateControllerOptions(
+func TestGenerateAnnotations_whenControllerMappingHasConditions_shouldGenerateOptions(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -43,7 +43,8 @@ func (c *JobsController) Create() map[string]string {
 		`mvc.WithProduces("application/vnd.goark.job+json")`,
 		`mvc.WithParams("mode=fast")`,
 		`mvc.WithHeaders("X-Route=enabled")`,
-		`).WithConsumes("application/json").WithProduces("application/json").WithParams("tenant=admin").WithHeaders("X-Tenant=admin")`,
+		`).WithConsumes("application/json").WithProduces("application/json")` +
+			`.WithParams("tenant=admin").WithHeaders("X-Tenant=admin")`,
 	}
 	for _, fragment := range expected {
 		if !strings.Contains(text, fragment) {

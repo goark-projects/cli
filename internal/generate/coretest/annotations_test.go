@@ -1,8 +1,6 @@
 package generate_test
 
 import (
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,23 +61,24 @@ func (AppConfiguration) Repository(database *Database) *Repository {
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
 		"package app",
-		"func (AppConfiguration) ConfigureEnvironment(ctx context.Context, environment coreenv.ConfigurableEnvironment) error",
+		"func (AppConfiguration) ConfigureEnvironment(ctx context.Context, " +
+			"environment coreenv.ConfigurableEnvironment) error",
 		"coreenv.LoadPropertiesPropertySource(ctx, loader, \"file:app.properties\")",
-		"func (c AppConfiguration) RegisterWithContext(ctx context.Context, config goark.ConfigurationContext) error",
+		"func (c AppConfiguration) RegisterWithContext(ctx context.Context, " +
+			"config goark.ConfigurationContext) error",
 		"goark.ProfileCondition{Expression: \"(prod)\"}",
 		"container.Register(registry, \"repo\"",
 		"container.WithPrimary(), container.WithPriority(10)",
 		"container.Register(registry, \"userService\"",
 		"container.WithQualifier(\"repo\")",
 		"container.WithInjectionDependencies(\"repo\")",
-		"container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *UserService) error",
+		"container.WithTypedDependencyInjector(func(ctx context.Context, " +
+			"resolver container.Resolver, out *UserService) error",
 		"var err error",
 		"goark.ResolveValueAs[bool](config.Environment(), \"${feature.enabled:false}\")",
 		"container.WithLazy(), container.WithDependsOn(\"database\"), container.WithOrder(5)",
@@ -170,14 +169,13 @@ type UserService struct {
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
 	expected := []string{
 		"container.WithDependsOn(\"database\", \"cache\", \"schemaMigrator\", \"redisClient\")",
 		"container.WithInjectionDependencies(\"repository\")",
-		"container.WithTypedDependencyInjector(func(ctx context.Context, resolver container.Resolver, out *UserService) error",
+		"container.WithTypedDependencyInjector(func(ctx context.Context, " +
+			"resolver container.Resolver, out *UserService) error",
 	}
 	for _, fragment := range expected {
 		if !strings.Contains(text, fragment) {
@@ -216,9 +214,7 @@ func (AppConfiguration) Repository(database *Database) *Repository {
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
 	expected := []string{
 		"database, err = container.GetByType[*Database](ctx, resolver)",
@@ -253,9 +249,7 @@ type UserService struct {
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
 	expected := []string{
 		"arkerrors \"goark.dev/goark/errors\"",
@@ -288,9 +282,7 @@ func (AppConfiguration) Port(int) int {
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	if !strings.Contains(
 		string(generated),
 		"arg0, err = goark.ResolveValueAs[int](config.Environment(), \"8080\")",

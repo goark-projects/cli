@@ -55,7 +55,7 @@ func (a *APIAdvice) NotFound(err *UserNotFoundError) map[string]string {
 	}
 }
 
-func TestGenerateAnnotations_whenMVCControllerAdviceResponseBodyExists_shouldGenerateExceptionResponseBody(
+func TestGenerateAnnotations_whenMVCAdviceResponseBodyExists_shouldGenerateExceptionBody(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -103,7 +103,7 @@ func (a *PageAdvice) Denied(err *AccessDeniedError) string {
 	}
 }
 
-func TestGenerateAnnotations_whenMVCExceptionHandlerReturnsResponseEntity_shouldGenerateExceptionEntity(
+func TestGenerateAnnotations_whenMVCExceptionHandlerReturnsEntity_shouldGenerateEntity(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -142,7 +142,9 @@ func (a *APIAdvice) NotFound(err *UserNotFoundError) goweb.ResponseEntity[map[st
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
-		`mvc.ExceptionEntityAs[*UserNotFoundError, map[string]string](func(_ *arkweb.Context, err *UserNotFoundError) goweb.ResponseEntity[map[string]string]`,
+		`mvc.ExceptionEntityAs[*UserNotFoundError, map[string]string](` +
+			`func(_ *arkweb.Context, err *UserNotFoundError) ` +
+			`goweb.ResponseEntity[map[string]string]`,
 		`return advice.NotFound(err)`,
 	}
 	for _, fragment := range expected {

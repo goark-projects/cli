@@ -21,7 +21,12 @@ type SearchController struct{}
 //goark:request-param[values]
 //goark:request-header[headers]
 //goark:request-header[headerValues]
-func (c *SearchController) Search(params map[string]string, values map[string][]string, headers map[string]string, headerValues map[string][]string) map[string]any {
+func (c *SearchController) Search(
+	params map[string]string,
+	values map[string][]string,
+	headers map[string]string,
+	headerValues map[string][]string,
+) map[string]any {
 	return map[string]any{
 		"params": params,
 		"values": values,

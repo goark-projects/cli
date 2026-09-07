@@ -47,7 +47,7 @@ func (c *AdminController) List() []string {
 	}
 }
 
-func TestGenerateAnnotations_whenMVCControllerAndMethodHaveMultiplePaths_shouldGenerateCartesianRoutes(
+func TestGenerateAnnotations_whenMVCTypeAndMethodHavePaths_shouldGenerateCartesianRoutes(
 	t *testing.T,
 ) {
 	dir := t.TempDir()

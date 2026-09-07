@@ -33,7 +33,10 @@ type AdminController struct{}
 
 //goark:post("/jobs", status=202)
 //goark:request-entity[request]
-func (c *AdminController) Create(ctx *arkweb.Context, request goweb.RequestEntity[CreateJobRequest]) (Job, error) {
+func (c *AdminController) Create(
+	ctx *arkweb.Context,
+	request goweb.RequestEntity[CreateJobRequest],
+) (Job, error) {
 	body, _ := request.Body()
 	return Job{Name: body.Name}, nil
 }
@@ -82,7 +85,9 @@ type Job struct {
 type AdminController struct{}
 
 //goark:post("/jobs")
-func (c *AdminController) Create(request goweb.RequestEntity[CreateJobRequest]) (goweb.ResponseEntity[Job], error) {
+func (c *AdminController) Create(
+	request goweb.RequestEntity[CreateJobRequest],
+) (goweb.ResponseEntity[Job], error) {
 	body, _ := request.Body()
 	return goweb.Status(http.StatusAccepted, Job{Name: body.Name}), nil
 }
@@ -98,7 +103,9 @@ func (c *AdminController) Create(request goweb.RequestEntity[CreateJobRequest]) 
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
-		`mvc.POST("/jobs", mvc.BindRequestEntityEntity[CreateJobRequest, Job](func(ctx *arkweb.Context, request goweb.RequestEntity[CreateJobRequest]) (goweb.ResponseEntity[Job], error)`,
+		`mvc.POST("/jobs", mvc.BindRequestEntityEntity[CreateJobRequest, Job](` +
+			`func(ctx *arkweb.Context, request goweb.RequestEntity[CreateJobRequest]) ` +
+			`(goweb.ResponseEntity[Job], error)`,
 		`return controller.Create(request)`,
 	}
 	for _, fragment := range expected {
@@ -157,7 +164,7 @@ func (c *AdminController) Create(request goweb.RequestEntity[CreateJobRequest]) 
 	}
 }
 
-func TestGenerateAnnotations_whenMVCRequestEntityAnnotationTargetsPlainType_shouldReturnValidationError(
+func TestGenerateAnnotations_whenMVCRequestEntityTargetsPlainType_shouldReturnError(
 	t *testing.T,
 ) {
 	dir := t.TempDir()

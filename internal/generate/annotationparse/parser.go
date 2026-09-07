@@ -55,7 +55,10 @@ func parseAnnotation(raw string) (Annotation, error) {
 	if nameEnd < 0 {
 		return Annotation{Name: raw, Args: map[string]AnnotationArg{}}, nil
 	}
-	annotation := Annotation{Name: strings.TrimSpace(raw[:nameEnd]), Args: map[string]AnnotationArg{}}
+	annotation := Annotation{
+		Name: strings.TrimSpace(raw[:nameEnd]),
+		Args: map[string]AnnotationArg{},
+	}
 	if annotation.Name == "" {
 		return Annotation{}, fmt.Errorf("annotation name is required")
 	}
@@ -70,7 +73,10 @@ func parseAnnotation(raw string) (Annotation, error) {
 	}
 	if strings.HasPrefix(rest, "(") {
 		if !strings.HasSuffix(rest, ")") {
-			return Annotation{}, fmt.Errorf("annotation %q arguments are not closed", annotation.Name)
+			return Annotation{}, fmt.Errorf(
+				"annotation %q arguments are not closed",
+				annotation.Name,
+			)
 		}
 		args, values, err := parseAnnotationArgs(rest[1 : len(rest)-1])
 		if err != nil {
@@ -81,7 +87,11 @@ func parseAnnotation(raw string) (Annotation, error) {
 		rest = ""
 	}
 	if rest != "" {
-		return Annotation{}, fmt.Errorf("annotation %q has unsupported trailing content %q", annotation.Name, rest)
+		return Annotation{}, fmt.Errorf(
+			"annotation %q has unsupported trailing content %q",
+			annotation.Name,
+			rest,
+		)
 	}
 	return annotation, nil
 }

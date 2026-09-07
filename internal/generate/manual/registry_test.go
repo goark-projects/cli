@@ -26,7 +26,12 @@ func TestGenerateRegistry_whenSpecHasConfigurations_shouldGenerateDeterministicR
 	if err != nil {
 		t.Fatalf("generate registry failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "registry.go", source, parser.ParseComments); err != nil {
+	if _, err := parser.ParseFile(
+		token.NewFileSet(),
+		"registry.go",
+		source,
+		parser.ParseComments,
+	); err != nil {
 		t.Fatalf("generated registry should parse: %v\n%s", err, string(source))
 	}
 

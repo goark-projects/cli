@@ -1,8 +1,6 @@
 package generate_test
 
 import (
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +9,7 @@ import (
 	"goark.dev/cli/internal/generate"
 )
 
-func TestGenerateAnnotations_whenConfigurationPropertiesDeclared_shouldGenerateBinderMetadataAndRegistration(
+func TestGenerateAnnotations_whenConfigurationPropertiesDeclared_shouldGenerateMetadata(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -48,9 +46,7 @@ func (AppConfiguration) Server(properties *ServerProperties) string { return "se
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
 	expected := []string{
 		`func BindServerProperties(environment goark.Environment) (out *ServerProperties, err error)`,
@@ -112,7 +108,9 @@ func TestGeneratedConfigurationPropertiesBinder(t *testing.T) {
 	if err := environment.PropertySources().AddFirst(source); err != nil { t.Fatal(err) }
 	properties, err := BindServerProperties(environment)
 	if err != nil { t.Fatal(err) }
-	if properties.Port != 8080 || properties.HTTPReadTimeout != 5*time.Second || properties.TLS == nil || !properties.TLS.Enabled || properties.Levels["root"] != "INFO" {
+	if properties.Port != 8080 || properties.HTTPReadTimeout != 5*time.Second ||
+		properties.TLS == nil || !properties.TLS.Enabled ||
+		properties.Levels["root"] != "INFO" {
 		t.Fatalf("unexpected properties: %#v", properties)
 	}
 }

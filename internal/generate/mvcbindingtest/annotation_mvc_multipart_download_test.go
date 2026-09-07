@@ -30,7 +30,10 @@ type UploadController struct{}
 
 //goark:post("/uploads")
 //goark:multipart-body[input]
-func (c *UploadController) Create(ctx *arkweb.Context, input UploadRequest) (map[string]string, error) {
+func (c *UploadController) Create(
+	ctx *arkweb.Context,
+	input UploadRequest,
+) (map[string]string, error) {
 	return map[string]string{"title": input.Title}, nil
 }
 `

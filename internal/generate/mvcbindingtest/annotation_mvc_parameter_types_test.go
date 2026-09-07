@@ -30,7 +30,17 @@ type AdminController struct{}
 //goark:matrix-variable[years](name="year")
 //goark:request-attribute[score]
 //goark:session-attribute[sessionAt]
-func (c *AdminController) Search(ids []int, tags []string, ratio float64, at time.Time, roles []string, flags []bool, years []int64, score float64, sessionAt time.Time) map[string]any {
+func (c *AdminController) Search(
+	ids []int,
+	tags []string,
+	ratio float64,
+	at time.Time,
+	roles []string,
+	flags []bool,
+	years []int64,
+	score float64,
+	sessionAt time.Time,
+) map[string]any {
 	return map[string]any{
 		"ids": ids,
 		"tags": tags,

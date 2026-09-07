@@ -37,7 +37,12 @@ func TestGenerateConfiguration_whenSpecHasBeans_shouldGenerateDeterministicConfi
 	if err != nil {
 		t.Fatalf("generate configuration failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "user_configuration.go", source, parser.ParseComments); err != nil {
+	if _, err := parser.ParseFile(
+		token.NewFileSet(),
+		"user_configuration.go",
+		source,
+		parser.ParseComments,
+	); err != nil {
 		t.Fatalf("generated source should parse: %v\n%s", err, string(source))
 	}
 
@@ -49,7 +54,8 @@ func TestGenerateConfiguration_whenSpecHasBeans_shouldGenerateDeterministicConfi
 		"func (UserConfiguration) Name() string {\n\treturn \"user\"\n}",
 		"func (UserConfiguration) Order() int {\n\treturn 100\n}",
 		"container.Register(registry, \"userRepository\", NewUserRepository, container.WithLazy())",
-		"container.Register(registry, \"userService\", svc.NewUserService, container.WithPrimary(), container.WithDependencies(\"userRepository\"))",
+		"container.Register(registry, \"userService\", svc.NewUserService, " +
+			"container.WithPrimary(), container.WithDependencies(\"userRepository\"))",
 	}
 	for _, fragment := range expectedFragments {
 		if !strings.Contains(text, fragment) {

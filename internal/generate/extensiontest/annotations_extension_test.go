@@ -13,7 +13,7 @@ import (
 	"goark.dev/cli/internal/generate"
 )
 
-func TestGenerateAnnotations_whenGroupedTypeAndGroupedFieldsHaveAnnotations_shouldGenerateRegistrations(
+func TestGenerateAnnotations_whenGroupedAnnotationsExist_shouldGenerateRegistrations(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -37,9 +37,7 @@ type (
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
 	expected := []string{
 		"container.Register(registry, \"groupedService\"",
@@ -84,9 +82,7 @@ type UserMapper interface{}
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
 	if !strings.Contains(text, "const goarkMapperUserMapper = \"UserMapper\"") {
 		t.Fatalf("generated extension source missing mapper constant:\n%s", text)
@@ -138,13 +134,12 @@ type UserMapper interface {
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	text := string(generated)
 	expected := []string{
 		"const goarkExtensionMapperUserMapper = \"UserMapper\"",
-		"const goarkExtensionSelectUserMapperFindByID = \"UserMapper.FindByID:select * from users where id = ?\"",
+		"const goarkExtensionSelectUserMapperFindByID = " +
+			"\"UserMapper.FindByID:select * from users where id = ?\"",
 	}
 	for _, fragment := range expected {
 		if !strings.Contains(text, fragment) {
@@ -182,6 +177,18 @@ func NewMapper() {}
 	if err == nil ||
 		!strings.Contains(err.Error(), `annotation "mapper" does not support method target`) {
 		t.Fatalf("expected descriptor target error, got %v", err)
+	}
+}
+
+func assertGeneratedSourceParses(t *testing.T, generated []byte) {
+	t.Helper()
+	if _, err := parser.ParseFile(
+		token.NewFileSet(),
+		"zz_goark_app_gen.go",
+		generated,
+		parser.ParseComments,
+	); err != nil {
+		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
 	}
 }
 

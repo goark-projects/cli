@@ -1,8 +1,6 @@
 package generate_test
 
 import (
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +25,9 @@ import (
 type AdminController struct{}
 
 //goark:get("/jobs/{id}")
-func (c *AdminController) Detail(ctx *arkweb.Context) (goweb.ResponseEntity[map[string]string], error) {
+func (c *AdminController) Detail(
+	ctx *arkweb.Context,
+) (goweb.ResponseEntity[map[string]string], error) {
 	return goweb.Status(http.StatusAccepted, map[string]string{"id": ctx.PathValue("id")}), nil
 }
 `
@@ -39,9 +39,7 @@ func (c *AdminController) Detail(ctx *arkweb.Context) (goweb.ResponseEntity[map[
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{
@@ -85,7 +83,10 @@ type AdminController struct{}
 
 //goark:post("/jobs")
 //goark:request-body[input]
-func (c *AdminController) Create(ctx *arkweb.Context, input CreateJobRequest) (goweb.ResponseEntity[Job], error) {
+func (c *AdminController) Create(
+	ctx *arkweb.Context,
+	input CreateJobRequest,
+) (goweb.ResponseEntity[Job], error) {
 	return goweb.Status(http.StatusCreated, Job{Name: input.Name}), nil
 }
 `
@@ -97,9 +98,7 @@ func (c *AdminController) Create(ctx *arkweb.Context, input CreateJobRequest) (g
 	if err != nil {
 		t.Fatalf("generate annotations failed: %v", err)
 	}
-	if _, err := parser.ParseFile(token.NewFileSet(), "zz_goark_app_gen.go", generated, parser.ParseComments); err != nil {
-		t.Fatalf("generated source should parse: %v\n%s", err, string(generated))
-	}
+	assertGeneratedSourceParses(t, generated)
 	assertGeneratedPackageBuilds(t, dir, generated)
 	text := string(generated)
 	expected := []string{

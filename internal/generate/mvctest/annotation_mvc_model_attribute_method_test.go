@@ -88,7 +88,7 @@ func (c *PageController) AppName() string {
 	}
 }
 
-func TestGenerateAnnotations_whenMVCModelAttributeMethodHasDuplicateAnnotations_shouldReturnValidationError(
+func TestGenerateAnnotations_whenMVCModelMethodHasDuplicateAnnotations_shouldReturnError(
 	t *testing.T,
 ) {
 	dir := t.TempDir()

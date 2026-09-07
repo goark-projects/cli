@@ -9,7 +9,7 @@ import (
 	"goark.dev/cli/internal/generate"
 )
 
-func TestGenerateAnnotations_whenMVCRequestContractsExist_shouldGenerateRouteOptionsAndParameterBindings(
+func TestGenerateAnnotations_whenMVCRequestContractsExist_shouldGenerateBindings(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
@@ -32,7 +32,14 @@ type AdminController struct{}
 //goark:request-attribute[traceID]("traceID")
 //goark:session-attribute[principal]("principal")
 //goark:request-part[file]("file")
-func (c *AdminController) Upload(ctx *arkweb.Context, id int64, color string, traceID string, principal string, file servletmultipart.Part) (map[string]any, error) {
+func (c *AdminController) Upload(
+	ctx *arkweb.Context,
+	id int64,
+	color string,
+	traceID string,
+	principal string,
+	file servletmultipart.Part,
+) (map[string]any, error) {
 	return map[string]any{
 		"id": id,
 		"color": color,
@@ -96,7 +103,11 @@ type AdminController struct{}
 //goark:put("/users/{id}")
 //goark:path-variable[id]("id")
 //goark:request-body[input]
-func (c *AdminController) Update(ctx *arkweb.Context, id int64, input UpdateUserRequest) (User, error) {
+func (c *AdminController) Update(
+	ctx *arkweb.Context,
+	id int64,
+	input UpdateUserRequest,
+) (User, error) {
 	return User{ID: id, Username: input.Username}, nil
 }
 `
@@ -141,7 +152,10 @@ type AdminController struct{}
 
 //goark:get("/users/search")
 //goark:model-attribute[criteria]
-func (c *AdminController) Search(ctx *arkweb.Context, criteria UserSearchCriteria) (map[string]any, error) {
+func (c *AdminController) Search(
+	ctx *arkweb.Context,
+	criteria UserSearchCriteria,
+) (map[string]any, error) {
 	return map[string]any{
 		"username": criteria.Username,
 		"page": criteria.Page,

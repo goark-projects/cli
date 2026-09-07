@@ -9,7 +9,7 @@ import (
 	"goark.dev/cli/internal/generate"
 )
 
-func TestGenerateAnnotations_whenControllerRequestMappingHasMethods_shouldInheritMethodsForImplicitRequestMapping(
+func TestGenerateAnnotations_whenControllerMappingHasMethods_shouldInheritMethods(
 	t *testing.T,
 ) {
 	dir := t.TempDir()
