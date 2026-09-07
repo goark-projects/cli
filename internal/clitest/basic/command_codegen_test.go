@@ -135,7 +135,11 @@ type UserService struct{}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout should be empty, got %q", stdout.String())
 	}
-	output := filepath.Join(dir, "gen", "zz_goark_core_gen.go")
+	canonicalDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("resolve temporary directory failed: %v", err)
+	}
+	output := filepath.Join(canonicalDir, "gen", "zz_goark_core_gen.go")
 	data, err := os.ReadFile(output)
 	if err != nil {
 		t.Fatalf("read split annotation output failed: %v", err)

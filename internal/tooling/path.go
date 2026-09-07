@@ -41,13 +41,24 @@ func lookPath(command string, environment map[string]string) (string, error) {
 }
 
 func canonicalExecutable(file string) (string, error) {
+	return canonicalExecutablePath(file, filepath.EvalSymlinks)
+}
+
+func canonicalExecutablePath(
+	file string,
+	evaluate func(string) (string, error),
+) (string, error) {
 	absolute, err := filepath.Abs(file)
 	if err != nil {
 		return "", err
 	}
-	canonical, err := filepath.EvalSymlinks(absolute)
+	if !executableFile(absolute) {
+		return "", fmt.Errorf("%s 不是可执行普通文件", absolute)
+	}
+	canonical, err := evaluate(absolute)
 	if err != nil {
-		return "", err
+		// Windows 托管环境可能通过目录链接提供工具，但无法展开完整链接链。
+		return filepath.Clean(absolute), nil
 	}
 	if !executableFile(canonical) {
 		return "", fmt.Errorf("%s 不是可执行普通文件", canonical)
