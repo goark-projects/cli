@@ -52,22 +52,6 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 	return c.executeEnhancedLifecycle(command, project, plan, goCommand)
 }
 
-func containsVersionedPackage(args []string) bool {
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		if strings.HasPrefix(arg, "-") {
-			if runargs.BuildFlagConsumesValue(arg) && index+1 < len(args) {
-				index++
-			}
-			continue
-		}
-		if strings.Contains(arg, "@") {
-			return true
-		}
-	}
-	return false
-}
-
 func (c Command) runApplication(args []string) int {
 	if isHelpOnly(args) {
 		c.printRunHelp(c.Out)
@@ -164,7 +148,7 @@ func parseProjectGenerationArguments(args []string) ([]string, []string, []strin
 			directoryFlags = append(directoryFlags, arg)
 			if !strings.Contains(arg, "=") {
 				if index+1 >= len(remaining) {
-					return nil, nil, nil, workflowControl{}, fmt.Errorf("Go 参数 -C 缺少目录")
+					return nil, nil, nil, workflowControl{}, fmt.Errorf("go 参数 -C 缺少目录")
 				}
 				index++
 				directoryFlags = append(directoryFlags, remaining[index])
@@ -175,7 +159,7 @@ func parseProjectGenerationArguments(args []string) ([]string, []string, []strin
 			buildFlags = append(buildFlags, arg)
 			if !strings.Contains(arg, "=") {
 				if index+1 >= len(remaining) {
-					return nil, nil, nil, workflowControl{}, fmt.Errorf("Go 构建参数 %s 缺少值", arg)
+					return nil, nil, nil, workflowControl{}, fmt.Errorf("go 构建参数 %s 缺少值", arg)
 				}
 				index++
 				buildFlags = append(buildFlags, remaining[index])

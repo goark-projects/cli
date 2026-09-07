@@ -235,13 +235,6 @@ func (c *AnnotationGenerationContext) AddImport(alias string, path string) {
 	c.imports = append(c.imports, ImportSpec{Alias: alias, Path: path})
 }
 
-func (c *AnnotationGenerationContext) sourceType(value string) string {
-	if c.pkg.SourceImportPath == "" {
-		return value
-	}
-	return qualifyLocalIdentifiers(value, c.pkg.types)
-}
-
 // WriteString 写入生成源码正文。
 func (c *AnnotationGenerationContext) WriteString(value string) {
 	c.body.WriteString(value)

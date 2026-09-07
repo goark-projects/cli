@@ -112,7 +112,7 @@ func (m Manager) resolveGo(ctx context.Context, name string, tool buildspec.Tool
 			return Resolved{}, fmt.Errorf("离线模式下不能重装 Go 工具 %q", name)
 		}
 		if !options.AllowInstall {
-			return Resolved{}, fmt.Errorf("Go 工具 %q 不允许重装", name)
+			return Resolved{}, fmt.Errorf("go 工具 %q 不允许重装", name)
 		}
 		if err := m.installGoCached(ctx, tool, key, true); err != nil {
 			return Resolved{}, fmt.Errorf("安装 Go 工具 %q 失败: %w", name, err)
@@ -125,7 +125,7 @@ func (m Manager) resolveGo(ctx context.Context, name string, tool buildspec.Tool
 			return Resolved{}, fmt.Errorf("离线模式下 Go 工具 %q 不存在", name)
 		}
 		if !options.AllowInstall {
-			return Resolved{}, fmt.Errorf("Go 工具 %q 尚未安装，请执行 goark sync 或 goark tool install %s", name, name)
+			return Resolved{}, fmt.Errorf("go 工具 %q 尚未安装，请执行 goark sync 或 goark tool install %s", name, name)
 		}
 		if err := m.installGoCached(ctx, tool, key, false); err != nil {
 			return Resolved{}, fmt.Errorf("安装 Go 工具 %q 失败: %w", name, err)
@@ -133,7 +133,7 @@ func (m Manager) resolveGo(ctx context.Context, name string, tool buildspec.Tool
 	}
 	resolvedPath, err := canonicalExecutable(resolvedPath)
 	if err != nil {
-		return Resolved{}, fmt.Errorf("Go 工具 %q 无效: %w", name, err)
+		return Resolved{}, fmt.Errorf("go 工具 %q 无效: %w", name, err)
 	}
 	metadata, err := m.ReadBuild(resolvedPath)
 	if err != nil {

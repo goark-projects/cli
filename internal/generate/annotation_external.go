@@ -3,64 +3,10 @@ package generate
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
-
-func parseAnnotationPackages(
-	fset *token.FileSet,
-	dir string,
-	files []string,
-) (map[string]*ast.Package, error) {
-	if len(files) == 0 {
-		return parser.ParseDir(fset, dir, func(info os.FileInfo) bool {
-			name := info.Name()
-			return !strings.HasSuffix(name, "_test.go") && strings.HasSuffix(name, ".go")
-		}, parser.ParseComments)
-	}
-	packages := make(map[string]*ast.Package)
-	for _, name := range files {
-		name = strings.TrimSpace(name)
-		if name == "" || strings.HasSuffix(name, "_test.go") || !strings.HasSuffix(name, ".go") {
-			return nil, fmt.Errorf("invalid Go source file %q", name)
-		}
-		path := filepath.Join(dir, name)
-		relative, err := filepath.Rel(dir, path)
-		if err != nil || relative == ".." ||
-			strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("Go source file %q is outside scan directory", name)
-		}
-		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-		if err != nil {
-			return nil, err
-		}
-		packageName := file.Name.Name
-		parsedPackage := packages[packageName]
-		if parsedPackage == nil {
-			parsedPackage = &ast.Package{Name: packageName, Files: make(map[string]*ast.File)}
-			packages[packageName] = parsedPackage
-		}
-		parsedPackage.Files[path] = file
-	}
-	return packages, nil
-}
-
-func sortedPackageFiles(fset *token.FileSet, parsedPackage *ast.Package) []*ast.File {
-	files := make([]*ast.File, 0, len(parsedPackage.Files))
-	for _, file := range parsedPackage.Files {
-		files = append(files, file)
-	}
-	sort.Slice(files, func(i, j int) bool {
-		return fset.Position(files[i].Package).Filename < fset.Position(files[j].Package).Filename
-	})
-	return files
-}
 
 const sourcePackageAlias = "goarksource"
 

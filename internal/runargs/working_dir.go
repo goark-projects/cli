@@ -17,7 +17,7 @@ func EffectiveWorkingDir(base string, args []string) (string, error) {
 		switch {
 		case arg == "-C":
 			if index+1 >= len(args) {
-				return "", fmt.Errorf("Go 参数 -C 缺少目录")
+				return "", fmt.Errorf("go 参数 -C 缺少目录")
 			}
 			value = args[index+1]
 		case strings.HasPrefix(arg, "-C="):

@@ -61,12 +61,12 @@ func ApplyControlArgument(control *Control, argument string) (bool, error) {
 		control.Locked = true
 		return true, nil
 	case "--goark-no-generate", "--goark-generate-only":
-		return false, fmt.Errorf("已删除参数 %s；需要原始 Go 行为时使用 goark go ...", argument)
+		return false, fmt.Errorf("已删除参数 %s；需要原始 go 行为时使用 goark go", argument)
 	}
 	if strings.HasPrefix(argument, "--goark-profile=") {
 		profile := strings.TrimPrefix(argument, "--goark-profile=")
 		if !validIdentifier(profile) {
-			return false, fmt.Errorf("无效 Goark Profile: %q", profile)
+			return false, fmt.Errorf("无效 goark profile: %q", profile)
 		}
 		control.Profile = profile
 		return true, nil
@@ -75,13 +75,13 @@ func ApplyControlArgument(control *Control, argument string) (bool, error) {
 		assignment := strings.TrimPrefix(argument, "--goark-env=")
 		name, value, ok := strings.Cut(assignment, "=")
 		if !ok || !environmentNamePattern.MatchString(name) {
-			return false, fmt.Errorf("Goark 环境变量必须使用 --goark-env=KEY=VALUE 格式: %s", argument)
+			return false, fmt.Errorf("goark 环境变量必须使用 --goark-env=KEY=VALUE 格式: %s", argument)
 		}
 		envutil.Set(control.Environment, name, value)
 		return true, nil
 	}
 	if strings.HasPrefix(argument, "--goark-") {
-		return false, fmt.Errorf("未知 Goark 参数: %s", argument)
+		return false, fmt.Errorf("未知 goark 参数: %s", argument)
 	}
 	return false, nil
 }

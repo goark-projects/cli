@@ -84,7 +84,7 @@ func Parse(args []string) (Plan, error) {
 			plan.GoArguments = append(plan.GoArguments, arg)
 			if BuildFlagConsumesValue(arg) {
 				if index+1 >= len(args) {
-					return Plan{}, fmt.Errorf("Go 构建参数 %s 缺少值", arg)
+					return Plan{}, fmt.Errorf("go 构建参数 %s 缺少值", arg)
 				}
 				index++
 				plan.GoArguments = append(plan.GoArguments, args[index])

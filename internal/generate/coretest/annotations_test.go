@@ -115,6 +115,34 @@ type UserService struct{}
 	}
 }
 
+func TestGenerateAnnotations_whenBuildTagExcludesFile_shouldIgnoreFile(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"service.go": `package app
+
+//goark:service
+type UserService struct{}
+`,
+		"excluded.go": `//go:build goark_never_matches
+
+package excluded
+`,
+	}
+	for name, source := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {
+			t.Fatalf("write %s failed: %v", name, err)
+		}
+	}
+
+	generated, err := generate.GenerateAnnotations(generate.AnnotationScanSpec{Dir: dir})
+	if err != nil {
+		t.Fatalf("build tag excluded source should be ignored: %v", err)
+	}
+	if !strings.Contains(string(generated), "UserService") {
+		t.Fatalf("generated source missing active service:\n%s", generated)
+	}
+}
+
 func TestGenerateAnnotations_whenDependsOnHasMultipleValues_shouldGenerateAllManualDependencies(
 	t *testing.T,
 ) {

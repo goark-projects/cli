@@ -285,10 +285,6 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 	return false
 }
 
-func isMVCRouteAnnotation(name string) bool {
-	return isMVCRouteMappingAnnotation(name) || isMVCBodyAnnotation(name) || isMVCRequestEntityAnnotation(name) || isMVCMultipartBodyAnnotation(name) || isMVCParameterAnnotation(name) || isMVCValidatedAnnotation(name) || isMVCResponseBodyAnnotation(name) || isMVCResponseStatusAnnotation(name) || isMVCCrossOriginAnnotation(name)
-}
-
 func isMVCRouteMappingAnnotation(name string) bool {
 	switch name {
 	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options", "trace":
@@ -310,16 +306,6 @@ func isMVCBodyAnnotation(name string) bool {
 func isMVCMultipartBodyAnnotation(name string) bool { return name == "multipart-body" }
 
 func isMVCValidatedAnnotation(name string) bool { return name == "validated" }
-
-func isMVCParameterAnnotation(name string) bool {
-	switch name {
-	case "path-variable", "request-param", "request-header", "cookie-value", "model-attribute",
-		"request-attribute", "session-attribute", "matrix-variable", "request-part":
-		return true
-	default:
-		return false
-	}
-}
 
 func isMVCResponseStatusAnnotation(name string) bool { return name == "response-status" }
 

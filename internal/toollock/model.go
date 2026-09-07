@@ -88,10 +88,10 @@ func validate(file File) error {
 		switch entry.Type {
 		case buildspec.ToolTypeGo:
 			if entry.Package == "" || entry.Version == "" || entry.Module == "" || entry.ModuleVersion == "" || entry.ModuleSum == "" {
-				return fmt.Errorf("Go 工具 %q 必须包含 package、version、module、module-version 和 module-sum", entry.Name)
+				return fmt.Errorf("go 工具 %q 必须包含 package、version、module、module-version 和 module-sum", entry.Name)
 			}
 			if !validGoCachePath(entry.Path) {
-				return fmt.Errorf("Go 工具 %q 的 path 必须是 Goark 隔离缓存逻辑路径", entry.Name)
+				return fmt.Errorf("go 工具 %q 的 path 必须是 Goark 隔离缓存逻辑路径", entry.Name)
 			}
 		case buildspec.ToolTypeSystem, buildspec.ToolTypeLocal:
 			if entry.Package != "" || entry.Version != "" || entry.Module != "" || entry.ModuleVersion != "" || entry.ModuleSum != "" {

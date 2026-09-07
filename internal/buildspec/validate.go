@@ -94,13 +94,13 @@ func validateTools(tools map[string]Tool) error {
 		switch tool.Type {
 		case ToolTypeGo:
 			if tool.Package == "" || tool.Version == "" {
-				return fmt.Errorf("Go 工具 %q 必须声明 package 和 version", name)
+				return fmt.Errorf("go 工具 %q 必须声明 package 和 version", name)
 			}
 			if tool.Command != "" || tool.Path != "" {
-				return fmt.Errorf("Go 工具 %q 不能声明 command 或 path", name)
+				return fmt.Errorf("go 工具 %q 不能声明 command 或 path", name)
 			}
 			if !semver.IsValid(tool.Version) {
-				return fmt.Errorf("Go 工具 %q 必须声明精确 version，不能使用 %q", name, tool.Version)
+				return fmt.Errorf("go 工具 %q 必须声明精确 version，不能使用 %q", name, tool.Version)
 			}
 		case ToolTypeSystem:
 			if tool.Command == "" {
@@ -151,7 +151,7 @@ func validateTasks(tasks map[string]Task, tools map[string]Tool) error {
 			}
 		case TaskTypeGo:
 			if len(task.Args) == 0 {
-				return fmt.Errorf("Go 任务 %q 必须声明 args", name)
+				return fmt.Errorf("go 任务 %q 必须声明 args", name)
 			}
 		case TaskTypeDelete:
 			if len(task.Outputs) == 0 {

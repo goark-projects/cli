@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"goark.dev/cli/internal/generate/annotationparse"
 )
 
 func scanInterfaceMethods(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File, decl *ast.GenDecl, typeSpec *ast.TypeSpec, interfaceType *ast.InterfaceType) error {
@@ -289,7 +291,7 @@ func scanAnnotations(spec AnnotationScanSpec, pipeline *annotationPipeline) (*an
 		dir = "."
 	}
 	fset := token.NewFileSet()
-	packages, err := parseAnnotationPackages(fset, dir, spec.Files)
+	packages, err := annotationparse.ParsePackages(fset, dir, spec.Files)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -338,7 +340,7 @@ func scanAnnotations(spec AnnotationScanSpec, pipeline *annotationPipeline) (*an
 		pkg:    pkg,
 		values: make(map[string]any),
 	}
-	files := sortedPackageFiles(fset, parsedPackage)
+	files := annotationparse.SortedFiles(fset, parsedPackage)
 	for _, file := range files {
 		if err := scanAnnotationFile(ctx, pipeline, fset, file); err != nil {
 			return nil, nil, err
