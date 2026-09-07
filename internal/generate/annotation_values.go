@@ -7,9 +7,6 @@ import (
 	"go/token"
 	"sort"
 	"strconv"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"goark.dev/cli/internal/generate/annotationmeta"
 	"goark.dev/cli/internal/generate/annotationparse"
@@ -198,45 +195,19 @@ func annotationValueTexts(annotation Annotation) []string {
 }
 
 func annotationInt(annotations []Annotation, name string, fallback int) int {
-	for _, annotation := range annotations {
-		if annotation.Name != name {
-			continue
-		}
-		if value, ok := annotation.Args["value"]; ok {
-			if parsed, err := strconv.Atoi(value.Text()); err == nil {
-				return parsed
-			}
-		}
-	}
-	return fallback
+	return annotationmeta.Int(annotations, name, fallback)
 }
 
 func annotationBool(annotation Annotation, key string, fallback bool) bool {
-	value, ok := annotation.Args[key]
-	if !ok {
-		return fallback
-	}
-	parsed, err := strconv.ParseBool(value.Text())
-	if err != nil {
-		return fallback
-	}
-	return parsed
+	return annotationmeta.Bool(annotation, key, fallback)
 }
 
 func annotationBoolByName(annotations []Annotation, name string, fallback bool) bool {
-	for _, annotation := range annotations {
-		if annotation.Name == name {
-			return annotationBool(annotation, "value", fallback)
-		}
-	}
-	return fallback
+	return annotationmeta.BoolByName(annotations, name, fallback)
 }
 
 func argString(annotation Annotation, key string, fallback string) string {
-	if value, ok := annotation.Args[key]; ok {
-		return value.Text()
-	}
-	return fallback
+	return annotationmeta.ArgString(annotation, key, fallback)
 }
 
 func annotationsBySelector(annotations []Annotation) map[string][]Annotation {
@@ -273,24 +244,11 @@ func wrapExpressions(expressions []string) []string {
 }
 
 func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
+	return annotationmeta.FirstNonEmpty(values...)
 }
 
 func lowerCamel(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return value
-	}
-	r, size := utf8.DecodeRuneInString(value)
-	if r == utf8.RuneError {
-		return value
-	}
-	return string(unicode.ToLower(r)) + value[size:]
+	return annotationmeta.LowerCamel(value)
 }
 
 // ImportSpec 描述生成文件所需的额外导入。
