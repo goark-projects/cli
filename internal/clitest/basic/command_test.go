@@ -32,7 +32,8 @@ func TestCommand_whenGenerateConfigurationToStdout_shouldPrintGeneratedSource(t 
 		"return \"user\"",
 		"return 100",
 		"container.Register(registry, \"userRepository\", NewUserRepository, container.WithLazy())",
-		"container.Register(registry, \"userService\", NewUserService, container.WithPrimary(), container.WithDependencies(\"userRepository\"))",
+		"container.Register(registry, \"userService\", NewUserService, " +
+			"container.WithPrimary(), container.WithDependencies(\"userRepository\"))",
 	}
 	for _, fragment := range expected {
 		if !strings.Contains(output, fragment) {

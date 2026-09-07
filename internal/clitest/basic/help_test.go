@@ -53,7 +53,11 @@ func TestCommand_whenLifecycleHelpRequested_shouldDescribeCurrentControlFlags(t 
 		t.Fatalf("退出码 = %d", code)
 	}
 	output := stdout.String()
-	for _, flag := range []string{"--goark-profile", "--goark-dry-run", "--goark-offline", "--goark-locked", "--goark-env"} {
+	flags := []string{
+		"--goark-profile", "--goark-dry-run", "--goark-offline",
+		"--goark-locked", "--goark-env",
+	}
+	for _, flag := range flags {
 		if !strings.Contains(output, flag) {
 			t.Fatalf("帮助缺少 %s:\n%s", flag, output)
 		}

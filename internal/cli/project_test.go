@@ -50,7 +50,8 @@ func TestProjectResolver_whenSingleCommandExists_shouldResolveModuleAndMain(t *t
 
 func TestProjectResolver_whenBuildFileMissing_shouldReject(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n\ngo 1.26.0\n"), 0o644); err != nil {
+	goMod := []byte("module example.com/app\n\ngo 1.26.0\n")
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), goMod, 0o644); err != nil {
 		t.Fatalf("写入 go.mod 失败: %v", err)
 	}
 	_, err := newTestProjectResolver(root).Resolve()
@@ -191,13 +192,16 @@ func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingM
 		if err := os.MkdirAll(item.dir, 0o755); err != nil {
 			t.Fatalf("创建模块目录失败: %v", err)
 		}
-		if err := os.WriteFile(filepath.Join(item.dir, "go.mod"), []byte("module "+item.module+"\n\ngo 1.26.0\n"), 0o644); err != nil {
+		goMod := []byte("module " + item.module + "\n\ngo 1.26.0\n")
+		if err := os.WriteFile(filepath.Join(item.dir, "go.mod"), goMod, 0o644); err != nil {
 			t.Fatalf("写入 go.mod 失败: %v", err)
 		}
-		if err := os.WriteFile(filepath.Join(item.dir, "goark.build"), []byte("version = 1\n"), 0o644); err != nil {
+		buildFile := filepath.Join(item.dir, "goark.build")
+		if err := os.WriteFile(buildFile, []byte("version = 1\n"), 0o644); err != nil {
 			t.Fatalf("写入 goark.build 失败: %v", err)
 		}
-		if err := os.WriteFile(filepath.Join(item.dir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644); err != nil {
+		mainFile := filepath.Join(item.dir, "main.go")
+		if err := os.WriteFile(mainFile, []byte("package main\nfunc main() {}\n"), 0o644); err != nil {
 			t.Fatalf("写入 main.go 失败: %v", err)
 		}
 	}

@@ -163,7 +163,8 @@ func TestRead_whenLockIsInvalid_shouldReject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
-			if err := os.WriteFile(filepath.Join(root, buildspec.LockFileName), []byte(tt.content), 0o600); err != nil {
+			path := filepath.Join(root, buildspec.LockFileName)
+			if err := os.WriteFile(path, []byte(tt.content), 0o600); err != nil {
 				t.Fatalf("写入测试锁文件失败: %v", err)
 			}
 			_, err := Read(root)
@@ -210,7 +211,10 @@ func lockWithTool(
 	return "version = 1\nbuild-sha256 = '" + strings.Repeat("a", 64) + "'\n[[tools]]\n" +
 		"name = 'demo'\ntype = '" + toolType + "'\ngoos = 'linux'\ngoarch = 'amd64'\n" +
 		"package = '" + packagePath + "'\nversion = '" + version + "'\nmodule = '" + module + "'\n" +
-		"module-version = '" + moduleVersion + "'\nmodule-sum = '" + moduleSum + "'\npath = '" + lockPath + "'\nsha256 = '" + strings.Repeat("b", 64) + "'\n"
+		"module-version = '" + moduleVersion + "'\n" +
+		"module-sum = '" + moduleSum + "'\n" +
+		"path = '" + lockPath + "'\n" +
+		"sha256 = '" + strings.Repeat("b", 64) + "'\n"
 }
 
 func TestDigestFile_shouldReturnContentSHA256(t *testing.T) {

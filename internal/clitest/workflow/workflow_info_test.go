@@ -30,7 +30,12 @@ func TestCommand_whenInfoRequested_shouldReportProjectAndGenerationPlan(t *testi
 	if code := command.Run([]string{"info"}); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	for _, fragment := range []string{"Goark CLI:", "Project: app", "Module: example.com/app", "Main: ./cmd/server", "Profile: (none)", "Generators: annotations", "Generated packages: 1", "Execution plans:"} {
+	fragments := []string{
+		"Goark CLI:", "Project: app", "Module: example.com/app",
+		"Main: ./cmd/server", "Profile: (none)", "Generators: annotations",
+		"Generated packages: 1", "Execution plans:",
+	}
+	for _, fragment := range fragments {
 		if !strings.Contains(stdout.String(), fragment) {
 			t.Fatalf("info 缺少 %q:\n%s", fragment, stdout.String())
 		}

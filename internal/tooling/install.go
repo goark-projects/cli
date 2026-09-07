@@ -53,7 +53,11 @@ func (m Manager) installGoCached(
 	if err := m.InstallGo(ctx, tool.Package, tool.Version, destination, m.Environment); err != nil {
 		return err
 	}
-	if _, err := canonicalExecutable(filepath.Join(destination, executableName(path.Base(tool.Package)))); err != nil {
+	installedPath := filepath.Join(
+		destination,
+		executableName(path.Base(tool.Package)),
+	)
+	if _, err := canonicalExecutable(installedPath); err != nil {
 		return fmt.Errorf("安装结果缺少预期可执行文件: %w", err)
 	}
 	if err := publishGoToolCache(goCache, key, temp, target); err != nil {

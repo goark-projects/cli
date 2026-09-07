@@ -108,7 +108,13 @@ func (c Command) resolveLifecycleTools(
 		return nil, err
 	}
 	if plan.Control.Locked {
-		if err := validateLockedToolDeclarations(lock, project.Build.Tools, runtime.GOOS, runtime.GOARCH); err != nil {
+		err := validateLockedToolDeclarations(
+			lock,
+			project.Build.Tools,
+			runtime.GOOS,
+			runtime.GOARCH,
+		)
+		if err != nil {
 			return nil, err
 		}
 	}

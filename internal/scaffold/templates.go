@@ -265,13 +265,24 @@ func (c webClientConfiguration) Register(ctx context.Context, registry *containe
 	return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))
 }
 
-func (webClientConfiguration) RegisterWithContext(_ context.Context, config goark.ConfigurationContext) error {
-	return gbcweb.RegisterHTTPClientBuilderCustomizer(config.Registry(), "appHTTPClientCustomizer", gbcweb.HTTPClientBuilderCustomizerFunc(func(ctx context.Context, builder *webclient.Builder) (*webclient.Builder, error) {
+func (webClientConfiguration) RegisterWithContext(
+	_ context.Context,
+	config goark.ConfigurationContext,
+) error {
+	customizer := gbcweb.HTTPClientBuilderCustomizerFunc(func(
+		ctx context.Context,
+		builder *webclient.Builder,
+	) (*webclient.Builder, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		return builder.DefaultHeader("X-Goark-App", "true"), nil
-	}))
+	})
+	return gbcweb.RegisterHTTPClientBuilderCustomizer(
+		config.Registry(),
+		"appHTTPClientCustomizer",
+		customizer,
+	)
 }
 `
 }

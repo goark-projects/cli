@@ -91,7 +91,10 @@ func TestManagerResolve_whenGoToolInstallationAllowed_shouldInstallOnce(t *testi
 	cache := t.TempDir()
 	manager := NewManager(t.TempDir(), cache, nil)
 	installCount := 0
-	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+	manager.InstallGo = func(
+		_ context.Context, _ string, _ string,
+		destination string, _ map[string]string,
+	) error {
 		installCount++
 		writeExecutable(t, destination, executableName("demo"))
 		return nil
@@ -135,7 +138,10 @@ func TestManagerResolve_whenGoToolExecutableMissingFromExistingCache_shouldResto
 	cache := t.TempDir()
 	manager := NewManager(t.TempDir(), cache, nil)
 	installCount := 0
-	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+	manager.InstallGo = func(
+		_ context.Context, _ string, _ string,
+		destination string, _ map[string]string,
+	) error {
 		installCount++
 		writeExecutable(t, destination, executableName("demo"))
 		return nil
@@ -184,7 +190,10 @@ func TestManagerResolve_whenForceInstallRequested_shouldReplaceExistingTool(t *t
 	cache := t.TempDir()
 	manager := NewManager(t.TempDir(), cache, nil)
 	installCount := 0
-	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+	manager.InstallGo = func(
+		_ context.Context, _ string, _ string,
+		destination string, _ map[string]string,
+	) error {
 		installCount++
 		path := writeExecutable(t, destination, executableName("demo"))
 		return os.WriteFile(path, []byte(fmt.Sprintf("tool-%d\n", installCount)), 0o755)

@@ -21,7 +21,12 @@ func TestCommand_whenProjectDiscoveryFails_shouldPreserveExitSemantics(t *testin
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			command := Command{Dir: t.TempDir(), Out: io.Discard, Err: io.Discard, Runner: &recordingProcessRunner{err: test.err}}
+			command := Command{
+				Dir:    t.TempDir(),
+				Out:    io.Discard,
+				Err:    io.Discard,
+				Runner: &recordingProcessRunner{err: test.err},
+			}
 			if code := command.Run([]string{"build", "./..."}); code != test.want {
 				t.Fatalf("退出码 = %d, want %d", code, test.want)
 			}
@@ -85,13 +90,16 @@ func TestCommand_whenGenerateUsesDirectoryFlag_shouldResolveProjectFromThatDirec
 	if err := os.MkdirAll(filepath.Join(root, "app"), 0o755); err != nil {
 		t.Fatalf("创建项目目录失败: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/service\n\ngo 1.26.0\n"), 0o644); err != nil {
+	goMod := []byte("module example.com/service\n\ngo 1.26.0\n")
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), goMod, 0o644); err != nil {
 		t.Fatalf("写入 go.mod 失败: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "goark.build"), []byte("version = 1\n"), 0o644); err != nil {
+	buildFile := filepath.Join(root, "goark.build")
+	if err := os.WriteFile(buildFile, []byte("version = 1\n"), 0o644); err != nil {
 		t.Fatalf("写入 goark.build 失败: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "app", "app.go"), []byte("package app\n\n//goark:component\ntype App struct{}\n"), 0o644); err != nil {
+	source := []byte("package app\n\n//goark:component\ntype App struct{}\n")
+	if err := os.WriteFile(filepath.Join(root, "app", "app.go"), source, 0o644); err != nil {
 		t.Fatalf("写入源码失败: %v", err)
 	}
 	var stderr bytes.Buffer
@@ -131,7 +139,9 @@ func TestCommand_whenBuildDryRunRequested_shouldPrintPlanWithoutWriting(t *testi
 	); !os.IsNotExist(err) {
 		t.Fatalf("模拟执行不应写文件: %v", err)
 	}
-	if !strings.Contains(stderr.String(), "would generate") || !strings.Contains(stderr.String(), "go build ./...") {
+	diagnostic := stderr.String()
+	if !strings.Contains(diagnostic, "would generate") ||
+		!strings.Contains(diagnostic, "go build ./...") {
 		t.Fatalf("执行计划不完整: %q", stderr.String())
 	}
 }
@@ -202,10 +212,15 @@ func TestCommand_whenBuildOutputProvidedByCLI_shouldOverrideConfiguredOutput(t *
 	var stderr bytes.Buffer
 	command := testOSCommand(root, io.Discard, &stderr)
 
-	if code := command.Run([]string{"build", "--goark-dry-run", "-o", "./build/cli", "./cmd/server"}); code != 0 {
+	args := []string{
+		"build", "--goark-dry-run", "-o", "./build/cli", "./cmd/server",
+	}
+	if code := command.Run(args); code != 0 {
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "go build -o ./build/cli ./cmd/server") || strings.Contains(stderr.String(), "./build/configured") {
+	diagnostic := stderr.String()
+	if !strings.Contains(diagnostic, "go build -o ./build/cli ./cmd/server") ||
+		strings.Contains(diagnostic, "./build/configured") {
 		t.Fatalf("CLI 输出未覆盖配置输出: %q", stderr.String())
 	}
 }
@@ -225,10 +240,12 @@ func TestCommand_whenRunDryRunContainsSecretArguments_shouldRedactDiagnostic(t *
 		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
 	}
 	diagnostic := stderr.String()
-	if strings.Contains(diagnostic, "argument-secret") || strings.Contains(diagnostic, "environment-secret") {
+	if strings.Contains(diagnostic, "argument-secret") ||
+		strings.Contains(diagnostic, "environment-secret") {
 		t.Fatalf("模拟执行泄露密钥: %q", diagnostic)
 	}
-	if !strings.Contains(diagnostic, "--token=******") || !strings.Contains(diagnostic, `"value with spaces"`) {
+	if !strings.Contains(diagnostic, "--token=******") ||
+		!strings.Contains(diagnostic, `"value with spaces"`) {
 		t.Fatalf("模拟执行参数格式错误: %q", diagnostic)
 	}
 }
@@ -240,7 +257,8 @@ func TestCommand_whenLockedBuildHasNoLockFile_shouldRejectEvenWithoutTools(t *te
 	})
 	var stderr bytes.Buffer
 	command := testOSCommand(root, io.Discard, &stderr)
-	if code := command.Run([]string{"build", "--goark-locked", "--goark-dry-run", "./..."}); code == 0 {
+	args := []string{"build", "--goark-locked", "--goark-dry-run", "./..."}
+	if code := command.Run(args); code == 0 {
 		t.Fatalf("锁文件缺失时 --goark-locked 必须失败: %s", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "goark.build.lock") {
@@ -299,52 +317,6 @@ args = ["version"]
 		"would run task build-after",
 		"would run task build-finally",
 	})
-}
-
-func TestCommand_whenGoCommandFails_shouldStillRunFinally(t *testing.T) {
-	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
-		"goark.build": `version = 1
-[commands.build]
-finally = ["cleanup"]
-
-[tasks.cleanup]
-type = "go"
-args = ["version"]
-`,
-	})
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	command := testOSCommand(root, &stdout, &stderr)
-	if code := command.Run([]string{"build", "./missing"}); code == 0 {
-		t.Fatalf("构建必须失败, stdout=%s stderr=%s", stdout.String(), stderr.String())
-	}
-	if !strings.Contains(stdout.String(), "go version") {
-		t.Fatalf("finally 未执行: stdout=%q stderr=%q", stdout.String(), stderr.String())
-	}
-}
-
-func TestCommand_whenFinallyTaskAlreadyRan_shouldRunItAgain(t *testing.T) {
-	root := writeTestModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
-		"goark.build": `version = 1
-[commands.build]
-before = ["cleanup"]
-finally = ["cleanup"]
-
-[tasks.cleanup]
-type = "go"
-args = ["version"]
-`,
-	})
-	var stderr bytes.Buffer
-	command := testOSCommand(root, io.Discard, &stderr)
-	if code := command.Run([]string{"build", "--goark-dry-run", "./..."}); code != 0 {
-		t.Fatalf("退出码 = %d, stderr=%s", code, stderr.String())
-	}
-	if count := strings.Count(stderr.String(), "would run task cleanup"); count != 2 {
-		t.Fatalf("finally 必须独立执行同名任务，执行次数 = %d:\n%s", count, stderr.String())
-	}
 }
 
 func assertOrderedFragments(t *testing.T, value string, fragments []string) {

@@ -18,7 +18,12 @@ func TestDocumentation_whenCompleteBuildExamplesDeclared_shouldParse(t *testing.
 		filepath.Join(root, "README.md"),
 		filepath.Join(root, "README.zh-CN.md"),
 	}
-	if err := filepath.WalkDir(filepath.Join(root, "docs"), func(path string, entry fs.DirEntry, err error) error {
+	docsRoot := filepath.Join(root, "docs")
+	if err := filepath.WalkDir(docsRoot, func(
+		path string,
+		entry fs.DirEntry,
+		err error,
+	) error {
 		if err != nil {
 			return err
 		}

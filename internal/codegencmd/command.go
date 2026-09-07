@@ -280,8 +280,11 @@ Flags:
 
 Examples:
   goark codegen configuration --name user --package generated
-  goark codegen configuration --name user --package generated --type UserConfiguration --order 100 --output internal/generated/user_configuration.go
-  goark codegen configuration --name user --package generated --bean "userRepository=NewUserRepository" --bean "userService=NewUserService;deps=userRepository"
+  goark codegen configuration --name user --package generated --type UserConfiguration`+
+		` --order 100 --output internal/generated/user_configuration.go
+  goark codegen configuration --name user --package generated`+
+		` --bean "userRepository=NewUserRepository"`+
+		` --bean "userService=NewUserService;deps=userRepository"
 
 `)
 }
@@ -300,8 +303,11 @@ Flags:
 
 Examples:
   goark codegen registry --package generated --configuration UserConfiguration
-  goark codegen registry --package generated --configuration UserConfiguration --configuration HTTPConfiguration --output internal/generated/registry.go
-  goark codegen registry --package generated --import cfg=example.com/app/internal/config --configuration cfg.AdminConfiguration
+  goark codegen registry --package generated --configuration UserConfiguration`+
+		` --configuration HTTPConfiguration --output internal/generated/registry.go
+  goark codegen registry --package generated`+
+		` --import cfg=example.com/app/internal/config`+
+		` --configuration cfg.AdminConfiguration
 
 `)
 }

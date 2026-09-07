@@ -207,7 +207,11 @@ func TestRunnerRun_whenCacheHits_shouldNotStartProcess(t *testing.T) {
 		Cache:   true,
 	}
 	cache := taskcache.NewStore(root)
-	if err := cache.Save(taskcache.Context{Root: root, TaskName: "cached", Task: task, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}); err != nil {
+	cacheContext := taskcache.Context{
+		Root: root, TaskName: "cached", Task: task,
+		GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
+	}
+	if err := cache.Save(cacheContext); err != nil {
 		t.Fatalf("准备缓存失败: %v", err)
 	}
 	process := &recordingRunner{}
@@ -240,7 +244,11 @@ func TestRunnerRun_whenCacheWasSavedThroughPathAlias_shouldHit(t *testing.T) {
 		Cache:   true,
 	}
 	cache := taskcache.NewStore(alias)
-	if err := cache.Save(taskcache.Context{Root: alias, TaskName: "cached", Task: task, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}); err != nil {
+	cacheContext := taskcache.Context{
+		Root: alias, TaskName: "cached", Task: task,
+		GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
+	}
+	if err := cache.Save(cacheContext); err != nil {
 		t.Fatalf("准备缓存失败: %v", err)
 	}
 	process := &recordingRunner{}
@@ -272,7 +280,10 @@ func TestRunnerRun_whenDryRunRequested_shouldNotStartProcessOrDelete(t *testing.
 	process := &recordingRunner{}
 	var diagnostic bytes.Buffer
 	runner := New(Options{Root: root, Process: process, DryRun: true, Err: &diagnostic})
-	if err := runner.Run(context.Background(), "delete", buildspec.Task{Type: buildspec.TaskTypeDelete, Outputs: []string{"output/result.txt"}}); err != nil {
+	task := buildspec.Task{
+		Type: buildspec.TaskTypeDelete, Outputs: []string{"output/result.txt"},
+	}
+	if err := runner.Run(context.Background(), "delete", task); err != nil {
 		t.Fatalf("模拟删除失败: %v", err)
 	}
 	if len(process.requests) != 0 {

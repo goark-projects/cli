@@ -188,8 +188,10 @@ func (m Manager) resolved(
 // Verify 检查当前解析结果是否与锁定项完全一致。
 func Verify(resolved Resolved, locked toollock.Entry) error {
 	actual := resolved.Entry
-	if actual.Name != locked.Name || actual.Type != locked.Type || actual.GOOS != locked.GOOS || actual.GOARCH != locked.GOARCH ||
-		actual.Package != locked.Package || actual.Version != locked.Version || actual.Module != locked.Module ||
+	if actual.Name != locked.Name || actual.Type != locked.Type ||
+		actual.GOOS != locked.GOOS || actual.GOARCH != locked.GOARCH ||
+		actual.Package != locked.Package || actual.Version != locked.Version ||
+		actual.Module != locked.Module ||
 		actual.ModuleVersion != locked.ModuleVersion || actual.ModuleSum != locked.ModuleSum ||
 		actual.Path != locked.Path {
 		return fmt.Errorf("工具 %q 的锁定元数据不一致", resolved.Name)

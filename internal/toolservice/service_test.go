@@ -105,7 +105,11 @@ func TestServiceSync_whenOtherPlatformEntriesExist_shouldPreserveThem(t *testing
 		Name: "go", Type: buildspec.ToolTypeSystem, GOOS: otherOS, GOARCH: "arm64",
 		Path: "/usr/bin/go", SHA256: strings.Repeat("a", 64),
 	}
-	if err := toollock.Write(root, toollock.File{Version: toollock.CurrentVersion, BuildSHA256: digest, Tools: []toollock.Entry{old}}); err != nil {
+	lock := toollock.File{
+		Version: toollock.CurrentVersion, BuildSHA256: digest,
+		Tools: []toollock.Entry{old},
+	}
+	if err := toollock.Write(root, lock); err != nil {
 		t.Fatalf("准备跨平台锁文件失败: %v", err)
 	}
 	service := newTestService(root, document, projecttrust.Store{Dir: t.TempDir()})
@@ -124,7 +128,8 @@ func TestServiceVerify_whenBuildChanged_shouldRejectLockDrift(t *testing.T) {
 	if _, err := service.Sync(context.Background(), SyncOptions{}); err != nil {
 		t.Fatalf("准备锁文件失败: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, buildspec.FileName), []byte("version = 1\n# changed\n"), 0o644); err != nil {
+	path := filepath.Join(root, buildspec.FileName)
+	if err := os.WriteFile(path, []byte("version = 1\n# changed\n"), 0o644); err != nil {
 		t.Fatalf("修改描述文件失败: %v", err)
 	}
 	if _, err := service.Verify(context.Background()); err == nil ||
@@ -178,7 +183,9 @@ func environmentMap(values []string) map[string]string {
 func writeGoToolProject(t *testing.T, install string) (string, buildspec.Document) {
 	t.Helper()
 	root := t.TempDir()
-	content := "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/cmd/demo\"\nversion = \"v1.0.0\"\ninstall = \"" + install + "\"\n"
+	content := "version = 1\n[tools.demo]\ntype = \"go\"\n" +
+		"package = \"example.com/tools/cmd/demo\"\n" +
+		"version = \"v1.0.0\"\ninstall = \"" + install + "\"\n"
 	path := filepath.Join(root, buildspec.FileName)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("写入描述文件失败: %v", err)
@@ -199,7 +206,10 @@ func fakeGoToolService(
 	t.Helper()
 	cache := filepath.Join(root, "tool-cache")
 	manager := tooling.NewManager(root, cache, environmentMap(os.Environ()))
-	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+	manager.InstallGo = func(
+		_ context.Context, _ string, _ string,
+		destination string, _ map[string]string,
+	) error {
 		*installCount++
 		path := filepath.Join(destination, executableNameForTest("demo"))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

@@ -5,7 +5,8 @@ import (
 	"io"
 )
 
-const completionCommands = "help version new run build test install vet list fix generate clean tasks task graph sync tools tool doctor codegen info go completion"
+const completionCommands = "help version new run build test install vet list fix generate " +
+	"clean tasks task graph sync tools tool doctor codegen info go completion"
 const codegenCommands = "configuration registry annotations"
 
 // Run 校验目标 shell 并将补全脚本写入输出流。
@@ -97,8 +98,10 @@ const fishCompletion = `complete -c goark -f
 complete -c goark -n '__fish_use_subcommand' -a '` + completionCommands + `'
 complete -c goark -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish powershell'
 complete -c goark -n '__fish_seen_subcommand_from codegen' -a '` + codegenCommands + `'
-complete -c goark -n '__fish_seen_subcommand_from new; and not __fish_prev_arg_in -type --type' -a '-type -module -dir -force'
-complete -c goark -n '__fish_seen_subcommand_from new; and __fish_prev_arg_in -type --type' -a 'app web'
+complete -c goark -n '__fish_seen_subcommand_from new;` +
+	` and not __fish_prev_arg_in -type --type' -a '-type -module -dir -force'
+complete -c goark -n '__fish_seen_subcommand_from new;` +
+	` and __fish_prev_arg_in -type --type' -a 'app web'
 `
 
 const powershellCompletion = `Register-ArgumentCompleter -Native -CommandName goark -ScriptBlock {

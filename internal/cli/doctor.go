@@ -31,7 +31,11 @@ func (c Command) runDoctor(args []string) int {
 	if err := validateProjectTaskGraph(project); err != nil {
 		checks = append(checks, doctorCheck{Name: "task graph", Detail: err.Error()})
 	} else {
-		checks = append(checks, doctorCheck{Name: "task graph", Passed: true, Detail: fmt.Sprintf("%d tasks", len(project.Build.Tasks))})
+		checks = append(checks, doctorCheck{
+			Name:   "task graph",
+			Passed: true,
+			Detail: fmt.Sprintf("%d tasks", len(project.Build.Tasks)),
+		})
 	}
 	goVersion := c.captureGoVersion()
 	checks = append(

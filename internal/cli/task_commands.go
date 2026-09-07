@@ -33,7 +33,8 @@ func (c Command) runTasks(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	if err := taskview.WriteList(c.Out, taskview.Snapshot(project.Build.Tasks), jsonOutput); err != nil {
+	snapshot := taskview.Snapshot(project.Build.Tasks)
+	if err := taskview.WriteList(c.Out, snapshot, jsonOutput); err != nil {
 		_, _ = fmt.Fprintf(c.Err, "输出任务列表失败: %v\n", err)
 		return 1
 	}
@@ -132,8 +133,11 @@ func validateProjectTaskGraph(project goarkProject) error {
 
 func (c Command) resolveProjectMetadata(dir string) (goarkProject, error) {
 	return projectResolver{
-		Context: c.Context, Dir: runargs.BaseDir(dir), Env: append([]string(nil), c.Env...), Runner: c.Runner,
-		Err: c.Err, Static: true, MetadataOnly: true,
+		Context: c.Context,
+		Dir:     runargs.BaseDir(dir),
+		Env:     append([]string(nil), c.Env...),
+		Runner:  c.Runner,
+		Err:     c.Err, Static: true, MetadataOnly: true,
 	}.Resolve()
 }
 

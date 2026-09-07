@@ -55,7 +55,11 @@ func TestCreateApp_whenWebDisabled_shouldWriteBootApplicationSkeleton(t *testing
 		filepath.Join(dir, "internal/app/configuration.go"),
 		"container.RegisterInstance",
 	)
-	for _, fragment := range []string{"goark.dev/arkarta", "goark.dev/arkhos", "goark.dev/gbc-web", "goark.dev/gbc-arkhos"} {
+	modules := []string{
+		"goark.dev/arkarta", "goark.dev/arkhos",
+		"goark.dev/gbc-web", "goark.dev/gbc-arkhos",
+	}
+	for _, fragment := range modules {
 		assertFileNotContains(t, filepath.Join(dir, "go.mod"), fragment)
 	}
 	if _, statErr := os.Stat(filepath.Join(dir, "resource/static/index.html")); !os.IsNotExist(
@@ -149,7 +153,8 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 
 func TestCreateApp_whenTargetExistsWithoutForce_shouldReturnError(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module existing\n"), 0o644); err != nil {
+	goMod := filepath.Join(dir, "go.mod")
+	if err := os.WriteFile(goMod, []byte("module existing\n"), 0o644); err != nil {
 		t.Fatalf("write existing go.mod failed: %v", err)
 	}
 
@@ -247,7 +252,9 @@ replace goark.dev/arkhos => ` + filepath.ToSlash(filepath.Join(root, "arkhos")) 
 
 replace goark.dev/boot => ` + filepath.ToSlash(filepath.Join(root, "goark-boot")) + `
 
-replace goark.dev/gbc-arkhos => ` + filepath.ToSlash(filepath.Join(root, "goark-boot-contrib-arkhos")) + `
+replace goark.dev/gbc-arkhos => ` + filepath.ToSlash(
+		filepath.Join(root, "goark-boot-contrib-arkhos"),
+	) + `
 
 replace goark.dev/gbc-log => ` + filepath.ToSlash(filepath.Join(root, "goark-boot-contrib-log")) + `
 

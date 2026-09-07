@@ -123,14 +123,16 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 			want:    "missing",
 		},
 		{
-			name:    "cached task missing inputs",
-			content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\noutputs = [\"build/out\"]\ncache = true\n",
-			want:    "inputs",
+			name: "cached task missing inputs",
+			content: "version = 1\n[tasks.one]\ntype = \"go\"\n" +
+				"args = [\"list\", \"./...\"]\noutputs = [\"build/out\"]\ncache = true\n",
+			want: "inputs",
 		},
 		{
-			name:    "cached task missing outputs",
-			content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"list\", \"./...\"]\ninputs = [\"**/*.go\"]\ncache = true\n",
-			want:    "outputs",
+			name: "cached task missing outputs",
+			content: "version = 1\n[tasks.one]\ntype = \"go\"\n" +
+				"args = [\"list\", \"./...\"]\ninputs = [\"**/*.go\"]\ncache = true\n",
+			want: "outputs",
 		},
 		{
 			name:    "unknown command task",
@@ -143,9 +145,10 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 			want:    "项目根目录",
 		},
 		{
-			name:    "delete task cache",
-			content: "version = 1\n[tasks.one]\ntype = \"delete\"\ninputs = [\"input\"]\noutputs = [\"output\"]\ncache = true\n",
-			want:    "不能启用 cache",
+			name: "delete task cache",
+			content: "version = 1\n[tasks.one]\ntype = \"delete\"\n" +
+				"inputs = [\"input\"]\noutputs = [\"output\"]\ncache = true\n",
+			want: "不能启用 cache",
 		},
 		{
 			name:    "invalid profile name",
@@ -153,9 +156,10 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 			want:    "Profile 名称",
 		},
 		{
-			name:    "invalid task environment",
-			content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one.environment]\n\"BAD-NAME\" = \"value\"\n",
-			want:    "environment 名称",
+			name: "invalid task environment",
+			content: "version = 1\n[tasks.one]\ntype = \"go\"\nargs = [\"version\"]\n" +
+				"[tasks.one.environment]\n\"BAD-NAME\" = \"value\"\n",
+			want: "environment 名称",
 		},
 		{
 			name:    "invalid command environment",
@@ -188,14 +192,16 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 			want:    "generate.patterns",
 		},
 		{
-			name:    "go tool latest version",
-			content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"latest\"\ninstall = \"auto\"\n",
-			want:    "精确 version",
+			name: "go tool latest version",
+			content: "version = 1\n[tools.demo]\ntype = \"go\"\n" +
+				"package = \"example.com/tools/demo\"\nversion = \"latest\"\ninstall = \"auto\"\n",
+			want: "精确 version",
 		},
 		{
-			name:    "go tool branch version",
-			content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"main\"\ninstall = \"auto\"\n",
-			want:    "精确 version",
+			name: "go tool branch version",
+			content: "version = 1\n[tools.demo]\ntype = \"go\"\n" +
+				"package = \"example.com/tools/demo\"\nversion = \"main\"\ninstall = \"auto\"\n",
+			want: "精确 version",
 		},
 		{
 			name:    "tool missing install",
@@ -203,39 +209,50 @@ func TestLoadFile_whenStructureIsInvalid_shouldReject(t *testing.T) {
 			want:    "install",
 		},
 		{
-			name:    "system tool uses path",
-			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"./demo\"\ninstall = \"manual\"\n",
-			want:    "PATH",
+			name: "system tool uses path",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\n" +
+				"command = \"./demo\"\ninstall = \"manual\"\n",
+			want: "PATH",
 		},
 		{
-			name:    "go tool has system command",
-			content: "version = 1\n[tools.demo]\ntype = \"go\"\npackage = \"example.com/tools/demo\"\nversion = \"v1.0.0\"\ncommand = \"demo\"\ninstall = \"auto\"\n",
-			want:    "command",
+			name: "go tool has system command",
+			content: "version = 1\n[tools.demo]\ntype = \"go\"\n" +
+				"package = \"example.com/tools/demo\"\nversion = \"v1.0.0\"\n" +
+				"command = \"demo\"\ninstall = \"auto\"\n",
+			want: "command",
 		},
 		{
-			name:    "system tool has Go package",
-			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\npackage = \"example.com/tools/demo\"\ninstall = \"manual\"\n",
-			want:    "package",
+			name: "system tool has Go package",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\n" +
+				"package = \"example.com/tools/demo\"\ninstall = \"manual\"\n",
+			want: "package",
 		},
 		{
-			name:    "local tool has system command",
-			content: "version = 1\n[tools.demo]\ntype = \"local\"\npath = \"./tools/demo\"\ncommand = \"demo\"\ninstall = \"manual\"\n",
-			want:    "command",
+			name: "local tool has system command",
+			content: "version = 1\n[tools.demo]\ntype = \"local\"\npath = \"./tools/demo\"\n" +
+				"command = \"demo\"\ninstall = \"manual\"\n",
+			want: "command",
 		},
 		{
-			name:    "go task has external tool",
-			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"go\"\ntool = \"demo\"\nargs = [\"version\"]\n",
-			want:    "tool",
+			name: "go task has external tool",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\n" +
+				"install = \"manual\"\n[tasks.one]\ntype = \"go\"\ntool = \"demo\"\n" +
+				"args = [\"version\"]\n",
+			want: "tool",
 		},
 		{
-			name:    "delete task has external tool",
-			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.one]\ntype = \"delete\"\ntool = \"demo\"\noutputs = [\"build/out\"]\n",
-			want:    "tool",
+			name: "delete task has external tool",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\n" +
+				"install = \"manual\"\n[tasks.one]\ntype = \"delete\"\ntool = \"demo\"\n" +
+				"outputs = [\"build/out\"]\n",
+			want: "tool",
 		},
 		{
-			name:    "group task has external tool",
-			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\ninstall = \"manual\"\n[tasks.base]\ntype = \"go\"\nargs = [\"version\"]\n[tasks.one]\ntype = \"group\"\ntool = \"demo\"\ndepends-on = [\"base\"]\n",
-			want:    "tool",
+			name: "group task has external tool",
+			content: "version = 1\n[tools.demo]\ntype = \"system\"\ncommand = \"demo\"\n" +
+				"install = \"manual\"\n[tasks.base]\ntype = \"go\"\nargs = [\"version\"]\n" +
+				"[tasks.one]\ntype = \"group\"\ntool = \"demo\"\ndepends-on = [\"base\"]\n",
+			want: "tool",
 		},
 	}
 	for _, tt := range tests {

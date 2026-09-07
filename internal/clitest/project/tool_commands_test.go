@@ -92,8 +92,9 @@ func TestCommand_whenToolInstallUnknownNameRequested_shouldReturnUsageError(t *t
 func toolCommandProject(t *testing.T) string {
 	t.Helper()
 	return writeTestModule(t, map[string]string{
-		"go.mod":      "module example.com/app\n\ngo 1.26.0\n",
-		"goark.build": "version = 1\n[tools.go]\ntype = \"system\"\ncommand = \"go\"\ninstall = \"manual\"\n",
+		"go.mod": "module example.com/app\n\ngo 1.26.0\n",
+		"goark.build": "version = 1\n[tools.go]\ntype = \"system\"\n" +
+			"command = \"go\"\ninstall = \"manual\"\n",
 	})
 }
 

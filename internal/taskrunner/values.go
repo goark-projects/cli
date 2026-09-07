@@ -18,8 +18,13 @@ func (r *Runner) taskValues(task buildspec.Task) (map[string]string, expand.Valu
 		tools[name] = tool.Path
 	}
 	values := expand.Values{
-		ProjectRoot: r.options.Root, ProjectName: r.options.ProjectName, ProjectModule: r.options.ProjectModule,
-		Profile: r.options.Profile, CommandOutput: r.options.CommandOutput, Tools: tools, Environment: environment,
+		ProjectRoot:   r.options.Root,
+		ProjectName:   r.options.ProjectName,
+		ProjectModule: r.options.ProjectModule,
+		Profile:       r.options.Profile,
+		CommandOutput: r.options.CommandOutput,
+		Tools:         tools,
+		Environment:   environment,
 	}
 	for name, raw := range task.Environment {
 		value, err := expand.String(raw, values)

@@ -180,7 +180,8 @@ func validateTasks(tasks map[string]Task, tools map[string]Tool) error {
 			return fmt.Errorf("缓存任务 %q 必须声明 outputs", name)
 		}
 		if task.WorkingDirectory != "" {
-			if err := validateProjectPath("tasks."+name+".working-directory", task.WorkingDirectory); err != nil {
+			field := "tasks." + name + ".working-directory"
+			if err := validateProjectPath(field, task.WorkingDirectory); err != nil {
 				return err
 			}
 		}
@@ -217,7 +218,10 @@ func validateCommands(commands map[string]Command, tasks map[string]Task) error 
 		if _, ok := supportedCommands[name]; !ok {
 			return fmt.Errorf("未知命令配置 %q", name)
 		}
-		for _, taskName := range append(append(append([]string(nil), command.Before...), command.After...), command.Finally...) {
+		taskNames := append([]string(nil), command.Before...)
+		taskNames = append(taskNames, command.After...)
+		taskNames = append(taskNames, command.Finally...)
+		for _, taskName := range taskNames {
 			if _, ok := tasks[taskName]; !ok {
 				return fmt.Errorf("命令 %q 引用了不存在的任务 %q", name, taskName)
 			}
@@ -239,7 +243,8 @@ func validateProfiles(profiles map[string]Profile) error {
 		if !identifierPattern.MatchString(name) {
 			return fmt.Errorf("Profile 名称 %q 无效", name)
 		}
-		if err := validateEnvironment(fmt.Sprintf("Profile %q", name), profiles[name].Environment); err != nil {
+		label := fmt.Sprintf("Profile %q", name)
+		if err := validateEnvironment(label, profiles[name].Environment); err != nil {
 			return err
 		}
 	}

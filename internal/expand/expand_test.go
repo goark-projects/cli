@@ -15,12 +15,14 @@ func TestString_whenVariablesAreAllowed_shouldExpandOnce(t *testing.T) {
 		Tools:         map[string]string{"goark-orm": "/cache/goark-orm"},
 		Environment:   map[string]string{"CONFIG": "resource/config.toml", "LITERAL": "${profile}"},
 	}
-	input := "${project.root}|${project.name}|${project.module}|${profile}|${command.output}|${tool:goark-orm}|${env:CONFIG}|${env:LITERAL}"
+	input := "${project.root}|${project.name}|${project.module}|${profile}|" +
+		"${command.output}|${tool:goark-orm}|${env:CONFIG}|${env:LITERAL}"
 	result, err := String(input, values)
 	if err != nil {
 		t.Fatalf("替换变量失败: %v", err)
 	}
-	want := "/workspace/app|admin|example.com/admin|production|build/admin|/cache/goark-orm|resource/config.toml|${profile}"
+	want := "/workspace/app|admin|example.com/admin|production|build/admin|" +
+		"/cache/goark-orm|resource/config.toml|${profile}"
 	if result != want {
 		t.Fatalf("结果 = %q, want %q", result, want)
 	}

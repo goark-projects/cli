@@ -107,7 +107,9 @@ func (c Cleaner) targets(patterns []string) ([]string, error) {
 		result = append(result, target)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		if depthI, depthJ := strings.Count(result[i], "/"), strings.Count(result[j], "/"); depthI != depthJ {
+		depthI := strings.Count(result[i], "/")
+		depthJ := strings.Count(result[j], "/")
+		if depthI != depthJ {
 			return depthI > depthJ
 		}
 		return result[i] < result[j]

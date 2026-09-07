@@ -149,7 +149,10 @@ func (r *Runner) run(ctx context.Context, name string, task buildspec.Task) erro
 		return err
 	}
 	enabled, err := condition.Evaluate(task.When, condition.Values{
-		Profile: r.options.Profile, GOOS: r.options.GOOS, GOARCH: r.options.GOARCH, Environment: environment,
+		Profile:     r.options.Profile,
+		GOOS:        r.options.GOOS,
+		GOARCH:      r.options.GOARCH,
+		Environment: environment,
 	})
 	if err != nil {
 		return err

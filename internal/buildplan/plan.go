@@ -132,7 +132,11 @@ func RedactEnvironment(environment map[string]string) map[string]string {
 
 func isSecretName(name string) bool {
 	upper := strings.ToUpper(name)
-	for _, marker := range []string{"PASSWORD", "PASSWD", "SECRET", "TOKEN", "API_KEY", "PRIVATE_KEY", "CREDENTIAL"} {
+	secretMarkers := []string{
+		"PASSWORD", "PASSWD", "SECRET", "TOKEN",
+		"API_KEY", "PRIVATE_KEY", "CREDENTIAL",
+	}
+	for _, marker := range secretMarkers {
 		if strings.Contains(upper, marker) {
 			return true
 		}

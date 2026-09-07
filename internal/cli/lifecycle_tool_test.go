@@ -20,7 +20,13 @@ func TestResolveVerifiedLifecycleTool_whenTrustedToolDigestDrifts_shouldRestoreA
 	cache := t.TempDir()
 	manager := tooling.NewManager(t.TempDir(), cache, nil)
 	installCount := 0
-	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+	manager.InstallGo = func(
+		_ context.Context,
+		_ string,
+		_ string,
+		destination string,
+		_ map[string]string,
+	) error {
 		installCount++
 		path := filepath.Join(destination, lifecycleToolExecutableName("demo"))
 		if err := os.MkdirAll(destination, 0o755); err != nil {
@@ -89,7 +95,13 @@ func TestResolveVerifiedLifecycleTool_whenUntrustedToolDigestDrifts_shouldReject
 	cache := t.TempDir()
 	manager := tooling.NewManager(t.TempDir(), cache, nil)
 	installCount := 0
-	manager.InstallGo = func(_ context.Context, _ string, _ string, destination string, _ map[string]string) error {
+	manager.InstallGo = func(
+		_ context.Context,
+		_ string,
+		_ string,
+		destination string,
+		_ map[string]string,
+	) error {
 		installCount++
 		if err := os.MkdirAll(destination, 0o755); err != nil {
 			return err
@@ -126,7 +138,10 @@ func TestResolveVerifiedLifecycleTool_whenUntrustedToolDigestDrifts_shouldReject
 		t.Fatalf("模拟工具损坏失败: %v", err)
 	}
 
-	if _, err := resolveVerifiedLifecycleTool(context.Background(), manager, "demo", tool, locked.Entry, false, false); err == nil {
+	_, err = resolveVerifiedLifecycleTool(
+		context.Background(), manager, "demo", tool, locked.Entry, false, false,
+	)
+	if err == nil {
 		t.Fatal("未信任工具损坏后必须失败")
 	}
 	if installCount != 1 {
@@ -185,7 +200,10 @@ func TestValidateLockedToolDeclarations_whenCurrentPlatformEntriesAreIncomplete_
 	tools := map[string]buildspec.Tool{
 		"demo": {Type: buildspec.ToolTypeSystem, Command: "demo", Install: "manual"},
 	}
-	if err := validateLockedToolDeclarations(toollock.File{}, tools, runtime.GOOS, runtime.GOARCH); err == nil {
+	err := validateLockedToolDeclarations(
+		toollock.File{}, tools, runtime.GOOS, runtime.GOARCH,
+	)
+	if err == nil {
 		t.Fatal("锁定模式必须拒绝缺少当前平台工具项的锁文件")
 	}
 	lock := toollock.File{Tools: []toollock.Entry{{
