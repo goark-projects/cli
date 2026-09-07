@@ -12,19 +12,22 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildspec"
+	"goark.dev/cli/internal/goargs"
+	"goark.dev/cli/internal/goconfig"
 	"goark.dev/cli/internal/projectfs"
 )
 
 type projectResolver struct {
-	Context      context.Context
-	Dir          string
-	Env          []string
-	Runner       ProcessRunner
-	Err          io.Writer
-	Patterns     []string
-	BuildFlags   []string
-	Static       bool
-	MetadataOnly bool
+	Context        context.Context
+	Dir            string
+	Env            []string
+	Runner         ProcessRunner
+	Err            io.Writer
+	Patterns       []string
+	BuildFlags     []string
+	Static         bool
+	MetadataOnly   bool
+	ResolveModules bool
 }
 
 type goarkProject struct {
@@ -167,7 +170,7 @@ func (r projectResolver) resolveModule() (goModule, error) {
 
 func (r projectResolver) listPackages(root string, patterns []string) ([]goPackage, error) {
 	args := []string{"list", "-e", "-json"}
-	args = append(args, r.BuildFlags...)
+	args = append(args, r.packageBuildFlags(root)...)
 	args = append(args, patterns...)
 	var output bytes.Buffer
 	var diagnostic bytes.Buffer
@@ -209,6 +212,49 @@ func (r projectResolver) listPackages(root string, patterns []string) ([]goPacka
 		return packages[i].ImportPath < packages[j].ImportPath
 	})
 	return packages, nil
+}
+
+func (r projectResolver) packageBuildFlags(root string) []string {
+	flags := append([]string(nil), r.BuildFlags...)
+	if !r.ResolveModules {
+		return flags
+	}
+	environment := r.Env
+	if len(environment) == 0 {
+		environment = os.Environ()
+	}
+	return withWritableModuleMode(root, flags, environment, r.Context, r.Runner)
+}
+
+func withWritableModuleMode(
+	root string, arguments, environment []string, ctx context.Context, runner ProcessRunner,
+) []string {
+	if hasModuleMode(arguments) {
+		return arguments
+	}
+	flags, workspace, err := goconfig.ModuleEnvironment(ctx, runner, root, environment)
+	flagArgs, parseErr := goargs.ParseFlags(flags)
+	// 无法确认实际配置时不强制写模式，后续 Go 命令负责报告原始错误。
+	if err != nil || parseErr != nil || projectfs.WorkspaceActive(root, workspace) ||
+		hasModuleMode(flagArgs) {
+		return arguments
+	}
+	vendor, err := os.Stat(filepath.Join(root, "vendor"))
+	if err == nil && vendor.IsDir() || err != nil && !os.IsNotExist(err) {
+		return arguments
+	}
+	out := make([]string, 0, len(arguments)+1)
+	out = append(out, "-mod=mod")
+	return append(out, arguments...)
+}
+
+func hasModuleMode(arguments []string) bool {
+	for entry := range goargs.Scan(arguments) {
+		if entry.Name == "-mod" {
+			return true
+		}
+	}
+	return false
 }
 
 func (p goarkProject) ResolveRunTarget(workingDir string) (string, error) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildplan"
+	"goark.dev/cli/internal/goargs"
 )
 
 func (c Command) generateAndReport(project goarkProject, dryRun bool) int {
@@ -58,26 +59,11 @@ func isHelpOnly(args []string) bool {
 func composeEnhancedGoArguments(command string, args []string) []string {
 	global := make([]string, 0, 2)
 	commandArgs := make([]string, 0, len(args))
-	passthrough := false
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		if passthrough {
-			commandArgs = append(commandArgs, arg)
-			continue
-		}
-		if arg == "--" || arg == "-args" {
-			passthrough = true
-			commandArgs = append(commandArgs, arg)
-			continue
-		}
-		switch {
-		case arg == "-C" && index+1 < len(args):
-			global = append(global, arg, args[index+1])
-			index++
-		case strings.HasPrefix(arg, "-C="):
-			global = append(global, arg)
-		default:
-			commandArgs = append(commandArgs, arg)
+	for entry := range goargs.Scan(args) {
+		if entry.Name == "-C" {
+			global = append(global, entry.Args...)
+		} else {
+			commandArgs = append(commandArgs, entry.Args...)
 		}
 	}
 	result := make([]string, 0, len(global)+1+len(commandArgs))

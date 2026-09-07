@@ -14,6 +14,34 @@ type processExitError struct {
 	code int
 }
 
+func TestWorkflowFlagReadersRespectArgumentBoundaries(t *testing.T) {
+	for _, arguments := range [][]string{
+		{"./...", "-args", "-mod=mod", "-tags=business", "-o=business"},
+		{"./...", "--", "-mod=mod", "-tags=business", "-o=business"},
+		{"-ldflags", "-mod=mod", "-gcflags", "-tags=business", "-run", "-o=business"},
+	} {
+		if hasModuleMode(arguments) || hasGoOutputFlag(arguments) ||
+			len(discoveryBuildFlags(arguments)) != 0 || len(buildTags(arguments)) != 0 {
+			t.Errorf("将业务参数或值误识别为选项: %q", arguments)
+		}
+	}
+	args := []string{"-ldflags", "-C=linker-value", "-C", "real", "-args", "-C=business"}
+	want := []string{"-C", "real", "test", "-ldflags", "-C=linker-value", "-args", "-C=business"}
+	if got := composeEnhancedGoArguments("test", args); !reflect.DeepEqual(got, want) {
+		t.Fatalf("组装命令时破坏了参数值: %q", got)
+	}
+	actual := []string{"-tags=real", "-mod", "readonly", "-args", "-tags=business"}
+	if got := discoveryBuildFlags(actual); !reflect.DeepEqual(got, actual[:3]) {
+		t.Fatalf("构建参数提取错误: %q", got)
+	}
+	if got := buildTags(actual); !reflect.DeepEqual(got, []string{"real"}) {
+		t.Fatalf("缓存标签越过透传边界: %q", got)
+	}
+	if !hasBuildTarget([]string{"--", "./cmd/other"}) {
+		t.Fatal("build 的显式目标丢失")
+	}
+}
+
 func (e processExitError) Error() string {
 	return "进程退出"
 }
@@ -122,12 +150,12 @@ func TestCommand_whenEnhancedBuildUsesGlobalDirectoryFlag_shouldPlaceFlagBeforeG
 func TestCommand_whenInstallingVersionedPackageOutsideProject_shouldRequireBuildFile(t *testing.T) {
 	var stderr bytes.Buffer
 	runner := &recordingProcessRunner{}
-	command := Command{Out: io.Discard, Err: &stderr, Runner: runner}
+	command := Command{Dir: t.TempDir(), Out: io.Discard, Err: &stderr, Runner: runner}
 
 	if code := command.Run([]string{"install", "example.com/tool@latest"}); code != 2 {
 		t.Fatalf("退出码 = %d", code)
 	}
-	if len(runner.requests) != 1 || runner.requests[0].Args[0] != "list" ||
+	if len(runner.requests) != 0 ||
 		!strings.Contains(stderr.String(), "本地 Go 模块") {
 		t.Fatalf("请求 = %#v, stderr=%q", runner.requests, stderr.String())
 	}

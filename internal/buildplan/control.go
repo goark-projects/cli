@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/envutil"
+	"goark.dev/cli/internal/goargs"
 )
 
 var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -23,23 +24,17 @@ type Control struct {
 func ParseControlArguments(args []string) ([]string, Control, error) {
 	control := Control{Environment: make(map[string]string)}
 	remaining := make([]string, 0, len(args))
-	passthrough := false
-	for _, argument := range args {
-		if passthrough {
-			remaining = append(remaining, argument)
+	for entry := range goargs.Scan(args) {
+		if entry.Passthrough {
+			remaining = append(remaining, entry.Args...)
 			continue
 		}
-		if argument == "--" || argument == "-args" {
-			passthrough = true
-			remaining = append(remaining, argument)
-			continue
-		}
-		handled, err := ApplyControlArgument(&control, argument)
+		handled, err := ApplyControlArgument(&control, entry.Args[0])
 		if err != nil {
 			return nil, Control{}, err
 		}
 		if !handled {
-			remaining = append(remaining, argument)
+			remaining = append(remaining, entry.Args...)
 		}
 	}
 	return remaining, control, nil

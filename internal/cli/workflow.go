@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildplan"
+	"goark.dev/cli/internal/goargs"
 	"goark.dev/cli/internal/processrun"
 	"goark.dev/cli/internal/runargs"
 )
@@ -28,12 +29,7 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	project, resolveErr := c.resolveProject(
-		workingDir,
-		nil,
-		discoveryBuildFlags(goArguments),
-		control.DryRun,
-	)
+	project, resolveErr := c.resolveProjectMetadata(workingDir)
 	if resolveErr != nil {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
 		return projectResolutionExitCode(resolveErr)
@@ -51,7 +47,9 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	project, resolveErr = c.resolveProject(
+	configured := c
+	configured.Env = plan.EnvironmentList()
+	project, resolveErr = configured.resolveProject(
 		workingDir,
 		nil,
 		discoveryBuildFlags(plan.GoArguments),
@@ -65,6 +63,11 @@ func (c Command) runEnhancedGo(command string, args []string) int {
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
+	}
+	if !control.DryRun {
+		goArguments = withWritableModuleMode(
+			project.Root, goArguments, plan.EnvironmentList(), c.Context, c.Runner,
+		)
 	}
 	goCommand := composeEnhancedGoArguments(
 		command,
@@ -88,23 +91,10 @@ func (c Command) runApplication(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	project, resolveErr := c.resolveProject(
-		workingDir,
-		nil,
-		discoveryBuildFlags(plan.GoArguments),
-		plan.Control.DryRun,
-	)
+	project, resolveErr := c.resolveProjectMetadata(workingDir)
 	if resolveErr != nil {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
 		return projectResolutionExitCode(resolveErr)
-	}
-	if !plan.TargetExplicit {
-		target, targetErr := project.ResolveRunTarget(workingDir)
-		if targetErr != nil {
-			_, _ = fmt.Fprintln(c.Err, targetErr)
-			return 2
-		}
-		plan = plan.WithResolvedTarget(target)
 	}
 	commandPlan, err := buildplan.Create(
 		project.Build,
@@ -119,7 +109,9 @@ func (c Command) runApplication(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	project, resolveErr = c.resolveProject(
+	configured := c
+	configured.Env = commandPlan.EnvironmentList()
+	project, resolveErr = configured.resolveProject(
 		workingDir,
 		nil,
 		discoveryBuildFlags(commandPlan.GoArguments),
@@ -129,7 +121,21 @@ func (c Command) runApplication(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, resolveErr)
 		return projectResolutionExitCode(resolveErr)
 	}
-	goArguments := composeEnhancedGoArguments("run", commandPlan.GoArguments)
+	goArguments := commandPlan.GoArguments
+	if !plan.TargetExplicit {
+		target, err := project.ResolveRunTarget(workingDir)
+		if err != nil {
+			_, _ = fmt.Fprintln(c.Err, err)
+			return 2
+		}
+		goArguments = append(goArguments, target)
+	}
+	if !plan.Control.DryRun {
+		goArguments = withWritableModuleMode(
+			project.Root, goArguments, commandPlan.EnvironmentList(), c.Context, c.Runner,
+		)
+	}
+	goArguments = composeEnhancedGoArguments("run", goArguments)
 	goArguments = append(goArguments, commandPlan.PropertyArguments...)
 	goArguments = append(goArguments, commandPlan.ApplicationArguments...)
 	return c.executeEnhancedLifecycle("run", project, commandPlan, goArguments)
@@ -150,7 +156,7 @@ func (c Command) runProjectGenerate(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	project, err := c.resolveProject(workingDir, patterns, buildFlags, control.DryRun)
+	project, err := c.resolveProjectMetadata(workingDir)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return projectResolutionExitCode(err)
@@ -168,7 +174,9 @@ func (c Command) runProjectGenerate(args []string) int {
 		_, _ = fmt.Fprintln(c.Err, err)
 		return 2
 	}
-	project, err = c.resolveProject(
+	configured := c
+	configured.Env = plan.EnvironmentList()
+	project, err = configured.resolveProject(
 		workingDir,
 		patterns,
 		discoveryBuildFlags(plan.GoArguments),
@@ -237,14 +245,15 @@ func (c Command) resolveProject(
 	static bool,
 ) (goarkProject, error) {
 	return projectResolver{
-		Context:    c.Context,
-		Dir:        runargs.BaseDir(dir),
-		Env:        append([]string(nil), c.Env...),
-		Runner:     c.Runner,
-		Err:        c.Err,
-		Patterns:   append([]string(nil), patterns...),
-		BuildFlags: append([]string(nil), buildFlags...),
-		Static:     static,
+		Context:        c.Context,
+		Dir:            runargs.BaseDir(dir),
+		Env:            append([]string(nil), c.Env...),
+		Runner:         c.Runner,
+		Err:            c.Err,
+		Patterns:       append([]string(nil), patterns...),
+		BuildFlags:     append([]string(nil), buildFlags...),
+		Static:         static,
+		ResolveModules: !static,
 	}.Resolve()
 }
 
@@ -284,22 +293,20 @@ func applyDefaultBuildTarget(
 }
 
 func hasBuildTarget(arguments []string) bool {
-	for index := 0; index < len(arguments); index++ {
-		argument := arguments[index]
-		if strings.HasPrefix(argument, "-") {
-			if runargs.BuildFlagConsumesValue(argument) && index+1 < len(arguments) {
-				index++
-			}
-			continue
+	for entry := range goargs.Scan(arguments) {
+		if entry.Passthrough {
+			return len(entry.Args) > 1
 		}
-		return true
+		if entry.Name == "" && !entry.Passthrough {
+			return true
+		}
 	}
 	return false
 }
 
 func hasGoOutputFlag(arguments []string) bool {
-	for _, argument := range arguments {
-		if argument == "-o" || strings.HasPrefix(argument, "-o=") {
+	for entry := range goargs.Scan(arguments) {
+		if entry.Name == "-o" {
 			return true
 		}
 	}
@@ -308,23 +315,9 @@ func hasGoOutputFlag(arguments []string) bool {
 
 func discoveryBuildFlags(args []string) []string {
 	flags := make([]string, 0)
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		name := arg
-		if separator := strings.IndexByte(name, '='); separator >= 0 {
-			name = name[:separator]
-		}
-		if hasFlag(discoveryBooleanFlags, name) {
-			flags = append(flags, arg)
-			continue
-		}
-		if !hasFlag(discoveryValueFlags, name) {
-			continue
-		}
-		flags = append(flags, arg)
-		if !strings.Contains(arg, "=") && index+1 < len(args) {
-			index++
-			flags = append(flags, args[index])
+	for entry := range goargs.Scan(args) {
+		if hasFlag(discoveryBooleanFlags, entry.Name) || hasFlag(discoveryValueFlags, entry.Name) {
+			flags = append(flags, entry.Args...)
 		}
 	}
 	return flags

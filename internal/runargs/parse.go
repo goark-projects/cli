@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/buildplan"
+	"goark.dev/cli/internal/goargs"
 )
 
 // Plan 保存 go run 与 Goark 编译前阶段的参数边界。
@@ -15,30 +16,6 @@ type Plan struct {
 	Target               string
 	TargetExplicit       bool
 	Control              buildplan.Control
-}
-
-var goBuildFlagsWithValue = map[string]struct{}{
-	"-C":             {},
-	"-asmflags":      {},
-	"-buildmode":     {},
-	"-buildvcs":      {},
-	"-compiler":      {},
-	"-covermode":     {},
-	"-coverpkg":      {},
-	"-exec":          {},
-	"-gccgoflags":    {},
-	"-gcflags":       {},
-	"-installsuffix": {},
-	"-ldflags":       {},
-	"-mod":           {},
-	"-modfile":       {},
-	"-o":             {},
-	"-overlay":       {},
-	"-p":             {},
-	"-pkgdir":        {},
-	"-pgo":           {},
-	"-tags":          {},
-	"-toolexec":      {},
 }
 
 // Parse 将 Go 参数、应用属性、应用参数和 Goark 控制参数严格分区。
@@ -125,11 +102,7 @@ func validateSystemPropertyArgument(arg string) error {
 
 // BuildFlagConsumesValue 判断 Go 构建参数是否从后一参数读取值。
 func BuildFlagConsumesValue(arg string) bool {
-	if strings.Contains(arg, "=") {
-		return false
-	}
-	_, ok := goBuildFlagsWithValue[arg]
-	return ok
+	return goargs.BuildFlagConsumesValue(arg)
 }
 
 // GoRunArguments 返回传给 go run 的最终参数，不包含 run 子命令本身。

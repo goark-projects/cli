@@ -4,28 +4,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"goark.dev/cli/internal/goargs"
 )
 
 // EffectiveWorkingDir 根据 Go 全局 -C 参数解析最终工作目录。
 func EffectiveWorkingDir(base string, args []string) (string, error) {
 	workingDir := BaseDir(base)
 	directory := ""
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		var value string
-		switch {
-		case arg == "-C":
-			if index+1 >= len(args) {
-				return "", fmt.Errorf("go 参数 -C 缺少目录")
-			}
-			value = args[index+1]
-		case strings.HasPrefix(arg, "-C="):
-			value = strings.TrimPrefix(arg, "-C=")
+	for entry := range goargs.Scan(args) {
+		if entry.Name != "-C" {
+			continue
 		}
-		if value != "" {
-			directory = value
+		if !entry.HasValue || entry.Value == "" {
+			return "", fmt.Errorf("go 参数 -C 缺少目录")
 		}
+		directory = entry.Value
 	}
 	if directory == "" {
 		return workingDir, nil

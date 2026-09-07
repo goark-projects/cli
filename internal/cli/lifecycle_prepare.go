@@ -12,6 +12,7 @@ import (
 	"goark.dev/cli/internal/buildplan"
 	"goark.dev/cli/internal/buildspec"
 	"goark.dev/cli/internal/envutil"
+	"goark.dev/cli/internal/goargs"
 	"goark.dev/cli/internal/projectfs"
 	"goark.dev/cli/internal/projecttrust"
 	"goark.dev/cli/internal/taskcache"
@@ -317,21 +318,12 @@ func lockMatchesDeclaration(entry toollock.Entry, tool buildspec.Tool) bool {
 
 func buildTags(arguments []string) []string {
 	var tags []string
-	for index := 0; index < len(arguments); index++ {
-		argument := arguments[index]
-		value := ""
-		switch {
-		case strings.HasPrefix(argument, "-tags="):
-			value = strings.TrimPrefix(argument, "-tags=")
-		case argument == "-tags" && index+1 < len(arguments):
-			index++
-			value = arguments[index]
-		}
-		if value != "" {
+	for entry := range goargs.Scan(arguments) {
+		if entry.Name == "-tags" && entry.Value != "" {
 			tags = append(
 				tags,
 				strings.FieldsFunc(
-					value,
+					entry.Value,
 					func(char rune) bool { return char == ',' || char == ' ' },
 				)...)
 		}

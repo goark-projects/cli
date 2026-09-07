@@ -21,8 +21,11 @@ func TestCommand_whenProjectDiscoveryFails_shouldPreserveExitSemantics(t *testin
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			root := writeTestModule(t, map[string]string{
+				"go.mod": "module example.com/failure\n\ngo 1.27.0\n",
+			})
 			command := Command{
-				Dir:    t.TempDir(),
+				Dir:    root,
 				Out:    io.Discard,
 				Err:    io.Discard,
 				Runner: &recordingProcessRunner{err: test.err},

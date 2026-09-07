@@ -211,10 +211,11 @@ func TestProjectResolver_whenWorkspaceHasMultipleModules_shouldSelectContainingM
 		t.Fatalf("写入 go.work 失败: %v", err)
 	}
 	resolver := projectResolver{
-		Dir:    second,
-		Env:    append(os.Environ(), "GOWORK="+goWorkPath, "GOFLAGS="),
-		Runner: osProcessRunner{},
-		Err:    io.Discard,
+		Dir:            second,
+		ResolveModules: true,
+		Env:            append(os.Environ(), "GOWORK="+goWorkPath, "GOFLAGS="),
+		Runner:         osProcessRunner{},
+		Err:            io.Discard,
 	}
 
 	project, err := resolver.Resolve()
@@ -245,6 +246,80 @@ func newTestProjectResolver(dir string) projectResolver {
 		Env:    append(os.Environ(), "GOWORK=off", "GOFLAGS="),
 		Runner: osProcessRunner{},
 		Err:    io.Discard,
+	}
+}
+
+func TestProjectResolver_whenModuleUpdatesEnabled_shouldSelectSafeDiscoveryMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		buildFlags  []string
+		environment []string
+		vendor      bool
+		want        []string
+	}{
+		{name: "默认补齐模块校验和", want: []string{"-mod=mod"}},
+		{
+			name: "保留命令行模块模式", buildFlags: []string{"-mod=readonly"},
+			want: []string{"-mod=readonly"},
+		},
+		{
+			name: "保留环境模块模式", environment: []string{"GOFLAGS=-mod=readonly"},
+		},
+		{name: "保留引号模式", environment: []string{`GOFLAGS="-mod=readonly"`}},
+		{name: "保留 vendor 模式", vendor: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			if test.vendor {
+				if err := os.Mkdir(filepath.Join(root, "vendor"), 0o755); err != nil {
+					t.Fatalf("创建 vendor 目录失败: %v", err)
+				}
+			}
+			resolver := projectResolver{
+				Env: append(append(os.Environ(), "GOENV=off", "GOWORK=off", "GOFLAGS="),
+					test.environment...),
+				BuildFlags: test.buildFlags, ResolveModules: true,
+			}
+			got := resolver.packageBuildFlags(root)
+			if strings.Join(got, " ") != strings.Join(test.want, " ") {
+				t.Fatalf("发现参数 = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestProjectResolver_whenProcessGoFlagsSet_shouldPreserveModuleMode(t *testing.T) {
+	t.Setenv("GOFLAGS", "-mod=readonly")
+	resolver := projectResolver{ResolveModules: true}
+
+	if got := resolver.packageBuildFlags(t.TempDir()); len(got) != 0 {
+		t.Fatalf("发现参数 = %q, want empty", got)
+	}
+}
+
+func TestWithWritableModuleMode_whenDefaultMode_shouldPrependModFlag(t *testing.T) {
+	arguments := []string{"-race", "./cmd/server"}
+
+	environment := append(os.Environ(), "GOENV=off", "GOWORK=off", "GOFLAGS=")
+	got := withWritableModuleMode(t.TempDir(), arguments, environment, nil, nil)
+	want := []string{"-mod=mod", "-race", "./cmd/server"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("执行参数 = %q, want %q", got, want)
+	}
+	if strings.Join(arguments, " ") != "-race ./cmd/server" {
+		t.Fatalf("输入参数被修改: %q", arguments)
+	}
+}
+
+func TestWritableModePreservesArgumentsWhenConfigurationUnavailable(t *testing.T) {
+	arguments := []string{"./..."}
+	for _, failure := range []error{nil, context.Canceled} {
+		runner := &recordingProcessRunner{err: failure}
+		got := withWritableModuleMode(t.TempDir(), arguments, nil, nil, runner)
+		if strings.Join(got, " ") != "./..." {
+			t.Fatalf("无法读取配置时强制了模块模式: %q", got)
+		}
 	}
 }
 
