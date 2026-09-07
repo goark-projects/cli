@@ -31,10 +31,10 @@ goark new -module example.com/platform/billing-worker billing-worker
 
 The generated project includes:
 
-- Goark Boot startup and explicit configuration registration.
-- Command-line argument forwarding through `configdata.WithArgs(args...)`.
+- `//goark:application` and `//goark:configuration` application declaration.
+- An annotated service interface and implementation with generated injection metadata.
 - `goark.dev/gbc-log` auto-configuration.
-- A minimal `main.go` and lifecycle logic in `goark.go`.
+- A minimal `main.go`; generated code owns Boot startup and shutdown.
 - A minimal `goark.build` targeting `./cmd/app`.
 
 ## `web` Scenario
@@ -53,6 +53,7 @@ The Web template adds:
 - Arkarta and Arkhos dependencies.
 - `goark.dev/gbc-arkhos` and `goark.dev/gbc-web` auto-configuration.
 - `GET /healthz`, returning `{"status":"UP"}`.
+- Annotation-generated controller, route, service injection, and application lifecycle.
 - Static resources under `resource/static`.
 - Graceful shutdown driven by interrupt or termination signals.
 - A `goark.build` target of `./cmd/server`.
@@ -70,9 +71,13 @@ goark new -type web -module example.com/admin -dir . -force admin
 ## After Generation
 
 ```bash
+goark generate
 go mod tidy
 goark info
 goark run
 ```
 
-Edit `resource/app.yml` for runtime configuration and `goark.build` for build-time orchestration. Do not duplicate the module path, Go version, or toolchain in `goark.build`; those values come from `go.mod`.
+The generated `resource/app.yml` contains only `goark.application.name`. Logging, the default
+Arkhos address, and outbound Web client settings keep their framework defaults until an
+application explicitly overrides them. `goark.web.client.*` configures outbound HTTP clients;
+it is unrelated to the embedded server. Edit `goark.build` for build-time orchestration.

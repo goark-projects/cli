@@ -298,6 +298,9 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 	sort.SliceStable(model.Advices, func(i, j int) bool {
 		return model.Advices[i].Component.Name < model.Advices[j].Component.Name
 	})
+	if len(model.Controllers) > 0 || len(model.Advices) > 0 {
+		ctx.AddConfigurationType("GoarkWebMVCConfiguration")
+	}
 	return nil
 }
 

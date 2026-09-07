@@ -4,7 +4,7 @@
 
 ## 前置条件
 
-- Go 1.26 或更高版本。
+- Go 1.27 或更高版本。
 - 受支持的 Windows、Linux 或 macOS 环境。
 - 声明的 Go 工具需要安装时，应具备 Git 和网络访问能力。
 
@@ -43,14 +43,18 @@ cd hello
 ```go
 package main
 
-import "os"
+import (
+	"os"
+
+	appgen "example.com/team/hello/internal/app/gen"
+)
 
 func main() {
-	os.Exit(runGoark(os.Args[1:]))
+	os.Exit(appgen.Run(os.Args[1:]))
 }
 ```
 
-同目录 `goark.go` 负责 Boot 启动、参数传递、自动配置、需要的信号处理、关闭流程和进程退出码。
+`//goark:application` 会生成 Boot 启动、参数传递、自动配置、需要的信号处理、关闭流程和进程退出码。
 
 ## 生成目录
 
@@ -62,19 +66,21 @@ func main() {
 |-- goark.build
 |-- resource/app.yml
 |-- cmd/app/main.go
-|-- cmd/app/goark.go
-`-- internal/app/configuration.go
+|-- internal/app/application.go
+`-- internal/app/service.go
 ```
 
-`web` 项目使用 `cmd/server`，增加 `resource/static/index.html`，并注册 Arkhos 服务、MVC 路由、HTTP 客户端定制和 `GET /healthz`。
+`web` 项目使用 `cmd/server`，增加 `resource/static/index.html` 和注解 Controller，并生成
+Arkhos MVC 路由及 `GET /healthz`。
 
 两种模板都包含 `goark.dev/gbc-log` 并注册其自动配置。
 
 ## 准备与检查
 
-先解析模块依赖：
+使用独立 Go 模块命令前，先生成应用包：
 
 ```bash
+goark generate
 go mod tidy
 ```
 

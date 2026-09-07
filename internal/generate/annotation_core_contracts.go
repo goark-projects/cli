@@ -6,7 +6,11 @@ import (
 	"strings"
 )
 
-const coreAnnotationModelKey = "goark.core.annotations"
+const (
+	coreAnnotationModelKey = "goark.core.annotations"
+	// ConfigurationTypesModelKey 标识生成阶段共享的配置类型名称集合。
+	ConfigurationTypesModelKey = "goark.configuration.types"
+)
 
 type coreAnnotationModel struct {
 	Configurations          []*annotationConfiguration
@@ -101,7 +105,6 @@ type annotationDependencyResolver struct {
 }
 
 type coreAnnotationBinder struct{}
-
 type coreAnnotationGenerator struct {
 	propertiesOnly bool
 }

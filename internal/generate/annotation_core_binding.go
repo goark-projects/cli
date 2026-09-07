@@ -49,6 +49,7 @@ func (coreAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingCont
 		model.Configurations[0].Properties,
 		model.ConfigurationProperties...)
 	for _, configuration := range model.Configurations {
+		ctx.AddConfigurationType(configuration.TypeName)
 		sort.SliceStable(configuration.Beans, func(i, j int) bool {
 			return configuration.Beans[i].Name < configuration.Beans[j].Name
 		})

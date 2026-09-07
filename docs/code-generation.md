@@ -25,7 +25,9 @@ goark generate --goark-dry-run
 
 The package set defaults to `[generate].patterns`, which defaults to `./...`. Discovery uses the official `go list` build file set and respects `-C`, `-tags`, `-mod`, `-modfile`, and `-overlay` where supplied.
 
-The current annotation generator covers registration metadata for components, services, repositories, configurations, beans, injection points, conditions, Profiles, ordering, scopes, configuration properties, and Web/MVC declarations supported by the Goark generator packages.
+The current annotation generator also supports `//goark:application`. It generates the Boot
+lifecycle while configurations, services, injection points, and MVC routes remain declared in
+ordinary application source.
 
 ## Output Ownership
 
@@ -36,6 +38,7 @@ Project outputs use:
 <package>/gen/zz_goark_properties_gen.go
 <package>/gen/zz_goark_web_gen.go
 <package>/gen/zz_goark_mvc_gen.go
+<package>/gen/zz_goark_application_gen.go
 ```
 
 Only responsibilities used by a source package produce a file. Core container registration,

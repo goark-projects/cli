@@ -25,7 +25,8 @@ goark generate --goark-dry-run
 
 package 集合默认来自 `[generate].patterns`，其默认值为 `./...`。发现使用官方 `go list` 的实际构建文件集，并遵守传入的 `-C`、`-tags`、`-mod`、`-modfile`、`-overlay`。
 
-当前注解生成器覆盖 Goark 生成器包已支持的组件、服务、仓储、配置、Bean、注入点、条件、Profile、顺序、作用域、配置属性和 Web/MVC 声明注册元数据。
+当前注解生成器还支持 `//goark:application`。Boot 生命周期由生成代码负责，配置、Service、
+注入点和 MVC 路由仍通过普通应用源码中的注解声明。
 
 ## 输出所有权
 
@@ -36,6 +37,7 @@ package 集合默认来自 `[generate].patterns`，其默认值为 `./...`。发
 <package>/gen/zz_goark_properties_gen.go
 <package>/gen/zz_goark_web_gen.go
 <package>/gen/zz_goark_mvc_gen.go
+<package>/gen/zz_goark_application_gen.go
 ```
 
 源码包只会生成实际使用的职责文件，核心容器注册、配置属性绑定、Web 注册和 MVC 路由

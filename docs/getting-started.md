@@ -4,7 +4,7 @@ English | [简体中文](getting-started.zh-CN.md)
 
 ## Prerequisites
 
-- Go 1.26 or later.
+- Go 1.27 or later.
 - A supported Windows, Linux, or macOS environment.
 - Git and network access when a declared Go tool must be installed.
 
@@ -43,14 +43,19 @@ Generated entry points are deliberately small:
 ```go
 package main
 
-import "os"
+import (
+	"os"
+
+	appgen "example.com/team/hello/internal/app/gen"
+)
 
 func main() {
-	os.Exit(runGoark(os.Args[1:]))
+	os.Exit(appgen.Run(os.Args[1:]))
 }
 ```
 
-The adjacent `goark.go` owns Boot startup, argument forwarding, auto-configuration, signal handling where required, shutdown, and the process exit code.
+`//goark:application` generates Boot startup, argument forwarding, auto-configuration, signal
+handling where required, shutdown, and the process exit code.
 
 ## Generated Layout
 
@@ -62,19 +67,21 @@ An `app` project contains:
 |-- goark.build
 |-- resource/app.yml
 |-- cmd/app/main.go
-|-- cmd/app/goark.go
-`-- internal/app/configuration.go
+|-- internal/app/application.go
+`-- internal/app/service.go
 ```
 
-A `web` project uses `cmd/server`, adds `resource/static/index.html`, and registers the Arkhos server, MVC routes, HTTP client customization, and `GET /healthz`.
+A `web` project uses `cmd/server`, adds `resource/static/index.html` and an annotated controller,
+then generates the Arkhos MVC route and `GET /healthz`.
 
 Both templates include `goark.dev/gbc-log` and register its auto-configuration.
 
 ## Prepare and Inspect
 
-Resolve module dependencies first:
+Generate the application package before using standalone Go module commands:
 
 ```bash
+goark generate
 go mod tidy
 ```
 

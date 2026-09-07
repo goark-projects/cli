@@ -104,6 +104,9 @@ func (webAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 	if !ok {
 		return fmt.Errorf("invalid web annotation model")
 	}
+	if len(model.Interceptors) > 0 || len(model.Filters) > 0 {
+		ctx.AddConfigurationType("GoarkWebConfiguration")
+	}
 	coreModel := ensureCoreAnnotationModel(ctx)
 	resolver := newAnnotationDependencyResolver(coreModel)
 	for _, component := range webModelComponents(model) {

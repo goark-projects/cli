@@ -351,3 +351,10 @@ func sortImports(imports []ImportSpec) {
 		return imports[left].Path < imports[right].Path
 	})
 }
+
+// AddConfigurationType 记录一个由注解生成器实际输出的配置类型。
+func (c *AnnotationBindingContext) AddConfigurationType(name string) {
+	value, _ := c.Value(ConfigurationTypesModelKey)
+	types, _ := value.([]string)
+	c.SetValue(ConfigurationTypesModelKey, append(types, name))
+}

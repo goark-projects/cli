@@ -45,16 +45,21 @@ func TestCreateApp_whenWebDisabled_shouldWriteBootApplicationSkeleton(t *testing
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/boot v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/goark v0.0.1")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "go 1.27.0")
 	assertFileContains(t, filepath.Join(dir, "goark.build"), `main = "./cmd/app"`)
-	assertFileEquals(t, filepath.Join(dir, "cmd/app/main.go"), minimalMainSource)
-	assertFileContains(t, filepath.Join(dir, "cmd/app/goark.go"), "boot.Run")
-	assertFileContains(t, filepath.Join(dir, "cmd/app/goark.go"), "configdata.WithArgs(args...)")
-	assertFileContains(t, filepath.Join(dir, "cmd/app/goark.go"), "gbclog.AutoConfigure()")
+	assertFileContains(
+		t, filepath.Join(dir, "cmd/app/main.go"),
+		`appgen "example.com/admin/internal/app/gen"`,
+	)
+	assertFileContains(t, filepath.Join(dir, "cmd/app/main.go"), "appgen.Run")
 	assertFileContains(
 		t,
-		filepath.Join(dir, "internal/app/configuration.go"),
-		"container.RegisterInstance",
+		filepath.Join(dir, "internal/app/application.go"),
+		"//goark:application",
 	)
+	assertFileContains(t, filepath.Join(dir, "internal/app/service.go"), "//goark:service")
+	assertPathMissing(t, filepath.Join(dir, "cmd/app/goark.go"))
+	assertFileEquals(t, filepath.Join(dir, "resource/app.yml"), minimalConfig("worker"))
 	modules := []string{
 		"goark.dev/arkarta", "goark.dev/arkhos",
 		"goark.dev/gbc-web", "goark.dev/gbc-arkhos",
@@ -91,8 +96,9 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		"resource/app.yml",
 		"resource/static/index.html",
 		"cmd/server/main.go",
-		"cmd/server/goark.go",
-		"internal/app/configuration.go",
+		"internal/app/application.go",
+		"internal/app/service.go",
+		"internal/app/controller.go",
 	}
 	if len(files) != len(expected) {
 		t.Fatalf("file count = %d, want %d", len(files), len(expected))
@@ -103,6 +109,7 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		}
 	}
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "module example.com/admin")
+	assertFileContains(t, filepath.Join(dir, "go.mod"), "go 1.27.0")
 	assertFileContains(t, filepath.Join(dir, "goark.build"), "name = \"admin\"")
 	assertFileContains(t, filepath.Join(dir, "goark.build"), "main = \"./cmd/server\"")
 	assertFileContains(t, filepath.Join(dir, ".gitignore"), "/.goark/")
@@ -115,26 +122,24 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/goark v0.0.1")
 	assertFileNotContains(t, filepath.Join(dir, "go.mod"), "\tgoark.dev/arkhos ")
-	assertFileContains(t, filepath.Join(dir, "resource/app.yml"), "max-response-bytes")
 	assertFileContains(
 		t,
 		filepath.Join(dir, "resource/static/index.html"),
 		"Goark Boot Web application is running.",
 	)
-	assertFileEquals(t, filepath.Join(dir, "cmd/server/main.go"), minimalMainSource)
+	assertFileContains(
+		t, filepath.Join(dir, "cmd/server/main.go"),
+		`appgen "example.com/admin/internal/app/gen"`,
+	)
 	assertFileContains(
 		t,
-		filepath.Join(dir, "cmd/server/goark.go"),
-		`app "example.com/admin/internal/app"`,
+		filepath.Join(dir, "internal/app/application.go"),
+		"//goark:application(web=true)",
 	)
-	assertFileContains(t, filepath.Join(dir, "cmd/server/goark.go"), "configdata.WithArgs(args...)")
-	assertFileContains(t, filepath.Join(dir, "cmd/server/goark.go"), "gbclog.AutoConfigure()")
-	assertFileContains(t, filepath.Join(dir, "internal/app/configuration.go"), `mvc.GET("/healthz"`)
-	assertFileContains(
-		t,
-		filepath.Join(dir, "internal/app/configuration.go"),
-		`gbcweb.RegisterHTTPClientBuilderCustomizer`,
-	)
+	assertFileContains(t, filepath.Join(dir, "internal/app/service.go"), "//goark:service")
+	assertFileContains(t, filepath.Join(dir, "internal/app/controller.go"), "//goark:get")
+	assertPathMissing(t, filepath.Join(dir, "cmd/server/goark.go"))
+	assertFileEquals(t, filepath.Join(dir, "resource/app.yml"), minimalConfig("admin"))
 	if _, err := buildspec.LoadFile(filepath.Join(dir, buildspec.FileName)); err != nil {
 		t.Fatalf("generated goark.build is invalid: %v", err)
 	}
@@ -227,14 +232,17 @@ func assertFileNotContains(t *testing.T, path string, fragment string) {
 	}
 }
 
-const minimalMainSource = `package main
+func assertPathMissing(t *testing.T, path string) {
+	t.Helper()
 
-import "os"
-
-func main() {
-	os.Exit(runGoark(os.Args[1:]))
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("path %s should not exist: %v", path, err)
+	}
 }
-`
+
+func minimalConfig(name string) string {
+	return "goark:\n  application:\n    name: \"" + name + "\"\n"
+}
 
 func assertFileEquals(t *testing.T, path string, want string) {
 	t.Helper()
@@ -254,7 +262,7 @@ func writeLocalReplaces(t *testing.T, dir string) {
 	root := filepath.Clean(filepath.Join(projectRoot(t), ".."))
 	mod := `module example.com/admin
 
-go 1.26.0
+go 1.27.0
 
 require (
 	goark.dev/arkarta v0.0.3
@@ -299,6 +307,7 @@ func assertGeneratedAppBuilds(t *testing.T, dir string) {
 
 func runGeneratedAppCommands(t *testing.T, dir string) {
 	t.Helper()
+	runGoarkGenerate(t, dir)
 	for _, args := range [][]string{{"mod", "tidy"}, {"test", "./..."}} {
 		cmd := exec.Command("go", args...)
 		cmd.Dir = dir
@@ -310,6 +319,27 @@ func runGeneratedAppCommands(t *testing.T, dir string) {
 				strings.Join(args, " "), err, string(output),
 			)
 		}
+	}
+}
+
+func runGoarkGenerate(t *testing.T, dir string) {
+	t.Helper()
+	binaryName := "goark"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+	binary := filepath.Join(t.TempDir(), binaryName)
+	build := exec.Command("go", "build", "-o", binary, "./cmd/goark")
+	build.Dir = projectRoot(t)
+	build.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=", "GOTOOLCHAIN=local")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build current goark CLI failed: %v\n%s", err, output)
+	}
+	generate := exec.Command(binary, "generate")
+	generate.Dir = dir
+	generate.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=", "GOTOOLCHAIN=local")
+	if output, err := generate.CombinedOutput(); err != nil {
+		t.Fatalf("goark generate failed: %v\n%s", err, output)
 	}
 }
 

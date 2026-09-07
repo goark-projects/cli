@@ -115,9 +115,6 @@ func renderAnnotationExtensions(
 		values:     values,
 		importKeys: make(map[string]struct{}),
 	}
-	if pkg.SourceImportPath != "" {
-		ctx.AddImport(sourcePackageAlias, pkg.SourceImportPath)
-	}
 	for _, extension := range extensions {
 		if extension.Generator == nil {
 			continue
@@ -125,6 +122,9 @@ func renderAnnotationExtensions(
 		if err := extension.Generator.GenerateAnnotation(ctx); err != nil {
 			return nil, err
 		}
+	}
+	if pkg.SourceImportPath != "" && bytes.Contains(ctx.body.Bytes(), []byte(sourcePackageAlias+".")) {
+		ctx.AddImport(sourcePackageAlias, pkg.SourceImportPath)
 	}
 	if ctx.body.Len() == 0 {
 		return nil, nil

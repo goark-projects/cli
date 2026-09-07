@@ -18,6 +18,7 @@ import (
 	"github.com/gofrs/flock"
 	"goark.dev/cli/internal/atomicfile"
 	"goark.dev/cli/internal/generate"
+	applicationgen "goark.dev/cli/internal/generate/application"
 	"goark.dev/cli/internal/projectlock"
 	"goark.dev/cli/internal/version"
 )
@@ -92,6 +93,7 @@ func (g annotationProjectGenerator) Generate(
 			GeneratorVersion:  version.Current(),
 			ConfigurationName: g.configurationName,
 			TypeName:          g.typeName,
+			Extensions:        []generate.AnnotationExtension{applicationgen.Extension()},
 			Files: append(
 				append([]string(nil), item.GoFiles...),
 				item.CgoFiles...,
