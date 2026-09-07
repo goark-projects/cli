@@ -19,7 +19,10 @@ This documentation describes the behavior implemented by the current Goark CLI. 
 - [Lifecycle and tasks](lifecycle-and-tasks.md): generation ordering, task types, DAG validation, concurrency, conditions, and shutdown.
 - [Tools, lock file, trust, and cache](tools-lock-cache.md): tool sources, synchronization, verification, restoration, fingerprints, and cleanup.
 - [Troubleshooting](troubleshooting.md): common failures and deterministic recovery steps.
-- [V0.0.1 release notes](releases/v0.0.1.md): installation, highlights, artifacts, compatibility, and boundaries.
+- [V0.0.2 release notes](releases/v0.0.2.md): generator isolation, fixes, upgrade notes,
+  artifacts, and verification.
+- [V0.0.1 release notes](releases/v0.0.1.md): installation, highlights, artifacts,
+  compatibility, and boundaries.
 
 ## Architecture Decisions
 

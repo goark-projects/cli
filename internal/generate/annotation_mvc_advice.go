@@ -149,15 +149,6 @@ type mvcExceptionHandler struct {
 	Status       int
 	ResponseBody bool
 }
-type mvcExceptionHandlerParam struct {
-	Kind mvcExceptionHandlerParamKind
-}
-type mvcExceptionHandlerParamKind uint8
-
-const (
-	mvcExceptionParamContext mvcExceptionHandlerParamKind = iota + 1
-	mvcExceptionParamError
-)
 
 func validateMVCControllerAdviceAnnotation(ctx AnnotationValidationContext) error {
 	typeSpec := ctx.Item.TypeSpec()
@@ -183,8 +174,9 @@ func validateMVCExceptionHandlerAnnotation(ctx AnnotationValidationContext) erro
 	if len(ctx.Annotation.Args) > 0 || len(ctx.Annotation.Values) > 0 {
 		return annotationError("does not accept arguments", ctx.Annotation.Name)
 	}
-	if selector := normalizeSelector(ctx.Annotation.Selector); selector != "" && !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+	selector := normalizeSelector(ctx.Annotation.Selector)
+	if selector != "" && !methodHasParameter(ctx.Item.FuncDecl(), selector) {
+		return annotationSelectorError(ctx.Annotation.Name, selector)
 	}
 	return nil
 }
@@ -214,7 +206,9 @@ func bindMVCExceptionHandler(ctx *AnnotationBindingContext, item AnnotationItem)
 	if !hasMVCExceptionHandlerAnnotation(item.Annotations()) {
 		return nil
 	}
-	handler, err := buildMVCExceptionHandler(item.FileSet(), item.File(), item.FuncDecl(), item.Annotations())
+	handler, err := buildMVCExceptionHandler(
+		item.FileSet(), item.File(), item.FuncDecl(), item.Annotations(),
+	)
 	if err != nil {
 		return err
 	}
@@ -225,18 +219,10 @@ func bindMVCExceptionHandler(ctx *AnnotationBindingContext, item AnnotationItem)
 	return nil
 }
 
-func buildMVCControllerAdvice(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation) (*mvcControllerAdvice, error) {
-	component, err := buildMVCComponent(fset, typeSpec, annotations, mvcControllerAdviceKind(annotations))
-	if err != nil {
-		return nil, err
-	}
-	return &mvcControllerAdvice{
-		Component: component,
-		Kind:      mvcControllerAdviceKind(annotations),
-	}, nil
-}
-
-func buildMVCExceptionHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcExceptionHandler, error) {
+func buildMVCExceptionHandler(
+	fset *token.FileSet, file *ast.File,
+	fn *ast.FuncDecl, annotations []Annotation,
+) (mvcExceptionHandler, error) {
 	if fn == nil {
 		return mvcExceptionHandler{}, fmt.Errorf("mvc exception handler method is nil")
 	}
@@ -262,9 +248,12 @@ func buildMVCExceptionHandler(fset *token.FileSet, file *ast.File, fn *ast.FuncD
 	}, nil
 }
 
-func mvcExceptionHandlerParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) ([]mvcExceptionHandlerParam, string, error) {
+func mvcExceptionHandlerParams(
+	fset *token.FileSet, file *ast.File,
+	fn *ast.FuncDecl, annotations []Annotation,
+) ([]mvcExceptionHandlerParam, string, error) {
 	if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
-		return nil, "", fmt.Errorf("mvc exception handler method %s must declare error parameter", fn.Name.Name)
+		return nil, "", mvcExceptionHandlerError(fn.Name.Name, "must declare error parameter")
 	}
 	selector := mvcExceptionHandlerSelector(annotations)
 	params := make([]mvcExceptionHandlerParam, 0, len(fn.Type.Params.List))
@@ -278,22 +267,22 @@ func mvcExceptionHandlerParams(fset *token.FileSet, file *ast.File, fn *ast.Func
 			names = []*ast.Ident{ast.NewIdent(fmt.Sprintf("arg%d", index))}
 		}
 		if len(names) != 1 {
-			return nil, "", fmt.Errorf("mvc exception handler method %s parameter group must declare exactly one name", fn.Name.Name)
+			return nil, "", mvcExceptionHandlerError(fn.Name.Name, mvcErrParameterGroup)
 		}
 		name := names[0].Name
 		if isArkWebContextExpr(file, field.Type) {
 			if contextSeen {
-				return nil, "", fmt.Errorf("mvc exception handler method %s must not declare multiple *arkarta/web.Context parameters", fn.Name.Name)
+				return nil, "", mvcExceptionHandlerError(fn.Name.Name, mvcErrMultipleContexts)
 			}
 			contextSeen = true
 			params = append(params, mvcExceptionHandlerParam{Kind: mvcExceptionParamContext})
 			continue
 		}
 		if isSelectorTypeExpr(field.Type, "Context") {
-			return nil, "", fmt.Errorf("mvc exception handler method %s parameter must be *arkarta/web.Context or error type", fn.Name.Name)
+			return nil, "", mvcExceptionHandlerError(fn.Name.Name, mvcErrParameterType)
 		}
 		if errorSeen {
-			return nil, "", fmt.Errorf("mvc exception handler method %s must declare exactly one error parameter", fn.Name.Name)
+			return nil, "", mvcExceptionHandlerError(fn.Name.Name, mvcErrMultipleErrors)
 		}
 		errorSeen = true
 		errorType = exprString(fset, field.Type)
@@ -301,22 +290,24 @@ func mvcExceptionHandlerParams(fset *token.FileSet, file *ast.File, fn *ast.Func
 		params = append(params, mvcExceptionHandlerParam{Kind: mvcExceptionParamError})
 	}
 	if !errorSeen {
-		return nil, "", fmt.Errorf("mvc exception handler method %s must declare error parameter", fn.Name.Name)
+		return nil, "", mvcExceptionHandlerError(fn.Name.Name, "must declare error parameter")
 	}
 	if !selectorMatchedError {
-		return nil, "", fmt.Errorf("mvc exception handler method %s selector %q must reference error parameter", fn.Name.Name, selector)
+		return nil, "", mvcExceptionHandlerError(fn.Name.Name, mvcErrErrorSelector, selector)
 	}
 	return params, errorType, nil
 }
 
-func mvcExceptionHandlerReturn(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, string, error) {
+func mvcExceptionHandlerReturn(
+	fset *token.FileSet, file *ast.File, fn *ast.FuncDecl,
+) (mvcReturnKind, string, error) {
 	results := fn.Type.Results
 	if results == nil || len(results.List) != 1 {
-		return mvcReturnNone, "", fmt.Errorf("mvc exception handler method %s must return arkarta/web.Result, web.ResponseEntity, or ordinary value", fn.Name.Name)
+		return mvcReturnNone, "", mvcExceptionHandlerError(fn.Name.Name, mvcErrReturnType)
 	}
 	result := results.List[0].Type
 	if isErrorExpr(result) {
-		return mvcReturnNone, "", fmt.Errorf("mvc exception handler method %s must return arkarta/web.Result, web.ResponseEntity, or ordinary value", fn.Name.Name)
+		return mvcReturnNone, "", mvcExceptionHandlerError(fn.Name.Name, mvcErrReturnType)
 	}
 	if isArkWebResultExpr(file, result) || isGoarkWebDownloadResultExpr(file, result) {
 		return mvcReturnResult, "", nil
@@ -327,7 +318,9 @@ func mvcExceptionHandlerReturn(fset *token.FileSet, file *ast.File, fn *ast.Func
 	return mvcReturnValue, "", nil
 }
 
-func mvcExceptionHandlerResponseSpec(annotations []Annotation, returnKind mvcReturnKind) (int, bool, error) {
+func mvcExceptionHandlerResponseSpec(
+	annotations []Annotation, returnKind mvcReturnKind,
+) (int, bool, error) {
 	status := 0
 	hasStatus := false
 	responseBody := false
@@ -335,7 +328,9 @@ func mvcExceptionHandlerResponseSpec(annotations []Annotation, returnKind mvcRet
 		switch {
 		case isMVCResponseStatusAnnotation(annotation.Name):
 			if hasStatus {
-				return 0, false, fmt.Errorf("mvc exception handler method has multiple response-status annotations")
+				return 0, false, fmt.Errorf(
+					"mvc exception handler method has multiple response-status annotations",
+				)
 			}
 			value, err := mvcResponseStatus(annotation)
 			if err != nil {
@@ -345,13 +340,17 @@ func mvcExceptionHandlerResponseSpec(annotations []Annotation, returnKind mvcRet
 			hasStatus = true
 		case isMVCResponseBodyAnnotation(annotation.Name):
 			if responseBody {
-				return 0, false, fmt.Errorf("mvc exception handler method has multiple response-body annotations")
+				return 0, false, fmt.Errorf(
+					"mvc exception handler method has multiple response-body annotations",
+				)
 			}
 			responseBody = true
 		}
 	}
 	if hasStatus && returnKind != mvcReturnValue {
-		return 0, false, fmt.Errorf("mvc exception handler response-status requires ordinary return value")
+		return 0, false, fmt.Errorf(
+			"mvc exception handler response-status requires ordinary return value",
+		)
 	}
 	if responseBody && returnKind != mvcReturnValue {
 		return 0, false, fmt.Errorf("mvc exception handler response-body requires ordinary return value")

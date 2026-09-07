@@ -75,5 +75,6 @@ goark version
 
 ## 发布记录
 
+- [V0.0.2 发行说明](releases/v0.0.2.zh-CN.md)
 - [变更日志](../CHANGELOG.zh-CN.md)
 - [V0.0.1 发行说明](releases/v0.0.1.zh-CN.md)

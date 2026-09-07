@@ -14,7 +14,11 @@ import (
 	"goark.dev/cli/internal/generate/annotationparse"
 )
 
-func scanInterfaceMethods(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File, decl *ast.GenDecl, typeSpec *ast.TypeSpec, interfaceType *ast.InterfaceType) error {
+func scanInterfaceMethods(
+	ctx *AnnotationBindingContext, pipeline *annotationPipeline,
+	fset *token.FileSet, file *ast.File, decl *ast.GenDecl,
+	typeSpec *ast.TypeSpec, interfaceType *ast.InterfaceType,
+) error {
 	for _, method := range interfaceType.Methods.List {
 		methodAnnotations, err := parseAnnotations(method.Doc)
 		if err != nil {
@@ -38,19 +42,6 @@ func scanInterfaceMethods(ctx *AnnotationBindingContext, pipeline *annotationPip
 		}
 	}
 	return nil
-}
-
-func mergeAnnotations(left []Annotation, right []Annotation) []Annotation {
-	if len(left) == 0 {
-		return right
-	}
-	if len(right) == 0 {
-		return left
-	}
-	out := make([]Annotation, 0, len(left)+len(right))
-	out = append(out, left...)
-	out = append(out, right...)
-	return out
 }
 
 func (p *annotationPipeline) dispatch(ctx *AnnotationBindingContext, item AnnotationItem) error {
@@ -285,7 +276,10 @@ func newAnnotationPipeline(spec AnnotationScanSpec) (*annotationPipeline, error)
 	return pipeline, nil
 }
 
-func scanAnnotations(spec AnnotationScanSpec, pipeline *annotationPipeline) (*annotationPackage, map[string]any, error) {
+func scanAnnotations(
+	spec AnnotationScanSpec,
+	pipeline *annotationPipeline,
+) (*annotationPackage, map[string]any, error) {
 	dir := strings.TrimSpace(spec.Dir)
 	if dir == "" {
 		dir = "."
@@ -306,7 +300,11 @@ func scanAnnotations(spec AnnotationScanSpec, pipeline *annotationPipeline) (*an
 	packageName := strings.TrimSpace(spec.PackageName)
 	if packageName == "" {
 		if len(packageNames) != 1 {
-			return nil, nil, fmt.Errorf("multiple Go packages found in %s: %s", dir, strings.Join(packageNames, ", "))
+			return nil, nil, fmt.Errorf(
+				"multiple Go packages found in %s: %s",
+				dir,
+				strings.Join(packageNames, ", "),
+			)
 		}
 		packageName = packageNames[0]
 	}

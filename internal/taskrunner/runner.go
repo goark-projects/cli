@@ -279,11 +279,12 @@ func (r *Runner) printDryRun(
 	environment map[string]string,
 ) {
 	executable := string(task.Type)
-	if task.Type == buildspec.TaskTypeExec {
+	switch task.Type {
+	case buildspec.TaskTypeExec:
 		if tool, ok := r.options.Tools[task.Tool]; ok {
 			executable = tool.Path
 		}
-	} else if task.Type == buildspec.TaskTypeGo {
+	case buildspec.TaskTypeGo:
 		executable = "go"
 	}
 	parts := make([]string, 0, len(args)+1)

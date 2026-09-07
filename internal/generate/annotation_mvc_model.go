@@ -9,41 +9,6 @@ import (
 	"goark.dev/cli/internal/generate/mvcrouting"
 )
 
-func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
-	selectors := mvcRequestBodySelectors(annotations)
-	out := make(map[string]struct{}, len(selectors))
-	for _, selector := range selectors {
-		out[selector] = struct{}{}
-	}
-	return out
-}
-
-func mvcRequestBodySelectors(annotations []Annotation) []string {
-	selectors := make([]string, 0, 1)
-	for _, annotation := range annotations {
-		if !isMVCBodyAnnotation(annotation.Name) {
-			continue
-		}
-		if selector := mvcRequestBodySelector(annotation); selector != "" {
-			selectors = append(selectors, selector)
-		}
-	}
-	return selectors
-}
-
-func mvcRequestBodySelector(annotation Annotation) string {
-	selector := normalizeSelector(annotation.Selector)
-	if selector != "" {
-		return selector
-	}
-	for _, key := range []string{"param", "name", "value"} {
-		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func mvcMultipartBodySelectorSet(annotations []Annotation) map[string]struct{} {
 	selectors := mvcMultipartBodySelectors(annotations)
 	out := make(map[string]struct{}, len(selectors))
@@ -79,7 +44,11 @@ func mvcMultipartBodySelector(annotation Annotation) string {
 	return ""
 }
 
-func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation) (*mvcController, error) {
+func buildMVCController(
+	fset *token.FileSet,
+	typeSpec *ast.TypeSpec,
+	annotations []Annotation,
+) (*mvcController, error) {
 	component, err := buildMVCComponent(fset, typeSpec, annotations, mvcControllerKind(annotations))
 	if err != nil {
 		return nil, err
@@ -102,7 +71,12 @@ func buildMVCController(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations
 	}, nil
 }
 
-func buildMVCComponent(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation, kind string) (annotationComponent, error) {
+func buildMVCComponent(
+	fset *token.FileSet,
+	typeSpec *ast.TypeSpec,
+	annotations []Annotation,
+	kind string,
+) (annotationComponent, error) {
 	typeName := typeSpec.Name.Name
 	component := annotationComponent{
 		TypeName: typeName,
@@ -135,7 +109,12 @@ func buildMVCComponent(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations 
 	return component, nil
 }
 
-func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcRoute, error) {
+func buildMVCRoute(
+	fset *token.FileSet,
+	file *ast.File,
+	fn *ast.FuncDecl,
+	annotations []Annotation,
+) (mvcRoute, error) {
 	mapping, err := mvcRouteFromAnnotations(annotations)
 	if err != nil {
 		return mvcRoute{}, err
@@ -160,7 +139,12 @@ func buildMVCRoute(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annota
 	}, nil
 }
 
-func buildMVCModelAttributeMethod(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) (mvcModelAttributeMethod, error) {
+func buildMVCModelAttributeMethod(
+	fset *token.FileSet,
+	file *ast.File,
+	fn *ast.FuncDecl,
+	annotations []Annotation,
+) (mvcModelAttributeMethod, error) {
 	params, err := mvcModelAttributeMethodParams(file, fn)
 	if err != nil {
 		return mvcModelAttributeMethod{}, err
@@ -170,7 +154,10 @@ func buildMVCModelAttributeMethod(fset *token.FileSet, file *ast.File, fn *ast.F
 		return mvcModelAttributeMethod{}, err
 	}
 	if !mvcModelAttributeMethodSupportsReturn(returnKind) {
-		return mvcModelAttributeMethod{}, fmt.Errorf("mvc model attribute method %s must return T or T,error", fn.Name.Name)
+		return mvcModelAttributeMethod{}, fmt.Errorf(
+			"mvc model attribute method %s must return T or T,error",
+			fn.Name.Name,
+		)
 	}
 	return mvcModelAttributeMethod{
 		Name:       mvcModelAttributeMethodNameAnnotation(annotations),
@@ -210,7 +197,9 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 		}
 		if isMVCResponseBodyAnnotation(annotation.Name) {
 			if hasResponseBody {
-				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple response-body annotations")
+				return mvcRouteMappingSpec{}, fmt.Errorf(
+					"mvc route method has multiple response-body annotations",
+				)
 			}
 			out.responseBody = true
 			hasResponseBody = true
@@ -218,7 +207,9 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 		}
 		if isMVCResponseStatusAnnotation(annotation.Name) {
 			if hasResponseStatus {
-				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple response-status annotations")
+				return mvcRouteMappingSpec{}, fmt.Errorf(
+					"mvc route method has multiple response-status annotations",
+				)
 			}
 			status, err := mvcResponseStatus(annotation)
 			if err != nil {
@@ -250,7 +241,9 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 	}
 	if hasResponseStatus {
 		if out.explicitStatus {
-			return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method must not declare both mapping status and response-status")
+			return mvcRouteMappingSpec{}, fmt.Errorf(
+				"mvc route method must not declare both mapping status and response-status",
+			)
 		}
 		out.status = responseStatus
 		out.explicitStatus = true
@@ -307,12 +300,20 @@ func mvcParameterMapFunction(kind mvcHandlerParamKind, typ string) (string, bool
 	}
 }
 
-func validateMVCParameterMapBinding(methodName, paramName, typ string, kind mvcHandlerParamKind, binding mvcParamBinding) error {
+func validateMVCParameterMapBinding(
+	methodName, paramName, typ string,
+	kind mvcHandlerParamKind,
+	binding mvcParamBinding,
+) error {
 	if _, ok := mvcParameterMapFunction(kind, typ); !ok {
 		return nil
 	}
 	if binding.SourceExplicit || binding.HasDefault || !binding.Required {
-		return mvcHandlerError("map parameter %s must not declare name, value, defaultValue, or required=false", methodName, paramName)
+		return mvcHandlerError(
+			"map parameter %s must not declare name, value, defaultValue, or required=false",
+			methodName,
+			paramName,
+		)
 	}
 	return nil
 }

@@ -10,15 +10,6 @@ import (
 	"goark.dev/cli/internal/generate/mvcrouting"
 )
 
-func mvcValidationGroupArguments(groups []string) string {
-	if len(groups) == 0 {
-		return ""
-	}
-	var builder bytes.Buffer
-	writeMVCValidationGroupArguments(&builder, groups)
-	return builder.String()
-}
-
 func mvcParameterFunction(kind mvcHandlerParamKind, typ string) (string, bool) {
 	suffix, ok := mvcParameterFunctionSuffix(kind, typ)
 	if !ok {
@@ -115,7 +106,7 @@ func validateMVCRequestEntityAnnotation(ctx AnnotationValidationContext) error {
 		return annotationError("requires parameter selector", ctx.Annotation.Name)
 	}
 	if !methodHasParameter(ctx.Item.FuncDecl(), selector) {
-		return annotationError("selector %q does not match any method parameter", ctx.Annotation.Name, selector)
+		return annotationSelectorError(ctx.Annotation.Name, selector)
 	}
 	return nil
 }
@@ -163,7 +154,7 @@ func writeMVCBindRequestEntityEntityHandler(builder *bytes.Buffer, route mvcRout
 	builder.WriteString(") (goweb.ResponseEntity[")
 	builder.WriteString(route.Handler.EntityBody)
 	builder.WriteString("], error) {\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return goweb.ResponseEntity["+route.Handler.EntityBody+"]{}, err", route.ValidationGroups)
+	writeMVCEntityParameterBindings(builder, route)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnEntity {
@@ -185,7 +176,7 @@ func writeMVCBindRequestEntityEntityGroupsHandler(builder *bytes.Buffer, route m
 	builder.WriteString(") (goweb.ResponseEntity[")
 	builder.WriteString(route.Handler.EntityBody)
 	builder.WriteString("], error) {\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return goweb.ResponseEntity["+route.Handler.EntityBody+"]{}, err", route.ValidationGroups)
+	writeMVCEntityParameterBindings(builder, route)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnEntity {
@@ -197,6 +188,13 @@ func writeMVCBindRequestEntityEntityGroupsHandler(builder *bytes.Buffer, route m
 }
 
 func isMVCRequestEntityAnnotation(name string) bool { return name == "request-entity" }
+
+func writeMVCEntityParameterBindings(builder *bytes.Buffer, route mvcRoute) {
+	errorReturn := "return goweb.ResponseEntity[" + route.Handler.EntityBody + "]{}, err"
+	writeMVCParameterBindings(
+		builder, route.Handler.Params, errorReturn, route.ValidationGroups,
+	)
+}
 
 func mvcRequestEntitySelectorSet(annotations []Annotation) map[string]struct{} {
 	selectors := mvcRequestEntitySelectors(annotations)
@@ -255,7 +253,8 @@ func mvcRequestEntityBodyType(fset *token.FileSet, file *ast.File, expr ast.Expr
 		}
 		return exprString(fset, typ.Index), true
 	case *ast.IndexListExpr:
-		if !isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "RequestEntity") || len(typ.Indices) != 1 {
+		valid := isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "RequestEntity")
+		if !valid || len(typ.Indices) != 1 {
 			return "", false
 		}
 		return exprString(fset, typ.Indices[0]), true
@@ -275,7 +274,8 @@ func mvcRequestPartBindingCall(param mvcHandlerParam, validationGroups []string)
 	if len(validationGroups) == 0 {
 		return "mvc.RequestPartJSON[" + param.Type + "](" + strings.Join(args, ", ") + ")", true
 	}
-	return "mvc.ValidatedRequestPartJSON[" + param.Type + "](" + strings.Join(mvcValidatedRequestPartArgs(param, validationGroups), ", ") + ")", true
+	args = mvcValidatedRequestPartArgs(param, validationGroups)
+	return "mvc.ValidatedRequestPartJSON[" + param.Type + "](" + strings.Join(args, ", ") + ")", true
 }
 
 func mvcValidatedRequestPartArgs(param mvcHandlerParam, validationGroups []string) []string {

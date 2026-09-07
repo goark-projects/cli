@@ -6,12 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
 
 const maximumGoSourceLines = 360
+const maximumGoSourceLineLength = 100
+const maximumGoPackageFiles = 20
 
 func TestGoSourceFiles_whenLineLimitExceeded_shouldReject(t *testing.T) {
 	forEachGoSource(t, func(path string, data []byte) {
@@ -37,6 +40,43 @@ func TestGoSourceFiles_whenEncodingIsNotUTF8LF_shouldReject(t *testing.T) {
 			t.Errorf("%s 包含非 LF 换行", path)
 		}
 	})
+}
+
+func TestGoSourceFiles_whenLineIsTooLong_shouldReject(t *testing.T) {
+	forEachGoSource(t, func(path string, data []byte) {
+		for index, line := range bytes.Split(data, []byte{'\n'}) {
+			length := utf8.RuneCount(line)
+			if length > maximumGoSourceLineLength {
+				t.Errorf(
+					"%s:%d 包含 %d 个字符，超过 %d 字符限制",
+					path,
+					index+1,
+					length,
+					maximumGoSourceLineLength,
+				)
+			}
+		}
+	})
+}
+
+func TestGoPackages_whenDirectFileLimitExceeded_shouldReject(t *testing.T) {
+	counts := make(map[string]int)
+	forEachGoSource(t, func(path string, _ []byte) {
+		counts[filepath.Dir(path)]++
+	})
+	directories := make([]string, 0, len(counts))
+	for directory := range counts {
+		directories = append(directories, directory)
+	}
+	sort.Strings(directories)
+	for _, directory := range directories {
+		if counts[directory] > maximumGoPackageFiles {
+			t.Errorf(
+				"%s 直属包含 %d 个 Go 文件，超过 %d 个文件限制",
+				directory, counts[directory], maximumGoPackageFiles,
+			)
+		}
+	}
 }
 
 func forEachGoSource(t *testing.T, check func(string, []byte)) {

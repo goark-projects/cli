@@ -35,7 +35,9 @@ func writeMVCModelViewHandler(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString("\n})")
 }
 
-func writeMVCModelAndViewReturn(builder *bytes.Buffer, viewName string, modelName string, statusCode int) {
+func writeMVCModelAndViewReturn(
+	builder *bytes.Buffer, viewName string, modelName string, statusCode int,
+) {
 	builder.WriteString("return mvc.NewModelAndView(")
 	if viewName == "" {
 		builder.WriteString(strconv.Quote(""))
@@ -51,7 +53,7 @@ func writeMVCModelAndViewReturn(builder *bytes.Buffer, viewName string, modelNam
 
 func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 	if hasMVCBodyParam(route.Handler.Params) {
-		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+		if mvcReturnsEntity(route) {
 			writeMVCBindEntityHandler(builder, route)
 			return
 		}
@@ -59,7 +61,7 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		return
 	}
 	if hasMVCRequestEntityParam(route.Handler.Params) {
-		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+		if mvcReturnsEntity(route) {
 			writeMVCBindRequestEntityEntityHandler(builder, route)
 			return
 		}
@@ -67,7 +69,7 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		return
 	}
 	if hasMVCMultipartBodyParam(route.Handler.Params) {
-		if route.Handler.ReturnKind == mvcReturnEntity || route.Handler.ReturnKind == mvcReturnEntityError {
+		if mvcReturnsEntity(route) {
 			writeMVCBindMultipartEntityHandler(builder, route)
 			return
 		}
@@ -78,13 +80,13 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 	switch route.Handler.ReturnKind {
 	case mvcReturnResultError, mvcReturnEntityError:
 		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		writeMVCNilErrorBindings(builder, route)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
 	case mvcReturnResult, mvcReturnEntity:
 		builder.WriteString("mvc.Handler(func(ctx *arkweb.Context) (arkweb.Result, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		writeMVCNilErrorBindings(builder, route)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
@@ -92,7 +94,7 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		writeMVCValueReturnHandlerName(builder, route)
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		writeMVCNilErrorBindings(builder, route)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString("\n})")
@@ -100,7 +102,7 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		writeMVCValueReturnHandlerName(builder, route)
 		builder.WriteString(strconv.Itoa(route.Status))
 		builder.WriteString(", func(ctx *arkweb.Context) (any, error) {\n")
-		writeMVCParameterBindings(builder, route.Handler.Params, "return nil, err", route.ValidationGroups)
+		writeMVCNilErrorBindings(builder, route)
 		builder.WriteString("return ")
 		builder.WriteString(call)
 		builder.WriteString(", nil\n})")
@@ -116,6 +118,17 @@ func writeMVCHandlerCore(builder *bytes.Buffer, route mvcRoute) {
 		builder.WriteString(call)
 		builder.WriteString("\nreturn nil\n})")
 	}
+}
+
+func mvcReturnsEntity(route mvcRoute) bool {
+	return route.Handler.ReturnKind == mvcReturnEntity ||
+		route.Handler.ReturnKind == mvcReturnEntityError
+}
+
+func writeMVCNilErrorBindings(builder *bytes.Buffer, route mvcRoute) {
+	writeMVCParameterBindings(
+		builder, route.Handler.Params, "return nil, err", route.ValidationGroups,
+	)
 }
 
 func writeMVCValueReturnHandlerName(builder *bytes.Buffer, route mvcRoute) {
@@ -237,7 +250,7 @@ func writeMVCBindEntityGroupsHandler(builder *bytes.Buffer, route mvcRoute) {
 	builder.WriteString(") (goweb.ResponseEntity[")
 	builder.WriteString(route.Handler.EntityBody)
 	builder.WriteString("], error) {\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return goweb.ResponseEntity["+route.Handler.EntityBody+"]{}, err", route.ValidationGroups)
+	writeMVCEntityParameterBindings(builder, route)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnEntity {
@@ -261,7 +274,7 @@ func writeMVCBindMultipartEntityGroupsHandler(builder *bytes.Buffer, route mvcRo
 	builder.WriteString(") (goweb.ResponseEntity[")
 	builder.WriteString(route.Handler.EntityBody)
 	builder.WriteString("], error) {\n")
-	writeMVCParameterBindings(builder, route.Handler.Params, "return goweb.ResponseEntity["+route.Handler.EntityBody+"]{}, err", route.ValidationGroups)
+	writeMVCEntityParameterBindings(builder, route)
 	builder.WriteString("return ")
 	builder.WriteString(mvcHandlerCall(route.MethodName, route.Handler.Params))
 	if route.Handler.ReturnKind == mvcReturnEntity {
@@ -270,24 +283,6 @@ func writeMVCBindMultipartEntityGroupsHandler(builder *bytes.Buffer, route mvcRo
 	builder.WriteString("\n}, ")
 	writeMVCValidationGroupSlice(builder, route.ValidationGroups)
 	builder.WriteByte(')')
-}
-
-func writeMVCValidationGroupArguments(builder *bytes.Buffer, groups []string) {
-	for _, group := range groups {
-		builder.WriteString(", ")
-		builder.WriteString(strconv.Quote(group))
-	}
-}
-
-func writeMVCValidationGroupSlice(builder *bytes.Buffer, groups []string) {
-	builder.WriteString("[]string{")
-	for index, group := range groups {
-		if index > 0 {
-			builder.WriteString(", ")
-		}
-		builder.WriteString(strconv.Quote(group))
-	}
-	builder.WriteByte('}')
 }
 
 func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
@@ -300,7 +295,8 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 			args = append(args, "&"+param.Name)
 		case mvcParamBody, mvcParamRequestEntity, mvcParamMultipartBody:
 			args = append(args, param.Name)
-		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader, mvcParamCookieValue, mvcParamModelAttribute,
+		case mvcParamPathVariable, mvcParamRequestParam, mvcParamRequestHeader,
+			mvcParamCookieValue, mvcParamModelAttribute,
 			mvcParamRequestAttribute, mvcParamSessionAttribute, mvcParamMatrixVariable, mvcParamRequestPart:
 			args = append(args, param.Name)
 		}
@@ -308,7 +304,10 @@ func mvcHandlerCall(methodName string, params []mvcHandlerParam) string {
 	return "controller." + methodName + "(" + strings.Join(args, ", ") + ")"
 }
 
-func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, errorReturn string, validationGroups []string) {
+func writeMVCParameterBindings(
+	builder *bytes.Buffer, params []mvcHandlerParam,
+	errorReturn string, validationGroups []string,
+) {
 	for _, param := range params {
 		if param.Kind == mvcParamModel {
 			builder.WriteString(param.Name)
@@ -331,7 +330,8 @@ func writeMVCParameterBindings(builder *bytes.Buffer, params []mvcHandlerParam, 
 func mvcParameterBindingCall(param mvcHandlerParam, validationGroups []string) (string, bool) {
 	if param.Kind == mvcParamModelAttribute {
 		if len(validationGroups) > 0 {
-			return "mvc.ModelAttributeGroups[" + param.Type + "](ctx" + mvcValidationGroupArguments(validationGroups) + ")", true
+			groups := mvcValidationGroupArguments(validationGroups)
+			return "mvc.ModelAttributeGroups[" + param.Type + "](ctx" + groups + ")", true
 		}
 		return "mvc.ModelAttribute[" + param.Type + "](ctx)", true
 	}

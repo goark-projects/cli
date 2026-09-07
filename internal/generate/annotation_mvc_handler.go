@@ -1,22 +1,37 @@
 package generate
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/token"
-	"strings"
+	"strconv"
 )
 
-func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, annotations []Annotation) ([]mvcHandlerParam, error) {
+type mvcExceptionHandlerParam struct {
+	Kind mvcExceptionHandlerParamKind
+}
+
+type mvcExceptionHandlerParamKind uint8
+
+const (
+	mvcExceptionParamContext mvcExceptionHandlerParamKind = iota + 1
+	mvcExceptionParamError
+)
+
+func mvcMethodParams(
+	fset *token.FileSet, file *ast.File,
+	fn *ast.FuncDecl, annotations []Annotation,
+) ([]mvcHandlerParam, error) {
 	if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
 		if len(mvcRequestBodySelectors(annotations)) > 0 {
-			return nil, mvcHandlerError("request body selector does not match any method parameter", fn.Name.Name)
+			return nil, mvcMissingSelectorError(fn.Name.Name, "request body")
 		}
 		if len(mvcRequestEntitySelectors(annotations)) > 0 {
-			return nil, mvcHandlerError("request entity selector does not match any method parameter", fn.Name.Name)
+			return nil, mvcMissingSelectorError(fn.Name.Name, "request entity")
 		}
 		if len(mvcMultipartBodySelectors(annotations)) > 0 {
-			return nil, mvcHandlerError("multipart body selector does not match any method parameter", fn.Name.Name)
+			return nil, mvcMissingSelectorError(fn.Name.Name, "multipart body")
 		}
 		return nil, nil
 	}
@@ -43,19 +58,21 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 		name := names[0].Name
 		if isArkWebContextExpr(file, field.Type) {
 			if _, isBody := bodySelectors[name]; isBody {
-				return nil, mvcHandlerError("request body parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
+				return nil, mvcContextBindingError(fn.Name.Name, "request body", name)
 			}
 			if _, isRequestEntity := requestEntitySelectors[name]; isRequestEntity {
-				return nil, mvcHandlerError("request entity parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
+				return nil, mvcContextBindingError(fn.Name.Name, "request entity", name)
 			}
 			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
-				return nil, mvcHandlerError("multipart body parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
+				return nil, mvcContextBindingError(fn.Name.Name, "multipart body", name)
 			}
 			if _, isBound := paramBindings[name]; isBound {
-				return nil, mvcHandlerError("bound parameter %s must not be *arkarta/web.Context", fn.Name.Name, name)
+				return nil, mvcContextBindingError(fn.Name.Name, "bound", name)
 			}
 			if contextSeen {
-				return nil, mvcHandlerError("must not declare multiple *arkarta/web.Context parameters", fn.Name.Name)
+				return nil, mvcHandlerError(
+					"must not declare multiple *arkarta/web.Context parameters", fn.Name.Name,
+				)
 			}
 			contextSeen = true
 			params = append(params, mvcHandlerParam{Name: name, Kind: mvcParamContext})
@@ -63,13 +80,13 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 		}
 		if isGoarkMVCModelPointerExpr(file, field.Type) {
 			if _, isBody := bodySelectors[name]; isBody {
-				return nil, mvcHandlerError("request body parameter %s must not be *mvc.Model", fn.Name.Name, name)
+				return nil, mvcModelBindingError(fn.Name.Name, "request body", name)
 			}
 			if _, isRequestEntity := requestEntitySelectors[name]; isRequestEntity {
-				return nil, mvcHandlerError("request entity parameter %s must not be *mvc.Model", fn.Name.Name, name)
+				return nil, mvcModelBindingError(fn.Name.Name, "request entity", name)
 			}
 			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
-				return nil, mvcHandlerError("multipart body parameter %s must not be *mvc.Model", fn.Name.Name, name)
+				return nil, mvcModelBindingError(fn.Name.Name, "multipart body", name)
 			}
 			if _, isBound := paramBindings[name]; isBound {
 				return nil, mvcHandlerError("bound parameter %s must not be *mvc.Model", fn.Name.Name, name)
@@ -87,88 +104,117 @@ func mvcMethodParams(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, anno
 		requestEntityBodyType, isRequestEntityType := mvcRequestEntityBodyType(fset, file, field.Type)
 		if _, isRequestEntity := requestEntitySelectors[name]; isRequestEntity || isRequestEntityType {
 			if _, isBody := bodySelectors[name]; isBody {
-				return nil, mvcHandlerError("parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+				return nil, mvcMultipleBindingError(fn.Name.Name, name)
 			}
 			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
-				return nil, mvcHandlerError("parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+				return nil, mvcMultipleBindingError(fn.Name.Name, name)
 			}
 			if _, isBound := paramBindings[name]; isBound {
-				return nil, mvcHandlerError("parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+				return nil, mvcMultipleBindingError(fn.Name.Name, name)
 			}
 			if !isRequestEntityType {
-				return nil, mvcHandlerError("request entity parameter %s must be goark.dev/goark/web.RequestEntity[T]", fn.Name.Name, name)
+				return nil, mvcHandlerError(
+					"request entity parameter %s must be goark.dev/goark/web.RequestEntity[T]",
+					fn.Name.Name, name,
+				)
 			}
 			if bodySeen {
 				return nil, mvcHandlerError("must not declare multiple request body parameters", fn.Name.Name)
 			}
 			bodySeen = true
-			params = append(params, mvcHandlerParam{Name: name, Type: "goweb.RequestEntity[" + requestEntityBodyType + "]", Kind: mvcParamRequestEntity, BodyType: requestEntityBodyType})
+			params = append(params, mvcHandlerParam{
+				Name: name, Type: "goweb.RequestEntity[" + requestEntityBodyType + "]",
+				Kind: mvcParamRequestEntity, BodyType: requestEntityBodyType,
+			})
 			continue
 		}
 		if _, isBody := bodySelectors[name]; isBody {
 			if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
-				return nil, mvcHandlerError("parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+				return nil, mvcMultipleBindingError(fn.Name.Name, name)
 			}
 			if _, isBound := paramBindings[name]; isBound {
-				return nil, mvcHandlerError("parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+				return nil, mvcMultipleBindingError(fn.Name.Name, name)
 			}
 			if bodySeen {
 				return nil, mvcHandlerError("must not declare multiple request body parameters", fn.Name.Name)
 			}
 			bodySeen = true
-			params = append(params, mvcHandlerParam{Name: name, Type: exprString(fset, field.Type), Kind: mvcParamBody})
+			params = append(params, mvcHandlerParam{
+				Name: name, Type: exprString(fset, field.Type), Kind: mvcParamBody,
+			})
 			continue
 		}
 		if _, isMultipartBody := multipartBodySelectors[name]; isMultipartBody {
 			if _, isBound := paramBindings[name]; isBound {
-				return nil, mvcHandlerError("parameter %s must not declare multiple mvc binding annotations", fn.Name.Name, name)
+				return nil, mvcMultipleBindingError(fn.Name.Name, name)
 			}
 			if bodySeen {
 				return nil, mvcHandlerError("must not declare multiple request body parameters", fn.Name.Name)
 			}
 			bodySeen = true
-			params = append(params, mvcHandlerParam{Name: name, Type: exprString(fset, field.Type), Kind: mvcParamMultipartBody})
+			params = append(params, mvcHandlerParam{
+				Name: name, Type: exprString(fset, field.Type), Kind: mvcParamMultipartBody,
+			})
 			continue
 		}
 		if binding, isBound := paramBindings[name]; isBound {
 			typ := exprString(fset, field.Type)
 			if binding.Kind == mvcParamModelAttribute && !isMVCModelAttributeTypeExpr(field.Type) {
-				return nil, mvcHandlerError("model attribute parameter %s must be a non-pointer struct value", fn.Name.Name, name)
+				return nil, mvcHandlerError(
+					"model attribute parameter %s must be a non-pointer struct value",
+					fn.Name.Name, name,
+				)
 			}
-			requestPartFile := binding.Kind == mvcParamRequestPart && isArkartaMultipartPartExpr(file, field.Type)
-			if err := validateMVCParameterMapBinding(fn.Name.Name, name, typ, binding.Kind, binding.Binding); err != nil {
+			requestPartFile := binding.Kind == mvcParamRequestPart &&
+				isArkartaMultipartPartExpr(file, field.Type)
+			if err := validateMVCParameterMapBinding(
+				fn.Name.Name, name, typ, binding.Kind, binding.Binding,
+			); err != nil {
 				return nil, err
 			}
-			if _, ok := mvcParameterBindingCall(mvcHandlerParam{Type: typ, Kind: binding.Kind, Binding: binding.Binding, RequestPartFile: requestPartFile}, nil); !ok {
-				return nil, mvcHandlerError("parameter %s has unsupported mvc parameter type %s", fn.Name.Name, name, typ)
+			param := mvcHandlerParam{
+				Type: typ, Kind: binding.Kind,
+				Binding: binding.Binding, RequestPartFile: requestPartFile,
 			}
-			params = append(params, mvcHandlerParam{Name: name, Type: typ, Kind: binding.Kind, Binding: binding.Binding, RequestPartFile: requestPartFile})
+			if _, ok := mvcParameterBindingCall(param, nil); !ok {
+				return nil, mvcHandlerError(
+					"parameter %s has unsupported mvc parameter type %s",
+					fn.Name.Name, name, typ,
+				)
+			}
+			param.Name = name
+			params = append(params, param)
 			continue
 		}
-		return nil, mvcHandlerError("parameter %s must be *arkarta/web.Context or annotated with mvc binding annotation", fn.Name.Name, name)
+		return nil, mvcHandlerError(
+			"parameter %s must be *arkarta/web.Context or annotated with mvc binding annotation",
+			fn.Name.Name, name,
+		)
 	}
 	for selector := range bodySelectors {
 		if !mvcHasParam(params, selector) {
-			return nil, mvcHandlerError("request body selector %q does not match any method parameter", fn.Name.Name, selector)
+			return nil, mvcSelectorError(fn.Name.Name, "request body", selector)
 		}
 	}
 	for selector := range requestEntitySelectors {
 		if !mvcHasParam(params, selector) {
-			return nil, mvcHandlerError("request entity selector %q does not match any method parameter", fn.Name.Name, selector)
+			return nil, mvcSelectorError(fn.Name.Name, "request entity", selector)
 		}
 	}
 	for selector := range multipartBodySelectors {
 		if !mvcHasParam(params, selector) {
-			return nil, mvcHandlerError("multipart body selector %q does not match any method parameter", fn.Name.Name, selector)
+			return nil, mvcSelectorError(fn.Name.Name, "multipart body", selector)
 		}
 	}
 	for selector := range paramBindings {
 		if !mvcHasParam(params, selector) {
-			return nil, mvcHandlerError("parameter binding selector %q does not match any method parameter", fn.Name.Name, selector)
+			return nil, mvcSelectorError(fn.Name.Name, "parameter binding", selector)
 		}
 	}
 	if bodySeen && hasMVCModelAttributeParam(params) {
-		return nil, mvcHandlerError("must not combine request body and model attribute parameters", fn.Name.Name)
+		return nil, mvcHandlerError(
+			"must not combine request body and model attribute parameters", fn.Name.Name,
+		)
 	}
 	return params, nil
 }
@@ -185,21 +231,34 @@ func mvcModelAttributeMethodParams(file *ast.File, fn *ast.FuncDecl) ([]mvcHandl
 			names = []*ast.Ident{ast.NewIdent(fmt.Sprintf("arg%d", index))}
 		}
 		if len(names) != 1 {
-			return nil, fmt.Errorf("mvc model attribute method %s parameter group must declare exactly one name", fn.Name.Name)
+			return nil, fmt.Errorf(
+				"mvc model attribute method %s parameter group must declare exactly one name",
+				fn.Name.Name,
+			)
 		}
 		name := names[0].Name
 		if isArkWebContextExpr(file, field.Type) {
 			if contextSeen {
-				return nil, fmt.Errorf("mvc model attribute method %s must not declare multiple *arkarta/web.Context parameters", fn.Name.Name)
+				return nil, fmt.Errorf(
+					"mvc model attribute method %s must not declare multiple "+
+						"*arkarta/web.Context parameters",
+					fn.Name.Name,
+				)
 			}
 			contextSeen = true
 			params = append(params, mvcHandlerParam{Name: name, Kind: mvcParamContext})
 			continue
 		}
 		if isSelectorTypeExpr(field.Type, "Context") {
-			return nil, fmt.Errorf("mvc model attribute method %s parameter must be *arkarta/web.Context", fn.Name.Name)
+			return nil, fmt.Errorf(
+				"mvc model attribute method %s parameter must be *arkarta/web.Context",
+				fn.Name.Name,
+			)
 		}
-		return nil, fmt.Errorf("mvc model attribute method %s parameter %s must be *arkarta/web.Context", fn.Name.Name, name)
+		return nil, fmt.Errorf(
+			"mvc model attribute method %s parameter %s must be *arkarta/web.Context",
+			fn.Name.Name, name,
+		)
 	}
 	return params, nil
 }
@@ -245,7 +304,12 @@ func mvcMethodReturnKind(file *ast.File, fn *ast.FuncDecl) (mvcReturnKind, error
 		}
 		return mvcReturnValueError, nil
 	}
-	return 0, mvcHandlerError("must return void, error, T, T,error, web.Result, web.Result,error, web.ResponseEntity, web.ResponseEntity,error, web.DownloadResult, or web.DownloadResult,error", fn.Name.Name)
+	return 0, mvcHandlerError(
+		"must return void, error, T, T,error, web.Result, web.Result,error, "+
+			"web.ResponseEntity, web.ResponseEntity,error, web.DownloadResult, "+
+			"or web.DownloadResult,error",
+		fn.Name.Name,
+	)
 }
 
 func mvcPrimaryReturnType(fset *token.FileSet, fn *ast.FuncDecl) string {
@@ -255,7 +319,9 @@ func mvcPrimaryReturnType(fset *token.FileSet, fn *ast.FuncDecl) string {
 	return exprString(fset, fn.Type.Results.List[0].Type)
 }
 
-func mvcPrimaryResponseEntityBodyType(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl) string {
+func mvcPrimaryResponseEntityBodyType(
+	fset *token.FileSet, file *ast.File, fn *ast.FuncDecl,
+) string {
 	if fn == nil || fn.Type.Results == nil || len(fn.Type.Results.List) == 0 {
 		return ""
 	}
@@ -263,77 +329,29 @@ func mvcPrimaryResponseEntityBodyType(fset *token.FileSet, file *ast.File, fn *a
 	return body
 }
 
-func hasMVCControllerAnnotation(annotations []Annotation) bool {
-	return mvcControllerKind(annotations) != ""
+func mvcValidationGroupArguments(groups []string) string {
+	if len(groups) == 0 {
+		return ""
+	}
+	var builder bytes.Buffer
+	writeMVCValidationGroupArguments(&builder, groups)
+	return builder.String()
 }
 
-func mvcControllerKind(annotations []Annotation) string {
-	for _, name := range []string{"controller", "rest-controller", "mvc-controller"} {
-		if hasAnnotation(annotations, name) {
-			return name
+func writeMVCValidationGroupArguments(builder *bytes.Buffer, groups []string) {
+	for _, group := range groups {
+		builder.WriteString(", ")
+		builder.WriteString(strconv.Quote(group))
+	}
+}
+
+func writeMVCValidationGroupSlice(builder *bytes.Buffer, groups []string) {
+	builder.WriteString("[]string{")
+	for index, group := range groups {
+		if index > 0 {
+			builder.WriteString(", ")
 		}
+		builder.WriteString(strconv.Quote(group))
 	}
-	return ""
-}
-
-func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
-	for _, annotation := range annotations {
-		if isMVCRouteMappingAnnotation(annotation.Name) {
-			return true
-		}
-	}
-	return false
-}
-
-func isMVCRouteMappingAnnotation(name string) bool {
-	switch name {
-	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options", "trace":
-		return true
-	default:
-		return false
-	}
-}
-
-func isMVCBodyAnnotation(name string) bool {
-	switch name {
-	case "request-body", "body":
-		return true
-	default:
-		return false
-	}
-}
-
-func isMVCMultipartBodyAnnotation(name string) bool { return name == "multipart-body" }
-
-func isMVCValidatedAnnotation(name string) bool { return name == "validated" }
-
-func isMVCResponseStatusAnnotation(name string) bool { return name == "response-status" }
-
-func hasMVCResponseBodyAnnotation(annotations []Annotation) bool {
-	return hasAnnotation(annotations, "response-body")
-}
-
-func hasMVCValidatedAnnotation(annotations []Annotation) bool {
-	return hasAnnotation(annotations, "validated")
-}
-
-func isMVCResponseBodyAnnotation(name string) bool { return name == "response-body" }
-
-func mvcValidationGroups(annotation Annotation) []string {
-	values := annotationValueTexts(annotation)
-	for _, key := range []string{"groups", "group"} {
-		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
-			values = append(values, value)
-		}
-	}
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		for _, part := range strings.Split(value, ",") {
-			part = strings.TrimSpace(part)
-			if part != "" {
-				out = append(out, part)
-			}
-		}
-	}
-	return out
+	builder.WriteByte('}')
 }

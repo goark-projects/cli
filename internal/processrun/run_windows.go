@@ -16,7 +16,9 @@ func run(ctx context.Context, command *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
-	defer windows.CloseHandle(job)
+	defer func() {
+		_ = windows.CloseHandle(job)
+	}()
 	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP}
 	if err := command.Start(); err != nil {
 		return err

@@ -50,9 +50,29 @@ jobs:
       - name: Run race detector
         run: go test -race ./... -count=1
 
+  scaffold:
+    name: Public scaffold smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+      GOARK_RELEASE_TESTS: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build generated project from public modules
+        run: >-
+          go test ./internal/scaffold -run
+          TestCreateApp_whenReleaseModulesRequested_shouldBuildFromProxy -count=1
+
   publish:
     name: Publish release
-    needs: [validate, race]
+    needs: [validate, race, scaffold]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

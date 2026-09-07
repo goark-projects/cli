@@ -10,21 +10,51 @@ import (
 	"strings"
 )
 
-func mvcResponseEntityBodyType(fset *token.FileSet, file *ast.File, expr ast.Expr) (string, bool) {
-	switch typ := expr.(type) {
-	case *ast.IndexExpr:
-		if !isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity") {
-			return "", false
+func mvcModelUsesOptionalInjection(model *mvcAnnotationModel) bool {
+	for _, controller := range model.Controllers {
+		for _, field := range controller.Component.Fields {
+			if !field.Injection.Required && field.Injection.Kind != "value" {
+				return true
+			}
 		}
-		return exprString(fset, typ.Index), true
-	case *ast.IndexListExpr:
-		if !isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity") || len(typ.Indices) != 1 {
-			return "", false
-		}
-		return exprString(fset, typ.Indices[0]), true
-	default:
-		return "", false
 	}
+	for _, advice := range model.Advices {
+		for _, field := range advice.Component.Fields {
+			if !field.Injection.Required && field.Injection.Kind != "value" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mvcModelUsesArkWeb(model *mvcAnnotationModel) bool {
+	for _, controller := range model.Controllers {
+		if len(controller.Routes) > 0 || len(controller.ModelAttributes) > 0 {
+			return true
+		}
+	}
+	for _, advice := range model.Advices {
+		if len(advice.ExceptionHandlers) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func buildMVCControllerAdvice(
+	fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation,
+) (*mvcControllerAdvice, error) {
+	component, err := buildMVCComponent(
+		fset, typeSpec, annotations, mvcControllerAdviceKind(annotations),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &mvcControllerAdvice{
+		Component: component,
+		Kind:      mvcControllerAdviceKind(annotations),
+	}, nil
 }
 
 func writeMVCAdviceConfigurerRegistration(builder *bytes.Buffer, advice *mvcControllerAdvice) {
@@ -34,7 +64,8 @@ func writeMVCAdviceConfigurerRegistration(builder *bytes.Buffer, advice *mvcCont
 	configurerName := advice.Component.Name + ".mvcAdviceConfigurer"
 	builder.WriteString("if err := container.Register[goweb.Configurer](registry, ")
 	builder.WriteString(strconv.Quote(configurerName))
-	builder.WriteString(", func(ctx context.Context, resolver container.Resolver) (out goweb.Configurer, err error) {\n")
+	builder.WriteString(", func(ctx context.Context, resolver container.Resolver) " +
+		"(out goweb.Configurer, err error) {\n")
 	builder.WriteString("advice, err := container.GetByType[*")
 	builder.WriteString(advice.Component.TypeName)
 	builder.WriteString("](ctx, resolver, container.WithQualifier(")
@@ -148,47 +179,10 @@ func mvcExceptionHandlerCallArgs(params []mvcExceptionHandlerParam) string {
 	return strings.Join(args, ", ")
 }
 
-func hasMVCControllerAdviceAnnotation(annotations []Annotation) bool {
-	return mvcControllerAdviceKind(annotations) != ""
-}
-
-func mvcControllerAdviceKind(annotations []Annotation) string {
-	for _, name := range []string{"controller-advice", "rest-controller-advice"} {
-		if hasAnnotation(annotations, name) {
-			return name
-		}
-	}
-	return ""
-}
-
-func hasMVCExceptionHandlerAnnotation(annotations []Annotation) bool {
-	for _, annotation := range annotations {
-		if annotation.Name == "exception-handler" {
-			return true
-		}
-	}
-	return false
-}
-
-func mvcExceptionHandlerSelector(annotations []Annotation) string {
-	for _, annotation := range annotations {
-		if annotation.Name == "exception-handler" {
-			return normalizeSelector(annotation.Selector)
-		}
-	}
-	return ""
-}
-
-func mvcExceptionHandlerUsesContext(handler mvcExceptionHandler) bool {
-	for _, param := range handler.Params {
-		if param.Kind == mvcExceptionParamContext {
-			return true
-		}
-	}
-	return false
-}
-
-func (mvcAnnotationBinder) BindAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) error {
+func (mvcAnnotationBinder) BindAnnotation(
+	ctx *AnnotationBindingContext,
+	item AnnotationItem,
+) error {
 	switch item.Target() {
 	case AnnotationTargetType:
 		if err := bindMVCController(ctx, item); err != nil {
@@ -220,7 +214,10 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 	for _, route := range model.pending {
 		controller := model.byType[route.ControllerType]
 		if controller == nil {
-			return fmt.Errorf("mvc route method %s.%s requires mvc controller receiver type", route.ControllerType, route.MethodName)
+			return fmt.Errorf(
+				"mvc route method %s.%s requires mvc controller receiver type",
+				route.ControllerType, route.MethodName,
+			)
 		}
 		routes, err := expandMVCRoutePaths(controller, route)
 		if err != nil {
@@ -231,14 +228,20 @@ func (mvcAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 	for _, attribute := range model.pendingModelAttributes {
 		controller := model.byType[attribute.ControllerType]
 		if controller == nil {
-			return fmt.Errorf("mvc model attribute method %s.%s requires mvc controller receiver type", attribute.ControllerType, attribute.MethodName)
+			return fmt.Errorf(
+				"mvc model attribute method %s.%s requires mvc controller receiver type",
+				attribute.ControllerType, attribute.MethodName,
+			)
 		}
 		controller.ModelAttributes = append(controller.ModelAttributes, attribute)
 	}
 	for _, handler := range model.pendingExceptionHandlers {
 		advice := model.adviceByType[handler.AdviceType]
 		if advice == nil {
-			return fmt.Errorf("mvc exception handler method %s.%s requires mvc controller advice receiver type", handler.AdviceType, handler.MethodName)
+			return fmt.Errorf(
+				"mvc exception handler method %s.%s requires mvc controller advice receiver type",
+				handler.AdviceType, handler.MethodName,
+			)
 		}
 		advice.ExceptionHandlers = append(advice.ExceptionHandlers, handler)
 	}
@@ -335,10 +338,13 @@ func bindMVCRoute(ctx *AnnotationBindingContext, item AnnotationItem) error {
 }
 
 func bindMVCModelAttributeMethod(ctx *AnnotationBindingContext, item AnnotationItem) error {
-	if hasMVCRouteMappingAnnotation(item.Annotations()) || !hasAnnotation(item.Annotations(), "model-attribute") {
+	if hasMVCRouteMappingAnnotation(item.Annotations()) ||
+		!hasAnnotation(item.Annotations(), "model-attribute") {
 		return nil
 	}
-	attribute, err := buildMVCModelAttributeMethod(item.FileSet(), item.File(), item.FuncDecl(), item.Annotations())
+	attribute, err := buildMVCModelAttributeMethod(
+		item.FileSet(), item.File(), item.FuncDecl(), item.Annotations(),
+	)
 	if err != nil {
 		return err
 	}

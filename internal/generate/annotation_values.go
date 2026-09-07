@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"sort"
 	"strconv"
+	"strings"
 
 	"goark.dev/cli/internal/generate/annotationmeta"
 	"goark.dev/cli/internal/generate/annotationparse"
@@ -170,8 +171,106 @@ func parseAnnotations(group *ast.CommentGroup) ([]Annotation, error) {
 	return annotationparse.ParseComments(group)
 }
 
+func mergeAnnotations(left []Annotation, right []Annotation) []Annotation {
+	if len(left) == 0 {
+		return right
+	}
+	if len(right) == 0 {
+		return left
+	}
+	out := make([]Annotation, 0, len(left)+len(right))
+	out = append(out, left...)
+	out = append(out, right...)
+	return out
+}
+
+func (c *AnnotationGenerationContext) buffer() *bytes.Buffer {
+	return &c.body
+}
+
 func hasAnnotation(annotations []Annotation, name string) bool {
 	return annotationmeta.Has(annotations, name)
+}
+
+func annotationHasArguments(annotation Annotation) bool {
+	return normalizeSelector(annotation.Selector) != "" ||
+		len(annotation.Args) > 0 || len(annotation.Values) > 0
+}
+
+func annotationSelectorError(name string, selector string) error {
+	return annotationError("selector %q does not match any method parameter", name, selector)
+}
+
+func annotationRouteSelectorError(name string, selector string) error {
+	return annotationError("selector %q requires mvc route method target", name, selector)
+}
+
+func hasMVCMappedHandler(annotations []Annotation) bool {
+	return hasMVCRouteMappingAnnotation(annotations) || hasMVCExceptionHandlerAnnotation(annotations)
+}
+
+func annotationMappedTargetError(name string) error {
+	return annotationError("requires mvc route or exception handler method target", name)
+}
+
+func mvcRequestBodySelectorSet(annotations []Annotation) map[string]struct{} {
+	selectors := mvcRequestBodySelectors(annotations)
+	out := make(map[string]struct{}, len(selectors))
+	for _, selector := range selectors {
+		out[selector] = struct{}{}
+	}
+	return out
+}
+
+func mvcRequestBodySelectors(annotations []Annotation) []string {
+	selectors := make([]string, 0, 1)
+	for _, annotation := range annotations {
+		if !isMVCBodyAnnotation(annotation.Name) {
+			continue
+		}
+		if selector := mvcRequestBodySelector(annotation); selector != "" {
+			selectors = append(selectors, selector)
+		}
+	}
+	return selectors
+}
+
+func mvcRequestBodySelector(annotation Annotation) string {
+	selector := normalizeSelector(annotation.Selector)
+	if selector != "" {
+		return selector
+	}
+	for _, key := range []string{"param", "name", "value"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func mvcValidationGroups(annotation Annotation) []string {
+	values := annotationValueTexts(annotation)
+	for _, key := range []string{"groups", "group"} {
+		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {
+			values = append(values, value)
+		}
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
+}
+
+func mvcHandlerSupportsValidation(params []mvcHandlerParam) bool {
+	return hasMVCBodyParam(params) || hasMVCRequestEntityParam(params) ||
+		hasMVCMultipartBodyParam(params) || hasMVCModelAttributeParam(params) ||
+		hasMVCJSONRequestPartParam(params)
 }
 
 func annotationName(annotations []Annotation, name string, fallback string) string {

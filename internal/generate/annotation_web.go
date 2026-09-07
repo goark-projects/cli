@@ -7,64 +7,7 @@ import (
 	"go/token"
 	"sort"
 	"strconv"
-	"strings"
 )
-
-func defaultImportName(importPath string) string {
-	importPath = strings.Trim(importPath, "/")
-	if importPath == "" {
-		return ""
-	}
-	index := strings.LastIndex(importPath, "/")
-	if index < 0 {
-		return importPath
-	}
-	return importPath[index+1:]
-}
-
-func mvcModelUsesOptionalInjection(model *mvcAnnotationModel) bool {
-	for _, controller := range model.Controllers {
-		for _, field := range controller.Component.Fields {
-			if !field.Injection.Required && field.Injection.Kind != "value" {
-				return true
-			}
-		}
-	}
-	for _, advice := range model.Advices {
-		for _, field := range advice.Component.Fields {
-			if !field.Injection.Required && field.Injection.Kind != "value" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func mvcModelUsesConfigurer(model *mvcAnnotationModel) bool {
-	if len(model.Controllers) > 0 {
-		return true
-	}
-	for _, advice := range model.Advices {
-		if len(advice.ExceptionHandlers) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func mvcModelUsesArkWeb(model *mvcAnnotationModel) bool {
-	for _, controller := range model.Controllers {
-		if len(controller.Routes) > 0 || len(controller.ModelAttributes) > 0 {
-			return true
-		}
-	}
-	for _, advice := range model.Advices {
-		if len(advice.ExceptionHandlers) > 0 {
-			return true
-		}
-	}
-	return false
-}
 
 const webAnnotationModelKey = "goark.web.annotations"
 
@@ -99,8 +42,14 @@ func webAnnotationExtension() AnnotationExtension {
 
 func webAnnotationDescriptors() []AnnotationDescriptor {
 	return []AnnotationDescriptor{
-		{Name: webInterceptorAnnotation, Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateWebComponentAnnotation},
-		{Name: webFilterAnnotation, Targets: []AnnotationTarget{AnnotationTargetType}, Validate: validateWebComponentAnnotation},
+		{
+			Name: webInterceptorAnnotation, Targets: []AnnotationTarget{AnnotationTargetType},
+			Validate: validateWebComponentAnnotation,
+		},
+		{
+			Name: webFilterAnnotation, Targets: []AnnotationTarget{AnnotationTargetType},
+			Validate: validateWebComponentAnnotation,
+		},
 	}
 }
 
@@ -109,12 +58,18 @@ func validateWebComponentAnnotation(ctx AnnotationValidationContext) error {
 		return err
 	}
 	if countWebComponentAnnotations(ctx.Item.Annotations()) > 1 {
-		return fmt.Errorf("web component type %q must declare exactly one web interceptor or filter annotation", ctx.Item.TypeName())
+		return fmt.Errorf(
+			"web component type %q must declare exactly one web interceptor or filter annotation",
+			ctx.Item.TypeName(),
+		)
 	}
 	return validateCoreNameAnnotation(ctx.Annotation)
 }
 
-func (webAnnotationBinder) BindAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) error {
+func (webAnnotationBinder) BindAnnotation(
+	ctx *AnnotationBindingContext,
+	item AnnotationItem,
+) error {
 	if item.Target() != AnnotationTargetType {
 		return nil
 	}
@@ -162,7 +117,10 @@ func (webAnnotationBinder) FinalizeAnnotationBinding(ctx *AnnotationBindingConte
 	seenNames := make(map[string]string, len(model.Interceptors)+len(model.Filters))
 	for _, component := range webModelComponents(model) {
 		if existing := seenNames[component.Component.Name]; existing != "" {
-			return fmt.Errorf("duplicate web component name %q for %s and %s", component.Component.Name, existing, component.Component.TypeName)
+			return fmt.Errorf(
+				"duplicate web component name %q for %s and %s",
+				component.Component.Name, existing, component.Component.TypeName,
+			)
 		}
 		seenNames[component.Component.Name] = component.Component.TypeName
 		inferComponentDependencyMetadata(&component.Component, resolver)
@@ -206,7 +164,10 @@ func (webAnnotationGenerator) GenerateAnnotation(ctx *AnnotationGenerationContex
 	return nil
 }
 
-func buildWebComponent(fset *token.FileSet, typeSpec *ast.TypeSpec, annotations []Annotation, kind string) (*webComponent, error) {
+func buildWebComponent(
+	fset *token.FileSet, typeSpec *ast.TypeSpec,
+	annotations []Annotation, kind string,
+) (*webComponent, error) {
 	typeName := typeSpec.Name.Name
 	component := annotationComponent{
 		TypeName:  typeName,
@@ -246,10 +207,13 @@ func writeWebConfiguration(builder *bytes.Buffer, model *webAnnotationModel) {
 	builder.WriteString("type GoarkWebConfiguration struct{}\n\n")
 	builder.WriteString("func (GoarkWebConfiguration) Name() string {\nreturn \"goark.web\"\n}\n\n")
 	builder.WriteString("func (GoarkWebConfiguration) Order() int {\nreturn 0\n}\n\n")
-	builder.WriteString("func (c GoarkWebConfiguration) Register(ctx context.Context, registry *container.Registry) error {\n")
-	builder.WriteString("return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))\n")
+	builder.WriteString("func (c GoarkWebConfiguration) Register(ctx context.Context, " +
+		"registry *container.Registry) error {\n")
+	builder.WriteString("return c.RegisterWithContext(ctx, " +
+		"goark.NewConfigurationContext(nil, registry))\n")
 	builder.WriteString("}\n\n")
-	builder.WriteString("func (c GoarkWebConfiguration) RegisterWithContext(ctx context.Context, config goark.ConfigurationContext) error {\n")
+	builder.WriteString("func (c GoarkWebConfiguration) RegisterWithContext(ctx context.Context, " +
+		"config goark.ConfigurationContext) error {\n")
 	builder.WriteString("registry := config.Registry()\n")
 	for _, component := range webModelComponents(model) {
 		writeComponentRegistration(builder, component.Component)
@@ -263,27 +227,37 @@ func writeWebConfiguration(builder *bytes.Buffer, model *webAnnotationModel) {
 	builder.WriteString("return nil\n}\n\n")
 }
 
-func writeWebInterceptorConfigurerRegistration(builder *bytes.Buffer, component annotationComponent) {
-	writeWebConfigurerRegistration(builder, component, "webInterceptorConfigurer", "interceptor", "Use")
+func writeWebInterceptorConfigurerRegistration(
+	builder *bytes.Buffer,
+	component annotationComponent,
+) {
+	writeWebConfigurerRegistration(
+		builder, component, "webInterceptorConfigurer", "interceptor", "Use",
+	)
 }
 
 func writeWebFilterConfigurerRegistration(builder *bytes.Buffer, component annotationComponent) {
 	writeWebConfigurerRegistration(builder, component, "webFilterConfigurer", "filter", "AddFilter")
 }
 
-func writeWebConfigurerRegistration(builder *bytes.Buffer, component annotationComponent, suffix string, variableName string, registryMethod string) {
+func writeWebConfigurerRegistration(
+	builder *bytes.Buffer, component annotationComponent,
+	suffix string, variableName string, registryMethod string,
+) {
 	writeConditionalStart(builder, component.Name, component.Profiles, component.Condition)
 	configurerName := component.Name + "." + suffix
 	builder.WriteString("if err := container.Register[goweb.Configurer](registry, ")
 	builder.WriteString(strconv.Quote(configurerName))
-	builder.WriteString(", func(ctx context.Context, resolver container.Resolver) (out goweb.Configurer, err error) {\n")
+	builder.WriteString(", func(ctx context.Context, resolver container.Resolver) " +
+		"(out goweb.Configurer, err error) {\n")
 	builder.WriteString(variableName)
 	builder.WriteString(", err := container.GetByType[*")
 	builder.WriteString(component.TypeName)
 	builder.WriteString("](ctx, resolver, container.WithQualifier(")
 	builder.WriteString(strconv.Quote(component.Name))
 	builder.WriteString("))\nif err != nil {\nreturn nil, err\n}\n")
-	builder.WriteString("out = goweb.ConfigurerFunc(func(ctx context.Context, webRegistry *goweb.Registry) error {\n")
+	builder.WriteString("out = goweb.ConfigurerFunc(func(ctx context.Context, " +
+		"webRegistry *goweb.Registry) error {\n")
 	builder.WriteString("if err := ctx.Err(); err != nil {\nreturn err\n}\n")
 	builder.WriteString("if webRegistry == nil {\nreturn goweb.ErrNilRegistry\n}\n")
 	builder.WriteString("webRegistry.")
@@ -344,6 +318,18 @@ func webModelUsesOptionalInjection(model *webAnnotationModel) bool {
 			if !field.Injection.Required && field.Injection.Kind != "value" {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func mvcModelUsesConfigurer(model *mvcAnnotationModel) bool {
+	if len(model.Controllers) > 0 {
+		return true
+	}
+	for _, advice := range model.Advices {
+		if len(advice.ExceptionHandlers) > 0 {
+			return true
 		}
 	}
 	return false

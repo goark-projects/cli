@@ -10,6 +10,15 @@ import (
 
 const sourcePackageAlias = "goarksource"
 
+const (
+	mvcErrParameterGroup   = "parameter group must declare exactly one name"
+	mvcErrMultipleContexts = "must not declare multiple *arkarta/web.Context parameters"
+	mvcErrParameterType    = "parameter must be *arkarta/web.Context or error type"
+	mvcErrMultipleErrors   = "must declare exactly one error parameter"
+	mvcErrErrorSelector    = "selector %q must reference error parameter"
+	mvcErrReturnType       = "must return arkarta/web.Result, web.ResponseEntity, or ordinary value"
+)
+
 func prepareExternalGeneration(pkg *annotationPackage, values map[string]any) error {
 	if pkg.SourceImportPath == "" {
 		return nil
@@ -297,6 +306,55 @@ func annotationError(format string, args ...any) error {
 	return fmt.Errorf("annotation "+"%q "+format, args...)
 }
 
+func mvcUnsupportedBodyReturnError(method string, kind string) error {
+	return mvcHandlerError("with %s must return T, T,error, web.ResponseEntity, or "+
+		"web.ResponseEntity,error", method, kind)
+}
+
 func mvcHandlerError(format string, args ...any) error {
 	return fmt.Errorf("mvc handler method "+"%s "+format, args...)
+}
+
+func mvcMissingSelectorError(method string, kind string) error {
+	return mvcHandlerError(kind+" selector does not match any method parameter", method)
+}
+
+func mvcSelectorError(method string, kind string, selector string) error {
+	return mvcHandlerError(
+		kind+" selector %q does not match any method parameter", method, selector,
+	)
+}
+
+func mvcContextBindingError(method string, kind string, parameter string) error {
+	return mvcHandlerError(
+		"%s parameter %s must not be *arkarta/web.Context", method, kind, parameter,
+	)
+}
+
+func mvcModelBindingError(method string, kind string, parameter string) error {
+	return mvcHandlerError("%s parameter %s must not be *mvc.Model", method, kind, parameter)
+}
+
+func mvcMultipleBindingError(method string, parameter string) error {
+	return mvcHandlerError(
+		"parameter %s must not declare multiple mvc binding annotations", method, parameter,
+	)
+}
+
+func mvcExceptionHandlerError(method string, format string, args ...any) error {
+	values := make([]any, 0, len(args)+1)
+	values = append(values, method)
+	values = append(values, args...)
+	return fmt.Errorf("mvc exception handler method %s "+format, values...)
+}
+
+func validateMVCHandlerMethod(ctx AnnotationValidationContext) error {
+	fn := ctx.Item.FuncDecl()
+	if fn == nil || fn.Recv == nil {
+		return annotationError("requires concrete method with receiver", ctx.Annotation.Name)
+	}
+	if ctx.Item.ReceiverTypeName() == "" {
+		return annotationError("receiver is not supported", ctx.Annotation.Name)
+	}
+	return nil
 }

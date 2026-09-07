@@ -86,9 +86,10 @@ func lex(input string) ([]token, error) {
 			}
 			text := input[index:end]
 			kind := tokenIdentifier
-			if text == "true" {
+			switch text {
+			case "true":
 				kind = tokenTrue
-			} else if text == "false" {
+			case "false":
 				kind = tokenFalse
 			}
 			tokens = append(tokens, token{kind: kind, text: text, position: position})

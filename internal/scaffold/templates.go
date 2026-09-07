@@ -116,7 +116,6 @@ go 1.26.0
 
 require (
 	goark.dev/arkarta v0.0.3
-	goark.dev/arkhos v0.0.1
 	goark.dev/boot v0.0.1
 	goark.dev/gbc-arkhos v0.0.1
 	goark.dev/gbc-log v0.0.1

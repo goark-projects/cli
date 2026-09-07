@@ -3,6 +3,7 @@ package generate
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,68 @@ import (
 	"goark.dev/cli/internal/generate/annotationmeta"
 	"goark.dev/cli/internal/generate/mvcrouting"
 )
+
+func mvcResponseEntityBodyType(
+	fset *token.FileSet,
+	file *ast.File,
+	expr ast.Expr,
+) (string, bool) {
+	switch typ := expr.(type) {
+	case *ast.IndexExpr:
+		if !isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity") {
+			return "", false
+		}
+		return exprString(fset, typ.Index), true
+	case *ast.IndexListExpr:
+		valid := isImportedSelectorExpr(file, typ.X, goarkWebImportPath, "ResponseEntity")
+		if !valid || len(typ.Indices) != 1 {
+			return "", false
+		}
+		return exprString(fset, typ.Indices[0]), true
+	default:
+		return "", false
+	}
+}
+
+func hasMVCControllerAdviceAnnotation(annotations []Annotation) bool {
+	return mvcControllerAdviceKind(annotations) != ""
+}
+
+func mvcControllerAdviceKind(annotations []Annotation) string {
+	for _, name := range []string{"controller-advice", "rest-controller-advice"} {
+		if hasAnnotation(annotations, name) {
+			return name
+		}
+	}
+	return ""
+}
+
+func hasMVCExceptionHandlerAnnotation(annotations []Annotation) bool {
+	for _, annotation := range annotations {
+		if annotation.Name == "exception-handler" {
+			return true
+		}
+	}
+	return false
+}
+
+func mvcExceptionHandlerSelector(annotations []Annotation) string {
+	for _, annotation := range annotations {
+		if annotation.Name == "exception-handler" {
+			return normalizeSelector(annotation.Selector)
+		}
+	}
+	return ""
+}
+
+func mvcExceptionHandlerUsesContext(handler mvcExceptionHandler) bool {
+	for _, param := range handler.Params {
+		if param.Kind == mvcExceptionParamContext {
+			return true
+		}
+	}
+	return false
+}
 
 func mvcHTTPMethods(annotation Annotation) ([]string, bool, error) {
 	switch annotation.Name {
@@ -238,6 +301,58 @@ func isImportedSelectorExpr(
 	return annotationmeta.ImportedSelector(file, expr, importPath, selectorName)
 }
 
-func importAliases(file *ast.File, importPath string) map[string]struct{} {
-	return annotationmeta.ImportAliases(file, importPath)
+func hasMVCControllerAnnotation(annotations []Annotation) bool {
+	return mvcControllerKind(annotations) != ""
 }
+
+func mvcControllerKind(annotations []Annotation) string {
+	for _, name := range []string{"controller", "rest-controller", "mvc-controller"} {
+		if hasAnnotation(annotations, name) {
+			return name
+		}
+	}
+	return ""
+}
+
+func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
+	for _, annotation := range annotations {
+		if isMVCRouteMappingAnnotation(annotation.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMVCRouteMappingAnnotation(name string) bool {
+	switch name {
+	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options", "trace":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMVCBodyAnnotation(name string) bool {
+	switch name {
+	case "request-body", "body":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMVCMultipartBodyAnnotation(name string) bool { return name == "multipart-body" }
+
+func isMVCValidatedAnnotation(name string) bool { return name == "validated" }
+
+func isMVCResponseStatusAnnotation(name string) bool { return name == "response-status" }
+
+func hasMVCResponseBodyAnnotation(annotations []Annotation) bool {
+	return hasAnnotation(annotations, "response-body")
+}
+
+func hasMVCValidatedAnnotation(annotations []Annotation) bool {
+	return hasAnnotation(annotations, "validated")
+}
+
+func isMVCResponseBodyAnnotation(name string) bool { return name == "response-body" }

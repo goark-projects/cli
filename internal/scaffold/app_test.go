@@ -109,12 +109,12 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	assertFileContains(t, filepath.Join(dir, ".gitignore"), "**/gen/")
 	assertFileContains(t, filepath.Join(dir, "README.md"), "goark run")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/arkarta v0.0.3")
-	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/arkhos v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/boot v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-arkhos v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-log v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/gbc-web v0.0.1")
 	assertFileContains(t, filepath.Join(dir, "go.mod"), "goark.dev/goark v0.0.1")
+	assertFileNotContains(t, filepath.Join(dir, "go.mod"), "\tgoark.dev/arkhos ")
 	assertFileContains(t, filepath.Join(dir, "resource/app.yml"), "max-response-bytes")
 	assertFileContains(
 		t,
@@ -149,6 +149,26 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 	}
 
 	assertGeneratedAppBuilds(t, dir)
+}
+
+func TestCreateApp_whenReleaseModulesRequested_shouldBuildFromProxy(t *testing.T) {
+	if os.Getenv("GOARK_RELEASE_TESTS") != "1" {
+		t.Skip("设置 GOARK_RELEASE_TESTS=1 后验证公开模块版本")
+	}
+	for _, projectType := range []ProjectType{ProjectTypeApp, ProjectTypeWeb} {
+		t.Run(string(projectType), func(t *testing.T) {
+			dir := t.TempDir()
+			if _, err := CreateApp(AppSpec{
+				Dir:        dir,
+				Name:       "release-smoke",
+				Type:       projectType,
+				ModulePath: "example.com/release-smoke",
+			}); err != nil {
+				t.Fatalf("create release smoke %s failed: %v", projectType, err)
+			}
+			runGeneratedAppCommands(t, dir)
+		})
+	}
 }
 
 func TestCreateApp_whenTargetExistsWithoutForce_shouldReturnError(t *testing.T) {
@@ -238,7 +258,6 @@ go 1.26.0
 
 require (
 	goark.dev/arkarta v0.0.3
-	goark.dev/arkhos v0.0.1
 	goark.dev/boot v0.0.1
 	goark.dev/gbc-arkhos v0.0.1
 	goark.dev/gbc-log v0.0.1
@@ -274,21 +293,24 @@ func assertGeneratedAppBuilds(t *testing.T, dir string) {
 			t.Skip("设置 GOARK_INTEGRATION_TESTS=1 后执行本地兄弟仓库集成编译")
 		}
 		writeLocalReplaces(t, dir)
-		for _, args := range [][]string{{"mod", "tidy"}, {"test", "./..."}} {
-			cmd := exec.Command("go", args...)
-			cmd.Dir = dir
-			cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=", "GOTOOLCHAIN=local")
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				t.Fatalf(
-					"generated app command go %s failed: %v\n%s",
-					strings.Join(args, " "),
-					err,
-					string(output),
-				)
-			}
-		}
+		runGeneratedAppCommands(t, dir)
 	})
+}
+
+func runGeneratedAppCommands(t *testing.T, dir string) {
+	t.Helper()
+	for _, args := range [][]string{{"mod", "tidy"}, {"test", "./..."}} {
+		cmd := exec.Command("go", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=", "GOTOOLCHAIN=local")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf(
+				"generated app command go %s failed: %v\n%s",
+				strings.Join(args, " "), err, string(output),
+			)
+		}
+	}
 }
 
 func projectRoot(t *testing.T) string {

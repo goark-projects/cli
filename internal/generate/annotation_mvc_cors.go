@@ -184,7 +184,9 @@ func mvcCrossOriginFromAnnotations(annotations []Annotation) (*mvcCrossOrigin, e
 }
 
 func mvcCrossOriginFromAnnotation(annotation Annotation) (mvcCrossOrigin, error) {
-	allowCredentials, err := mvcCrossOriginBool(annotation, "allowCredentials", "allow-credentials", "credentials")
+	allowCredentials, err := mvcCrossOriginBool(
+		annotation, "allowCredentials", "allow-credentials", "credentials",
+	)
 	if err != nil {
 		return mvcCrossOrigin{}, err
 	}
@@ -248,7 +250,10 @@ func mvcCrossOriginBool(annotation Annotation, keys ...string) (bool, error) {
 	}
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
-		return false, annotationError("argument %q requires boolean value: %w", annotation.Name, "allowCredentials", err)
+		return false, annotationError(
+			"argument %q requires boolean value: %w",
+			annotation.Name, "allowCredentials", err,
+		)
 	}
 	return parsed, nil
 }
@@ -260,12 +265,17 @@ func mvcCrossOriginMaxAge(annotation Annotation) (int64, bool, error) {
 	}
 	duration, err := parseMVCCrossOriginDuration(value)
 	if err != nil {
-		return 0, false, annotationError("argument %q requires duration or seconds: %w", annotation.Name, "maxAge", err)
+		return 0, false, annotationError(
+			"argument %q requires duration or seconds: %w",
+			annotation.Name, "maxAge", err,
+		)
 	}
 	return int64(duration), true, nil
 }
 
-func mvcCrossOriginSingleArg(annotation Annotation, label string, keys ...string) (string, bool, error) {
+func mvcCrossOriginSingleArg(
+	annotation Annotation, label string, keys ...string,
+) (string, bool, error) {
 	values := make([]string, 0, 1)
 	for _, key := range keys {
 		if value := strings.TrimSpace(argString(annotation, key, "")); value != "" {

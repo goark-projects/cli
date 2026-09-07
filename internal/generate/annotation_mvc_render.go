@@ -217,12 +217,16 @@ func isMVCScalarTypeName(name string) bool {
 
 func writeMVCConfiguration(builder *bytes.Buffer, model *mvcAnnotationModel) {
 	builder.WriteString("type GoarkWebMVCConfiguration struct{}\n\n")
-	builder.WriteString("func (GoarkWebMVCConfiguration) Name() string {\nreturn \"goark.web.mvc\"\n}\n\n")
+	builder.WriteString("func (GoarkWebMVCConfiguration) Name() string {\n" +
+		"return \"goark.web.mvc\"\n}\n\n")
 	builder.WriteString("func (GoarkWebMVCConfiguration) Order() int {\nreturn 0\n}\n\n")
-	builder.WriteString("func (c GoarkWebMVCConfiguration) Register(ctx context.Context, registry *container.Registry) error {\n")
-	builder.WriteString("return c.RegisterWithContext(ctx, goark.NewConfigurationContext(nil, registry))\n")
+	builder.WriteString("func (c GoarkWebMVCConfiguration) Register(ctx context.Context, " +
+		"registry *container.Registry) error {\n")
+	builder.WriteString("return c.RegisterWithContext(ctx, " +
+		"goark.NewConfigurationContext(nil, registry))\n")
 	builder.WriteString("}\n\n")
-	builder.WriteString("func (c GoarkWebMVCConfiguration) RegisterWithContext(ctx context.Context, config goark.ConfigurationContext) error {\n")
+	builder.WriteString("func (c GoarkWebMVCConfiguration) RegisterWithContext(ctx context.Context, " +
+		"config goark.ConfigurationContext) error {\n")
 	builder.WriteString("registry := config.Registry()\n")
 	for _, controller := range model.Controllers {
 		writeComponentRegistration(builder, controller.Component)
@@ -239,7 +243,8 @@ func writeMVCConfigurerRegistration(builder *bytes.Buffer, controller *mvcContro
 	configurerName := controller.Component.Name + ".mvcConfigurer"
 	builder.WriteString("if err := container.Register[goweb.Configurer](registry, ")
 	builder.WriteString(strconv.Quote(configurerName))
-	builder.WriteString(", func(ctx context.Context, resolver container.Resolver) (out goweb.Configurer, err error) {\n")
+	builder.WriteString(", func(ctx context.Context, resolver container.Resolver) " +
+		"(out goweb.Configurer, err error) {\n")
 	builder.WriteString("controller, err := container.GetByType[*")
 	builder.WriteString(controller.Component.TypeName)
 	builder.WriteString("](ctx, resolver, container.WithQualifier(")
@@ -327,7 +332,8 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 }
 
 func shouldRenderMVCModelView(route mvcRoute) bool {
-	if route.ResponseBody || route.ControllerKind == "rest-controller" || !hasMVCModelParam(route.Handler.Params) {
+	if route.ResponseBody || route.ControllerKind == "rest-controller" ||
+		!hasMVCModelParam(route.Handler.Params) {
 		return false
 	}
 	switch route.Handler.ReturnKind {

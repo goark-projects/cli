@@ -175,7 +175,9 @@ func (i AnnotationItem) Annotations() []Annotation {
 }
 
 // HasAnnotation 判断当前节点是否存在指定注解。
-func (i AnnotationItem) HasAnnotation(name string) bool { return hasAnnotation(i.annotations, name) }
+func (i AnnotationItem) HasAnnotation(name string) bool {
+	return hasAnnotation(i.annotations, name)
+}
 
 // AnnotationBindingContext 持有扫描绑定阶段的共享状态。
 type AnnotationBindingContext struct {
@@ -240,11 +242,10 @@ func (c *AnnotationGenerationContext) WriteString(value string) {
 	c.body.WriteString(value)
 }
 
-func (c *AnnotationGenerationContext) buffer() *bytes.Buffer {
-	return &c.body
-}
-
-func scanAnnotationFile(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File) error {
+func scanAnnotationFile(
+	ctx *AnnotationBindingContext, pipeline *annotationPipeline,
+	fset *token.FileSet, file *ast.File,
+) error {
 	for _, decl := range file.Decls {
 		switch item := decl.(type) {
 		case *ast.GenDecl:
@@ -277,7 +278,10 @@ func scanAnnotationFile(ctx *AnnotationBindingContext, pipeline *annotationPipel
 	return nil
 }
 
-func scanTypeDeclaration(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File, decl *ast.GenDecl) error {
+func scanTypeDeclaration(
+	ctx *AnnotationBindingContext, pipeline *annotationPipeline,
+	fset *token.FileSet, file *ast.File, decl *ast.GenDecl,
+) error {
 	typeAnnotations, err := parseAnnotations(decl.Doc)
 	if err != nil {
 		return err
@@ -314,7 +318,9 @@ func scanTypeDeclaration(ctx *AnnotationBindingContext, pipeline *annotationPipe
 		}
 		interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
 		if ok {
-			if err := scanInterfaceMethods(ctx, pipeline, fset, file, decl, typeSpec, interfaceType); err != nil {
+			if err := scanInterfaceMethods(
+				ctx, pipeline, fset, file, decl, typeSpec, interfaceType,
+			); err != nil {
 				return err
 			}
 		}
@@ -322,7 +328,11 @@ func scanTypeDeclaration(ctx *AnnotationBindingContext, pipeline *annotationPipe
 	return nil
 }
 
-func scanStructFields(ctx *AnnotationBindingContext, pipeline *annotationPipeline, fset *token.FileSet, file *ast.File, decl *ast.GenDecl, typeSpec *ast.TypeSpec, structType *ast.StructType) error {
+func scanStructFields(
+	ctx *AnnotationBindingContext, pipeline *annotationPipeline,
+	fset *token.FileSet, file *ast.File, decl *ast.GenDecl,
+	typeSpec *ast.TypeSpec, structType *ast.StructType,
+) error {
 	for _, field := range structType.Fields.List {
 		fieldAnnotations, err := parseAnnotations(field.Doc)
 		if err != nil {
