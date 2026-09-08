@@ -17,10 +17,10 @@ func TestExtension_whenWebApplicationDeclared_shouldGenerateBootLauncher(t *test
 //goark:configuration("app")
 type Application struct{}
 
-//goark:rest-controller("healthController")
+//goark-web:rest-controller("healthController")
 type HealthController struct{}
 
-//goark:get("/healthz")
+//goark-web:get("/healthz")
 func (*HealthController) Health() map[string]string {
 	return map[string]string{"status": "UP"}
 }

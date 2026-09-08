@@ -11,23 +11,23 @@ import (
 
 func mvcParameterKind(name string) (mvcHandlerParamKind, bool) {
 	switch name {
-	case "path-variable":
+	case "goark-web:path-variable":
 		return mvcParamPathVariable, true
-	case "request-param":
+	case "goark-web:request-param":
 		return mvcParamRequestParam, true
-	case "request-header":
+	case "goark-web:request-header":
 		return mvcParamRequestHeader, true
-	case "cookie-value":
+	case "goark-web:cookie-value":
 		return mvcParamCookieValue, true
-	case "model-attribute":
+	case "goark-web:model-attribute":
 		return mvcParamModelAttribute, true
-	case "request-attribute":
+	case "goark-web:request-attribute":
 		return mvcParamRequestAttribute, true
-	case "session-attribute":
+	case "goark-web:session-attribute":
 		return mvcParamSessionAttribute, true
-	case "matrix-variable":
+	case "goark-web:matrix-variable":
 		return mvcParamMatrixVariable, true
-	case "request-part":
+	case "goark-web:request-part":
 		return mvcParamRequestPart, true
 	default:
 		return 0, false
@@ -44,7 +44,7 @@ func mvcBindingSelector(annotation Annotation) string {
 
 func mvcModelAttributeMethodNameAnnotation(annotations []Annotation) string {
 	for _, annotation := range annotations {
-		if annotation.Name == "model-attribute" {
+		if annotation.Name == "goark-web:model-attribute" {
 			return mvcModelAttributeMethodName(annotation)
 		}
 	}
@@ -54,7 +54,7 @@ func mvcModelAttributeMethodNameAnnotation(annotations []Annotation) string {
 func mvcModelAttributeAnnotationCount(annotations []Annotation) int {
 	count := 0
 	for _, annotation := range annotations {
-		if annotation.Name == "model-attribute" {
+		if annotation.Name == "goark-web:model-attribute" {
 			count++
 		}
 	}
@@ -309,7 +309,7 @@ func writeMVCModelAttributeMethod(builder *bytes.Buffer, attribute mvcModelAttri
 }
 
 func mvcControllerConstructor(kind string) string {
-	if kind == "rest-controller" {
+	if kind == "goark-web:rest-controller" {
 		return "mvc.NewRestController"
 	}
 	return "mvc.NewController"
@@ -332,7 +332,7 @@ func writeMVCHandler(builder *bytes.Buffer, route mvcRoute) {
 }
 
 func shouldRenderMVCModelView(route mvcRoute) bool {
-	if route.ResponseBody || route.ControllerKind == "rest-controller" ||
+	if route.ResponseBody || route.ControllerKind == "goark-web:rest-controller" ||
 		!hasMVCModelParam(route.Handler.Params) {
 		return false
 	}

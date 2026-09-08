@@ -85,7 +85,7 @@ func writeMVCAdviceConfigurerRegistration(builder *bytes.Buffer, advice *mvcCont
 }
 
 func mvcControllerAdviceConstructor(kind string) string {
-	if kind == "rest-controller-advice" {
+	if kind == "goark-web:rest-controller-advice" {
 		return "mvc.NewRestControllerAdvice"
 	}
 	return "mvc.NewControllerAdvice"
@@ -342,7 +342,7 @@ func bindMVCRoute(ctx *AnnotationBindingContext, item AnnotationItem) error {
 
 func bindMVCModelAttributeMethod(ctx *AnnotationBindingContext, item AnnotationItem) error {
 	if hasMVCRouteMappingAnnotation(item.Annotations()) ||
-		!hasAnnotation(item.Annotations(), "model-attribute") {
+		!hasAnnotation(item.Annotations(), "goark-web:model-attribute") {
 		return nil
 	}
 	attribute, err := buildMVCModelAttributeMethod(

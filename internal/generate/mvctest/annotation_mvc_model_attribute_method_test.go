@@ -20,21 +20,21 @@ import (
 	"goark.dev/goark/web/mvc"
 )
 
-//goark:controller("pageController")
-//goark:request-mapping("/pages")
+//goark-web:controller("pageController")
+//goark-web:request-mapping("/pages")
 type PageController struct{}
 
-//goark:model-attribute("AppName")
+//goark-web:model-attribute("AppName")
 func (c *PageController) AppName(ctx *arkweb.Context) (string, error) {
 	return "Goark", nil
 }
 
-//goark:get("/home")
+//goark-web:get("/home")
 func (c *PageController) Home() string {
 	return "home"
 }
 
-//goark:get("/dashboard")
+//goark-web:get("/dashboard")
 func (c *PageController) Dashboard() (mvc.Model, error) {
 	return mvc.NewModel().AddAttribute("Title", "Dashboard"), nil
 }
@@ -70,10 +70,10 @@ func TestGenerateAnnotations_whenMVCModelAttributeMethodHasNoName_shouldReturnVa
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller("pageController")
+//goark-web:controller("pageController")
 type PageController struct{}
 
-//goark:model-attribute
+//goark-web:model-attribute
 func (c *PageController) AppName() string {
 	return "Goark"
 }
@@ -94,11 +94,11 @@ func TestGenerateAnnotations_whenMVCModelMethodHasDuplicateAnnotations_shouldRet
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller("pageController")
+//goark-web:controller("pageController")
 type PageController struct{}
 
-//goark:model-attribute("AppName")
-//goark:model-attribute("Title")
+//goark-web:model-attribute("AppName")
+//goark-web:model-attribute("Title")
 func (c *PageController) AppName() string {
 	return "Goark"
 }

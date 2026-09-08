@@ -153,7 +153,7 @@ func staticIndexTemplate(spec appSpec) string {
 func webControllerTemplate() string {
 	return `package app
 
-//goark:rest-controller("greetingController")
+//goark-web:rest-controller("greetingController")
 type GreetingController struct {
 	//goark:autowired
 	//goark:qualifier("greetingService")
@@ -161,7 +161,7 @@ type GreetingController struct {
 }
 
 // Health 返回应用健康状态和服务问候语。
-//goark:get("/healthz")
+//goark-web:get("/healthz")
 func (c *GreetingController) Health() map[string]string {
 	return map[string]string{
 		"message": c.Service.Greeting(),

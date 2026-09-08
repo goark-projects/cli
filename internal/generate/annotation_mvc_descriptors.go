@@ -6,7 +6,7 @@ import (
 	"go/token"
 )
 
-func isMVCCrossOriginAnnotation(name string) bool { return name == "cross-origin" }
+func isMVCCrossOriginAnnotation(name string) bool { return name == "goark-web:cross-origin" }
 
 func mvcModelUsesCORS(model *mvcAnnotationModel) bool {
 	if model == nil {
@@ -53,38 +53,38 @@ func mvcAnnotationExtension() AnnotationExtension {
 
 func mvcAnnotationDescriptors() []AnnotationDescriptor {
 	return []AnnotationDescriptor{
-		typeDesc("controller", validateMVCControllerAnnotation),
-		typeDesc("rest-controller", validateMVCControllerAnnotation),
-		typeDesc("mvc-controller", validateMVCControllerAnnotation),
-		typeDesc("controller-advice", validateMVCControllerAdviceAnnotation),
-		typeDesc("rest-controller-advice", validateMVCControllerAdviceAnnotation),
-		typeMethodDesc("request-mapping", validateMVCRequestMappingAnnotation),
-		typeMethodDesc("cross-origin", validateMVCCrossOriginAnnotation),
-		methodDesc("get", validateMVCHTTPMappingAnnotation),
-		methodDesc("head", validateMVCHTTPMappingAnnotation),
-		methodDesc("post", validateMVCHTTPMappingAnnotation),
-		methodDesc("put", validateMVCHTTPMappingAnnotation),
-		methodDesc("patch", validateMVCHTTPMappingAnnotation),
-		methodDesc("delete", validateMVCHTTPMappingAnnotation),
-		methodDesc("options", validateMVCHTTPMappingAnnotation),
-		methodDesc("trace", validateMVCHTTPMappingAnnotation),
-		methodDesc("request-body", validateMVCRequestBodyAnnotation),
-		methodDesc("body", validateMVCRequestBodyAnnotation),
-		methodDesc("request-entity", validateMVCRequestEntityAnnotation),
-		methodDesc("multipart-body", validateMVCMultipartBodyAnnotation),
-		methodDesc("path-variable", validateMVCParameterBindingAnnotation),
-		methodDesc("request-param", validateMVCParameterBindingAnnotation),
-		methodDesc("request-header", validateMVCParameterBindingAnnotation),
-		methodDesc("cookie-value", validateMVCParameterBindingAnnotation),
-		methodDesc("model-attribute", validateMVCModelAttributeAnnotation),
-		methodDesc("request-attribute", validateMVCParameterBindingAnnotation),
-		methodDesc("session-attribute", validateMVCParameterBindingAnnotation),
-		methodDesc("matrix-variable", validateMVCParameterBindingAnnotation),
-		methodDesc("request-part", validateMVCRequestPartAnnotation),
-		methodDesc("validated", validateMVCValidatedAnnotation),
-		methodDesc("response-body", validateMVCResponseBodyAnnotation),
-		methodDesc("response-status", validateMVCResponseStatusAnnotation),
-		methodDesc("exception-handler", validateMVCExceptionHandlerAnnotation),
+		typeDesc("goark-web:controller", validateMVCControllerAnnotation),
+		typeDesc("goark-web:rest-controller", validateMVCControllerAnnotation),
+		typeDesc("goark-web:mvc-controller", validateMVCControllerAnnotation),
+		typeDesc("goark-web:controller-advice", validateMVCControllerAdviceAnnotation),
+		typeDesc("goark-web:rest-controller-advice", validateMVCControllerAdviceAnnotation),
+		typeMethodDesc("goark-web:request-mapping", validateMVCRequestMappingAnnotation),
+		typeMethodDesc("goark-web:cross-origin", validateMVCCrossOriginAnnotation),
+		methodDesc("goark-web:get", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:head", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:post", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:put", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:patch", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:delete", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:options", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:trace", validateMVCHTTPMappingAnnotation),
+		methodDesc("goark-web:request-body", validateMVCRequestBodyAnnotation),
+		methodDesc("goark-web:body", validateMVCRequestBodyAnnotation),
+		methodDesc("goark-web:request-entity", validateMVCRequestEntityAnnotation),
+		methodDesc("goark-web:multipart-body", validateMVCMultipartBodyAnnotation),
+		methodDesc("goark-web:path-variable", validateMVCParameterBindingAnnotation),
+		methodDesc("goark-web:request-param", validateMVCParameterBindingAnnotation),
+		methodDesc("goark-web:request-header", validateMVCParameterBindingAnnotation),
+		methodDesc("goark-web:cookie-value", validateMVCParameterBindingAnnotation),
+		methodDesc("goark-web:model-attribute", validateMVCModelAttributeAnnotation),
+		methodDesc("goark-web:request-attribute", validateMVCParameterBindingAnnotation),
+		methodDesc("goark-web:session-attribute", validateMVCParameterBindingAnnotation),
+		methodDesc("goark-web:matrix-variable", validateMVCParameterBindingAnnotation),
+		methodDesc("goark-web:request-part", validateMVCRequestPartAnnotation),
+		methodDesc("goark-web:validated", validateMVCValidatedAnnotation),
+		methodDesc("goark-web:response-body", validateMVCResponseBodyAnnotation),
+		methodDesc("goark-web:response-status", validateMVCResponseStatusAnnotation),
+		methodDesc("goark-web:exception-handler", validateMVCExceptionHandlerAnnotation),
 	}
 }
 

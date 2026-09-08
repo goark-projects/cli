@@ -52,7 +52,7 @@ func buildConfigurationProperties(
 	ctx *AnnotationBindingContext,
 	item AnnotationItem,
 ) (annotationConfigurationProperties, error) {
-	annotation := findAnnotation(item.annotations, "configuration-properties")
+	annotation := findAnnotation(item.Annotations(), "configuration-properties")
 	prefix := strings.Trim(argString(annotation, "prefix", argString(annotation, "value", "")), ".")
 	properties := annotationConfigurationProperties{
 		TypeName:            item.TypeName(),

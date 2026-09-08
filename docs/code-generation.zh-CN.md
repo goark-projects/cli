@@ -28,6 +28,34 @@ package 集合默认来自 `[generate].patterns`，其默认值为 `./...`。发
 当前注解生成器还支持 `//goark:application`。Boot 生命周期由生成代码负责，配置、Service、
 注入点和 MVC 路由仍通过普通应用源码中的注解声明。
 
+## 注解命名空间
+
+### 重复与冲突检查
+
+注解默认在同一目标上只能声明一次。参数注解按规范化后的参数名区分实例，
+不同参数可以使用相同绑定注解；同一参数重复声明会报错。
+`property-source`、`depends-on`、`profile` 保留已有的多次声明和合并语义。
+扩展可通过 `AnnotationDescriptor.Repeatable` 与 `InstanceKey` 明确自己的基数规则。
+
+同一类型不能同时声明多个组件角色；同一注入点不能混用 `value`、`resource`、
+按类型注入等互斥模式，也不能重复指定会互相覆盖的限定名。
+字段注入必须归属实际生成装配代码的组件类型，字段上不能使用方法参数选择器。
+前置注解与类型、字段、接口方法的行尾注解共同参与校验，放错位置或未附着的注解会报错。
+
+项目内置注解生成器完成全部选中包的校验和渲染后才写入、清理生成文件。
+注解校验失败会保留原产物；此保证不等同于文件系统故障时的跨文件事务回滚，
+也不覆盖独立执行的外部任务。
+
+| 命名空间 | 归属 | 示例 |
+| --- | --- | --- |
+| `goark` | 核心容器、依赖注入、配置和应用装配 | `//goark:service`、`//goark:autowired` |
+| `goark-web` | 控制器、路由、绑定、异常处理、过滤器和拦截器 | `//goark-web:rest-controller`、`//goark-web:get("/users")` |
+| `goark-orm` | 独立 ORM 实体和 Mapper 生成 | `//goark-orm:tableName(value="users")` |
+
+原有 Web 注解统一将 `//goark:` 替换为 `//goark-web:`，名称、参数和参数选择器保持不变。`web-filter`、`web-interceptor` 同样迁移；同一类型上的核心注入注解仍保留 `//goark:`。旧 Web 写法会报错并提示对应的新写法。
+
+`AnnotationDescriptor.Name` 使用 `goark-web:get` 等完整领域名称，核心描述符保持 `service` 等短名称。匹配、重复检测和绑定采用完整标识，不同领域可以使用相同局部名称。注册描述符会启用对应命名空间；已启用命名空间内的未知注解报错。未注册的领域继续由独立生成器负责，包括 ORM。只有 Web 注解的包也会被正常发现。
+
 ## 输出所有权
 
 项目输出文件名为：
@@ -135,3 +163,5 @@ goark codegen registry \
 - 开发、CI、`run`、`build`、`test` 生命周期使用 `goark generate`。
 - 生成器开发、显式构建工具或通过标准输出检查结果时使用低层 `codegen`。
 - 只有项目明确需要执行标准 Go directive，并接受其独立工具和副作用时，才使用 `goark go generate`。
+
+[分阶段生成引擎与扩展约定](generation-pipeline.zh-CN.md)

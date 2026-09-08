@@ -23,19 +23,19 @@ type User struct {
 //goark:service("userService")
 type UserService struct{}
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct {
 	//goark:autowired
 	service *UserService
 }
 
-//goark:get("/users")
+//goark-web:get("/users")
 func (c *AdminController) Users(ctx *arkweb.Context) ([]User, error) {
 	return []User{{ID: 1, Name: "root"}}, nil
 }
 
-//goark:delete("/users")
+//goark-web:delete("/users")
 func (c *AdminController) Clear() {}
 `
 	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
@@ -82,11 +82,11 @@ func TestGenerateAnnotations_whenMVCRestControllerExists_shouldGenerateRestContr
 
 import arkweb "goark.dev/arkarta/web"
 
-//goark:rest-controller("apiController")
-//goark:request-mapping("/api")
+//goark-web:rest-controller("apiController")
+//goark-web:request-mapping("/api")
 type APIController struct{}
 
-//goark:get("/status")
+//goark-web:get("/status")
 func (c *APIController) Status(ctx *arkweb.Context) (string, error) {
 	return "UP", nil
 }
@@ -123,12 +123,12 @@ type User struct {
 	Username string ` + "`json:\"username\"`" + `
 }
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct{}
 
-//goark:post("/users", status=201)
-//goark:request-body[input]
+//goark-web:post("/users", status=201)
+//goark-web:request-body[input]
 func (c *AdminController) Create(ctx *arkweb.Context, input CreateUserRequest) (User, error) {
 	return User{Username: input.Username}, nil
 }
@@ -161,16 +161,16 @@ func TestGenerateAnnotations_whenMVCHeadAndOptionsRoutesExist_shouldGenerateMeth
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller("systemController")
-//goark:request-mapping("/system")
+//goark-web:controller("systemController")
+//goark-web:request-mapping("/system")
 type SystemController struct{}
 
-//goark:head("/healthz")
+//goark-web:head("/healthz")
 func (c *SystemController) HeadHealth() error {
 	return nil
 }
 
-//goark:request-mapping("/healthz", method="OPTIONS")
+//goark-web:request-mapping("/healthz", method="OPTIONS")
 func (c *SystemController) OptionsHealth() {}
 `
 	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
@@ -204,15 +204,15 @@ func TestGenerateAnnotations_whenMVCRequestParametersExist_shouldGenerateParamet
 
 import arkweb "goark.dev/arkarta/web"
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct{}
 
-//goark:get("/users/{id}")
-//goark:path-variable[id]("id")
-//goark:request-param[query](name="q", defaultValue="all")
-//goark:request-header[requestID]("X-Request-ID")
-//goark:cookie-value[theme]("theme", required=false)
+//goark-web:get("/users/{id}")
+//goark-web:path-variable[id]("id")
+//goark-web:request-param[query](name="q", defaultValue="all")
+//goark-web:request-header[requestID]("X-Request-ID")
+//goark-web:cookie-value[theme]("theme", required=false)
 func (c *AdminController) Detail(
 	ctx *arkweb.Context,
 	id int64,

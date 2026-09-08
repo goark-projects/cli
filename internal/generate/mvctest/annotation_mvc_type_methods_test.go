@@ -15,11 +15,11 @@ func TestGenerateAnnotations_whenControllerMappingHasMethods_shouldInheritMethod
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("systemController")
-//goark:request-mapping("/api", method="POST,TRACE")
+//goark-web:rest-controller("systemController")
+//goark-web:request-mapping("/api", method="POST,TRACE")
 type SystemController struct{}
 
-//goark:request-mapping("/probe")
+//goark-web:request-mapping("/probe")
 func (c *SystemController) Probe() string {
 	return "ok"
 }
@@ -62,11 +62,11 @@ func TestGenerateAnnotations_whenControllerAndHandlerMethodsDiffer_shouldCombine
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("systemController")
-//goark:request-mapping("/api", method="POST")
+//goark-web:rest-controller("systemController")
+//goark-web:request-mapping("/api", method="POST")
 type SystemController struct{}
 
-//goark:get("/probe")
+//goark-web:get("/probe")
 func (c *SystemController) Probe() string {
 	return "ok"
 }

@@ -39,7 +39,7 @@ func hasMVCControllerAdviceAnnotation(annotations []Annotation) bool {
 }
 
 func mvcControllerAdviceKind(annotations []Annotation) string {
-	for _, name := range []string{"controller-advice", "rest-controller-advice"} {
+	for _, name := range []string{"goark-web:controller-advice", "goark-web:rest-controller-advice"} {
 		if hasAnnotation(annotations, name) {
 			return name
 		}
@@ -49,7 +49,7 @@ func mvcControllerAdviceKind(annotations []Annotation) string {
 
 func hasMVCExceptionHandlerAnnotation(annotations []Annotation) bool {
 	for _, annotation := range annotations {
-		if annotation.Name == "exception-handler" {
+		if annotation.Name == "goark-web:exception-handler" {
 			return true
 		}
 	}
@@ -58,7 +58,7 @@ func hasMVCExceptionHandlerAnnotation(annotations []Annotation) bool {
 
 func mvcExceptionHandlerSelector(annotations []Annotation) string {
 	for _, annotation := range annotations {
-		if annotation.Name == "exception-handler" {
+		if annotation.Name == "goark-web:exception-handler" {
 			return normalizeSelector(annotation.Selector)
 		}
 	}
@@ -76,23 +76,23 @@ func mvcExceptionHandlerUsesContext(handler mvcExceptionHandler) bool {
 
 func mvcHTTPMethods(annotation Annotation) ([]string, bool, error) {
 	switch annotation.Name {
-	case "get":
+	case "goark-web:get":
 		return []string{http.MethodGet}, true, nil
-	case "head":
+	case "goark-web:head":
 		return []string{http.MethodHead}, true, nil
-	case "post":
+	case "goark-web:post":
 		return []string{http.MethodPost}, true, nil
-	case "put":
+	case "goark-web:put":
 		return []string{http.MethodPut}, true, nil
-	case "patch":
+	case "goark-web:patch":
 		return []string{http.MethodPatch}, true, nil
-	case "delete":
+	case "goark-web:delete":
 		return []string{http.MethodDelete}, true, nil
-	case "options":
+	case "goark-web:options":
 		return []string{http.MethodOptions}, true, nil
-	case "trace":
+	case "goark-web:trace":
 		return []string{http.MethodTrace}, true, nil
-	case "request-mapping":
+	case "goark-web:request-mapping":
 		methods, err := mvcTypeRequestMethodsFromAnnotation(annotation)
 		if err != nil {
 			return nil, false, err
@@ -306,7 +306,9 @@ func hasMVCControllerAnnotation(annotations []Annotation) bool {
 }
 
 func mvcControllerKind(annotations []Annotation) string {
-	for _, name := range []string{"controller", "rest-controller", "mvc-controller"} {
+	for _, name := range []string{
+		"goark-web:controller", "goark-web:rest-controller", "goark-web:mvc-controller",
+	} {
 		if hasAnnotation(annotations, name) {
 			return name
 		}
@@ -325,7 +327,8 @@ func hasMVCRouteMappingAnnotation(annotations []Annotation) bool {
 
 func isMVCRouteMappingAnnotation(name string) bool {
 	switch name {
-	case "request-mapping", "get", "head", "post", "put", "patch", "delete", "options", "trace":
+	case "goark-web:request-mapping", "goark-web:get", "goark-web:head", "goark-web:post",
+		"goark-web:put", "goark-web:patch", "goark-web:delete", "goark-web:options", "goark-web:trace":
 		return true
 	default:
 		return false
@@ -333,26 +336,21 @@ func isMVCRouteMappingAnnotation(name string) bool {
 }
 
 func isMVCBodyAnnotation(name string) bool {
-	switch name {
-	case "request-body", "body":
-		return true
-	default:
-		return false
-	}
+	return name == "goark-web:request-body" || name == "goark-web:body"
 }
 
-func isMVCMultipartBodyAnnotation(name string) bool { return name == "multipart-body" }
+func isMVCMultipartBodyAnnotation(name string) bool { return name == "goark-web:multipart-body" }
 
-func isMVCValidatedAnnotation(name string) bool { return name == "validated" }
+func isMVCValidatedAnnotation(name string) bool { return name == "goark-web:validated" }
 
-func isMVCResponseStatusAnnotation(name string) bool { return name == "response-status" }
+func isMVCResponseStatusAnnotation(name string) bool { return name == "goark-web:response-status" }
 
 func hasMVCResponseBodyAnnotation(annotations []Annotation) bool {
-	return hasAnnotation(annotations, "response-body")
+	return hasAnnotation(annotations, "goark-web:response-body")
 }
 
 func hasMVCValidatedAnnotation(annotations []Annotation) bool {
-	return hasAnnotation(annotations, "validated")
+	return hasAnnotation(annotations, "goark-web:validated")
 }
 
-func isMVCResponseBodyAnnotation(name string) bool { return name == "response-body" }
+func isMVCResponseBodyAnnotation(name string) bool { return name == "goark-web:response-body" }

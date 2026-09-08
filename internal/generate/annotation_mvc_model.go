@@ -87,7 +87,7 @@ func buildMVCComponent(
 		return component, nil
 	}
 	for _, field := range structType.Fields.List {
-		fieldAnnotations, err := parseAnnotations(field.Doc)
+		fieldAnnotations, err := parseAnnotations(field.Doc, field.Comment)
 		if err != nil {
 			return annotationComponent{}, err
 		}
@@ -186,12 +186,13 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 	hasResponseBody := false
 	hasValidated := false
 	hasMapping := false
+	var validationGroups []string
 	for _, annotation := range annotations {
 		if isMVCValidatedAnnotation(annotation.Name) {
 			if hasValidated {
 				return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method has multiple validated annotations")
 			}
-			out.validationGroups = mvcValidationGroups(annotation)
+			validationGroups = mvcValidationGroups(annotation)
 			hasValidated = true
 			continue
 		}
@@ -236,6 +237,7 @@ func mvcRouteFromAnnotations(annotations []Annotation) (mvcRouteMappingSpec, err
 		return mvcRouteMappingSpec{}, err
 	}
 	out.crossOrigin = crossOrigin
+	out.validationGroups, out.responseBody = validationGroups, hasResponseBody
 	if !hasMapping {
 		return mvcRouteMappingSpec{}, fmt.Errorf("mvc route method requires mapping annotation")
 	}

@@ -23,11 +23,11 @@ func (e *UserNotFoundError) Error() string {
 	return "user " + e.ID + " not found"
 }
 
-//goark:rest-controller-advice("apiAdvice")
+//goark-web:rest-controller-advice("apiAdvice")
 type APIAdvice struct{}
 
-//goark:exception-handler
-//goark:response-status(404)
+//goark-web:exception-handler
+//goark-web:response-status(404)
 func (a *APIAdvice) NotFound(err *UserNotFoundError) map[string]string {
 	return map[string]string{"id": err.ID}
 }
@@ -67,12 +67,12 @@ func (e *AccessDeniedError) Error() string {
 	return "access denied"
 }
 
-//goark:controller-advice("pageAdvice")
+//goark-web:controller-advice("pageAdvice")
 type PageAdvice struct{}
 
-//goark:exception-handler
-//goark:response-body
-//goark:response-status(status=403)
+//goark-web:exception-handler
+//goark-web:response-body
+//goark-web:response-status(status=403)
 func (a *PageAdvice) Denied(err *AccessDeniedError) string {
 	return "denied"
 }
@@ -123,10 +123,10 @@ func (e *UserNotFoundError) Error() string {
 	return "user " + e.ID + " not found"
 }
 
-//goark:rest-controller-advice("apiAdvice")
+//goark-web:rest-controller-advice("apiAdvice")
 type APIAdvice struct{}
 
-//goark:exception-handler
+//goark-web:exception-handler
 func (a *APIAdvice) NotFound(err *UserNotFoundError) goweb.ResponseEntity[map[string]string] {
 	return goweb.Status(http.StatusNotFound, map[string]string{"id": err.ID})
 }

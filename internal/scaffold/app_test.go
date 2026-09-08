@@ -137,7 +137,7 @@ func TestCreateApp_whenWebEnabled_shouldWriteBootWebSkeleton(t *testing.T) {
 		"//goark:application(web=true)",
 	)
 	assertFileContains(t, filepath.Join(dir, "internal/app/service.go"), "//goark:service")
-	assertFileContains(t, filepath.Join(dir, "internal/app/controller.go"), "//goark:get")
+	assertFileContains(t, filepath.Join(dir, "internal/app/controller.go"), "//goark-web:get")
 	assertPathMissing(t, filepath.Join(dir, "cmd/server/goark.go"))
 	assertFileEquals(t, filepath.Join(dir, "resource/app.yml"), minimalConfig("admin"))
 	if _, err := buildspec.LoadFile(filepath.Join(dir, buildspec.FileName)); err != nil {

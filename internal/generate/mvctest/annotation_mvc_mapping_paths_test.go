@@ -15,11 +15,11 @@ func TestGenerateAnnotations_whenMVCMappingHasMultiplePaths_shouldGenerateRouteP
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("adminController")
-//goark:request-mapping("/api")
+//goark-web:rest-controller("adminController")
+//goark-web:request-mapping("/api")
 type AdminController struct{}
 
-//goark:get("/users", "/members")
+//goark-web:get("/users", "/members")
 func (c *AdminController) List() []string {
 	return []string{"goark"}
 }
@@ -53,11 +53,11 @@ func TestGenerateAnnotations_whenMVCTypeAndMethodHavePaths_shouldGenerateCartesi
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("adminController")
-//goark:request-mapping("/api", "/internal")
+//goark-web:rest-controller("adminController")
+//goark-web:request-mapping("/api", "/internal")
 type AdminController struct{}
 
-//goark:request-mapping("/health", "/ready", method="GET")
+//goark-web:request-mapping("/health", "/ready", method="GET")
 func (c *AdminController) Health() string {
 	return "UP"
 }

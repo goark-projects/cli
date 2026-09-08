@@ -21,11 +21,11 @@ type UploadMetadata struct {
 	Name string ` + "`json:\"name\" arkarta:\"required\"`" + `
 }
 
-//goark:rest-controller("uploadController")
+//goark-web:rest-controller("uploadController")
 type UploadController struct{}
 
-//goark:post("/uploads", consumes="multipart/form-data")
-//goark:request-part[metadata]("metadata")
+//goark-web:post("/uploads", consumes="multipart/form-data")
+//goark-web:request-part[metadata]("metadata")
 func (c *UploadController) Upload(
 	ctx *arkweb.Context,
 	metadata UploadMetadata,
@@ -65,12 +65,12 @@ type UploadMetadata struct {
 	Name string ` + "`json:\"name\" arkarta:\"required\" arkarta-groups:\"create\"`" + `
 }
 
-//goark:rest-controller("uploadController")
+//goark-web:rest-controller("uploadController")
 type UploadController struct{}
 
-//goark:post("/uploads", consumes="multipart/form-data")
-//goark:request-part[metadata](name="metadata", required=false)
-//goark:validated("create")
+//goark-web:post("/uploads", consumes="multipart/form-data")
+//goark-web:request-part[metadata](name="metadata", required=false)
+//goark-web:validated("create")
 func (c *UploadController) Upload(metadata UploadMetadata) (map[string]string, error) {
 	return map[string]string{"name": metadata.Name}, nil
 }
@@ -103,11 +103,11 @@ func TestGenerateAnnotations_whenMVCRequestPartFileExists_shouldKeepPartBinding(
 
 import servletmultipart "goark.dev/arkarta/servlet/multipart"
 
-//goark:rest-controller("uploadController")
+//goark-web:rest-controller("uploadController")
 type UploadController struct{}
 
-//goark:post("/uploads", consumes="multipart/form-data")
-//goark:request-part[file]("file")
+//goark-web:post("/uploads", consumes="multipart/form-data")
+//goark-web:request-part[file]("file")
 func (c *UploadController) Upload(file servletmultipart.Part) (map[string]string, error) {
 	return map[string]string{"file": file.SubmittedFileName()}, nil
 }

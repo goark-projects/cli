@@ -25,11 +25,11 @@ type UploadRequest struct {
 	File servletmultipart.Part ` + "`multipart:\"file\"`" + `
 }
 
-//goark:controller("uploadController")
+//goark-web:controller("uploadController")
 type UploadController struct{}
 
-//goark:post("/uploads")
-//goark:multipart-body[input]
+//goark-web:post("/uploads")
+//goark-web:multipart-body[input]
 func (c *UploadController) Create(
 	ctx *arkweb.Context,
 	input UploadRequest,
@@ -70,10 +70,10 @@ import (
 	goweb "goark.dev/goark/web"
 )
 
-//goark:controller("reportController")
+//goark-web:controller("reportController")
 type ReportController struct{}
 
-//goark:get("/reports/today")
+//goark-web:get("/reports/today")
 func (c *ReportController) Download(ctx *arkweb.Context) (goweb.DownloadResult, error) {
 	return goweb.Attachment("today.csv", strings.NewReader("id,name\n1,goark\n")), nil
 }
@@ -108,11 +108,11 @@ func TestGenerateAnnotations_whenMVCMultipartBodySelectorMissing_shouldReturnVal
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller
+//goark-web:controller
 type UploadController struct{}
 
-//goark:post("/uploads")
-//goark:multipart-body
+//goark-web:post("/uploads")
+//goark-web:multipart-body
 func (c *UploadController) Create(input string) string {
 	return input
 }

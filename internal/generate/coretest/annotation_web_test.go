@@ -22,7 +22,7 @@ import (
 	arkweb "goark.dev/arkarta/web"
 )
 
-//goark:web-interceptor("traceInterceptor")
+//goark-web:web-interceptor("traceInterceptor")
 type TraceInterceptor struct{}
 
 func (i *TraceInterceptor) Intercept(
@@ -32,7 +32,7 @@ func (i *TraceInterceptor) Intercept(
 	return next.Handle(ctx)
 }
 
-//goark:web-filter("auditFilter")
+//goark-web:web-filter("auditFilter")
 type AuditFilter struct{}
 
 func (f *AuditFilter) Filter(
@@ -81,7 +81,7 @@ func TestGenerateAnnotations_whenWebAnnotationMisplaced_shouldReturnValidationEr
 
 type TraceInterceptor struct{}
 
-//goark:web-interceptor
+//goark-web:web-interceptor
 func (i *TraceInterceptor) Install() {}
 `
 	if err := os.WriteFile(filepath.Join(dir, "web.go"), []byte(source), 0o644); err != nil {
@@ -92,7 +92,7 @@ func (i *TraceInterceptor) Install() {}
 	if err == nil ||
 		!strings.Contains(
 			err.Error(),
-			`annotation "web-interceptor" does not support method target`,
+			`annotation "goark-web:web-interceptor" does not support method target`,
 		) {
 		t.Fatalf("expected web annotation target error, got %v", err)
 	}

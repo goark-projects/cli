@@ -47,6 +47,8 @@ goark run
 
 ## Everyday Workflow
 
+Annotation namespaces follow capability ownership: `//goark:service` and `//goark:autowired` belong to the core container; `//goark-web:rest-controller`, `//goark-web:get`, and `//goark-web:web-filter` belong to Web. ORM keeps its independent `//goark-orm:` namespace and generator. Web annotations no longer accept the old `//goark:` prefix; migrate the prefix while preserving names, arguments, and selectors. Registered extensions use fully qualified descriptor names, such as `goark-example:service`, so names in different domains do not collide.
+
 ```bash
 # Inspect the project and final execution plans without writing files.
 goark info

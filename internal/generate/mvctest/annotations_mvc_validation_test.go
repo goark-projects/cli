@@ -29,18 +29,18 @@ func (e *UserNotFoundError) Error() string {
 	return "user " + e.ID + " not found"
 }
 
-//goark:controller("adminController")
+//goark-web:controller("adminController")
 type AdminController struct{}
 
-//goark:get("/admin/users/{id}")
+//goark-web:get("/admin/users/{id}")
 func (c *AdminController) User(ctx *arkweb.Context) (map[string]string, error) {
 	return nil, &UserNotFoundError{ID: ctx.PathValue("id")}
 }
 
-//goark:controller-advice("adminAdvice")
+//goark-web:controller-advice("adminAdvice")
 type AdminAdvice struct{}
 
-//goark:exception-handler
+//goark-web:exception-handler
 func (a *AdminAdvice) NotFound(ctx *arkweb.Context, err *UserNotFoundError) arkweb.Result {
 	return arkweb.JSON(http.StatusNotFound, map[string]string{"id": err.ID})
 }
@@ -90,7 +90,7 @@ func (e *UserNotFoundError) Error() string {
 
 type AdminAdvice struct{}
 
-//goark:exception-handler
+//goark-web:exception-handler
 func (a *AdminAdvice) NotFound(err *UserNotFoundError) arkweb.Result {
 	return nil
 }
@@ -114,11 +114,11 @@ func TestGenerateAnnotations_whenMVCModelAttributePointerExists_shouldReturnVali
 
 type UserSearchCriteria struct{}
 
-//goark:controller("adminController")
+//goark-web:controller("adminController")
 type AdminController struct{}
 
-//goark:get("/users/search")
-//goark:model-attribute[criteria]
+//goark-web:get("/users/search")
+//goark-web:model-attribute[criteria]
 func (c *AdminController) Search(criteria *UserSearchCriteria) map[string]any {
 	return nil
 }
@@ -146,12 +146,12 @@ func TestGenerateAnnotations_whenMVCBodyAndModelAttributeCombined_shouldReturnEr
 type CreateUserRequest struct{}
 type UserSearchCriteria struct{}
 
-//goark:controller("adminController")
+//goark-web:controller("adminController")
 type AdminController struct{}
 
-//goark:post("/users")
-//goark:request-body[input]
-//goark:model-attribute[criteria]
+//goark-web:post("/users")
+//goark-web:request-body[input]
+//goark-web:model-attribute[criteria]
 func (c *AdminController) Create(
 	input CreateUserRequest,
 	criteria UserSearchCriteria,
@@ -179,11 +179,11 @@ func TestGenerateAnnotations_whenMVCRequestParameterTypeUnsupported_shouldReturn
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller("adminController")
+//goark-web:controller("adminController")
 type AdminController struct{}
 
-//goark:get("/users/{id}")
-//goark:path-variable[id]("id")
+//goark-web:get("/users/{id}")
+//goark-web:path-variable[id]("id")
 func (c *AdminController) Detail(id int32) map[string]any {
 	return map[string]any{"id": id}
 }
@@ -204,11 +204,11 @@ func TestGenerateAnnotations_whenMVCRequestBodySelectorMissing_shouldReturnValid
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller
+//goark-web:controller
 type AdminController struct{}
 
-//goark:post("/admin/users")
-//goark:request-body
+//goark-web:post("/admin/users")
+//goark-web:request-body
 func (c *AdminController) Create(input string) string {
 	return input
 }
@@ -260,7 +260,7 @@ func TestGenerateAnnotations_whenMVCRouteReceiverIsNotController_shouldReturnVal
 
 type AdminController struct{}
 
-//goark:get("/admin/users")
+//goark-web:get("/admin/users")
 func (c *AdminController) Users() []string {
 	return nil
 }
@@ -283,10 +283,10 @@ func TestGenerateAnnotations_whenMVCContextUsesDifferentPackage_shouldReturnVali
 
 import other "example.com/notark/web"
 
-//goark:controller
+//goark-web:controller
 type AdminController struct{}
 
-//goark:get("/admin/users")
+//goark-web:get("/admin/users")
 func (c *AdminController) Users(ctx *other.Context) []string {
 	return nil
 }
@@ -321,10 +321,10 @@ type Result struct {
 
 import "example.com/goark-generated-test/notark"
 
-//goark:controller
+//goark-web:controller
 type AdminController struct{}
 
-//goark:get("/admin/users")
+//goark-web:get("/admin/users")
 func (c *AdminController) Users() (notark.Result, error) {
 	return notark.Result{Code: 1}, nil
 }

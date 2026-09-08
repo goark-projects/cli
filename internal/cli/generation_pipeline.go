@@ -50,16 +50,14 @@ func (g annotationProjectGenerator) Generate(
 	project goarkProject,
 	dryRun bool,
 ) ([]GenerationResult, error) {
-	if !dryRun {
-		if err := ensureGeneratedCodeIgnored(project.Root); err != nil {
-			return nil, err
-		}
-	}
 	packages := append([]goPackage(nil), project.Packages...)
 	sort.Slice(packages, func(i, j int) bool {
 		return packages[i].ImportPath < packages[j].ImportPath
 	})
-	results := make([]GenerationResult, 0)
+	prepared := make(map[string][]generate.AnnotationFile)
+	var specs []generate.AnnotationScanSpec
+	var selected []goPackage
+	// 完成整批扫描与渲染后才允许写文件或清理旧产物。
 	for _, item := range packages {
 		if filepath.Base(item.Dir) == "gen" {
 			continue
@@ -69,24 +67,9 @@ func (g annotationProjectGenerator) Generate(
 			return nil, fmt.Errorf("检查 package %s 的 Goark 注解失败: %w", item.ImportPath, err)
 		}
 		if !hasAnnotations {
-			if !project.Build.Generate.CleanStale {
-				continue
-			}
-			legacy, err := removeLegacyAnnotationOutput(g.Name(), item, dryRun)
-			if err != nil {
-				return nil, err
-			}
-			if legacy != nil {
-				results = append(results, *legacy)
-			}
-			stale, err := staleAnnotationGenerationResults(g.Name(), item, nil, dryRun)
-			if err != nil {
-				return nil, err
-			}
-			results = append(results, stale...)
 			continue
 		}
-		files, err := generate.GenerateAnnotationFiles(generate.AnnotationScanSpec{
+		specs = append(specs, generate.AnnotationScanSpec{
 			Dir:               item.Dir,
 			PackageName:       item.Name,
 			SourceImportPath:  item.ImportPath,
@@ -99,9 +82,30 @@ func (g annotationProjectGenerator) Generate(
 				item.CgoFiles...,
 			),
 		})
+		selected = append(selected, item)
+	}
+	plans, err := generate.PrepareAnnotationPlans(specs)
+	if err != nil {
+		return nil, fmt.Errorf("规划 Goark 注解代码失败: %w", err)
+	}
+	for index, plan := range plans {
+		files, err := plan.RenderFiles()
 		if err != nil {
-			return nil, fmt.Errorf("生成 package %s 的 Goark 注解代码失败: %w", item.ImportPath, err)
+			return nil, fmt.Errorf("渲染 %s 失败: %w", selected[index].ImportPath, err)
 		}
+		prepared[selected[index].ImportPath] = files
+	}
+	if !dryRun {
+		if err := ensureGeneratedCodeIgnored(project.Root); err != nil {
+			return nil, err
+		}
+	}
+	results := make([]GenerationResult, 0)
+	for _, item := range packages {
+		if filepath.Base(item.Dir) == "gen" {
+			continue
+		}
+		files := prepared[item.ImportPath]
 		expected := make(map[string]struct{}, len(files))
 		for _, file := range files {
 			output := annotationOutputPath(item, file.Name)
@@ -302,7 +306,7 @@ func packageContainsGoarkAnnotations(item goPackage) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if !bytes.Contains(data, []byte("goark:")) {
+		if !bytes.Contains(data, []byte("goark:")) && !bytes.Contains(data, []byte("goark-web:")) {
 			continue
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, data, parser.ParseComments)
@@ -315,7 +319,7 @@ func packageContainsGoarkAnnotations(item goPackage) (bool, error) {
 					continue
 				}
 				text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "//"))
-				if strings.HasPrefix(text, "goark:") {
+				if strings.HasPrefix(text, "goark:") || strings.HasPrefix(text, "goark-web:") {
 					return true, nil
 				}
 			}

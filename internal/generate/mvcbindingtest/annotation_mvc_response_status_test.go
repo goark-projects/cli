@@ -13,11 +13,11 @@ func TestGenerateAnnotations_whenMVCResponseStatusExists_shouldUseResponseStatus
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller("adminController")
+//goark-web:controller("adminController")
 type AdminController struct{}
 
-//goark:get("/jobs/accepted")
-//goark:response-status(202)
+//goark-web:get("/jobs/accepted")
+//goark-web:response-status(202)
 func (c *AdminController) Accepted() map[string]string {
 	return map[string]string{"state": "accepted"}
 }
@@ -43,11 +43,11 @@ func TestGenerateAnnotations_whenMVCResponseStatusOnResultReturn_shouldWrapHandl
 
 import arkweb "goark.dev/arkarta/web"
 
-//goark:rest-controller("jobController")
+//goark-web:rest-controller("jobController")
 type JobController struct{}
 
-//goark:get("/jobs/accepted")
-//goark:response-status(status=202)
+//goark-web:get("/jobs/accepted")
+//goark-web:response-status(status=202)
 func (c *JobController) Accepted(ctx *arkweb.Context) (arkweb.Result, error) {
 	return nil, nil
 }
@@ -73,11 +73,11 @@ func TestGenerateAnnotations_whenMVCResponseStatusOnNoReturn_shouldWrapNoContent
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("jobController")
+//goark-web:rest-controller("jobController")
 type JobController struct{}
 
-//goark:delete("/jobs/{id}")
-//goark:response-status(code=202)
+//goark-web:delete("/jobs/{id}")
+//goark-web:response-status(code=202)
 func (c *JobController) Delete() {}
 `
 	if err := os.WriteFile(filepath.Join(dir, "app.go"), []byte(source), 0o644); err != nil {
@@ -104,11 +104,11 @@ func TestGenerateAnnotations_whenMVCResponseStatusConflictsWithMapping_shouldRet
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller("adminController")
+//goark-web:controller("adminController")
 type AdminController struct{}
 
-//goark:post("/jobs", status=201)
-//goark:response-status(202)
+//goark-web:post("/jobs", status=201)
+//goark-web:response-status(202)
 func (c *AdminController) Create() map[string]string {
 	return map[string]string{"state": "created"}
 }

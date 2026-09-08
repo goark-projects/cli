@@ -19,12 +19,12 @@ type CreateUserRequest struct {
 	Name string ` + "`json:\"name\" arkarta:\"required\" arkarta-groups:\"create\"`" + `
 }
 
-//goark:rest-controller("userController")
+//goark-web:rest-controller("userController")
 type UserController struct{}
 
-//goark:post("/users")
-//goark:request-body[input]
-//goark:validated("create")
+//goark-web:post("/users")
+//goark-web:request-body[input]
+//goark-web:validated("create")
 func (c *UserController) Create(input CreateUserRequest) map[string]string {
 	return map[string]string{"name": input.Name}
 }
@@ -75,12 +75,12 @@ type User struct {
 	Name string ` + "`json:\"name\"`" + `
 }
 
-//goark:rest-controller("userController")
+//goark-web:rest-controller("userController")
 type UserController struct{}
 
-//goark:post("/users")
-//goark:request-body[input]
-//goark:validated("create")
+//goark-web:post("/users")
+//goark-web:request-body[input]
+//goark-web:validated("create")
 func (c *UserController) Create(input CreateUserRequest) (goweb.ResponseEntity[User], error) {
 	return goweb.Status(http.StatusCreated, User{Name: input.Name}), nil
 }
@@ -125,12 +125,12 @@ type UploadRequest struct {
 	File servletmultipart.Part ` + "`form:\"file\" arkarta:\"required\" arkarta-groups:\"create\"`" + `
 }
 
-//goark:rest-controller("uploadController")
+//goark-web:rest-controller("uploadController")
 type UploadController struct{}
 
-//goark:post("/uploads")
-//goark:multipart-body[input]
-//goark:validated(value="create")
+//goark-web:post("/uploads")
+//goark-web:multipart-body[input]
+//goark-web:validated(value="create")
 func (c *UploadController) Upload(input UploadRequest) map[string]string {
 	return map[string]string{"name": input.File.Name()}
 }
@@ -161,12 +161,12 @@ type SearchCriteria struct {
 	Name string ` + "`form:\"name\" arkarta:\"required\" arkarta-groups:\"search\"`" + `
 }
 
-//goark:controller("pageController")
+//goark-web:controller("pageController")
 type PageController struct{}
 
-//goark:get("/users")
-//goark:model-attribute[criteria]
-//goark:validated("search")
+//goark-web:get("/users")
+//goark-web:model-attribute[criteria]
+//goark-web:validated("search")
 func (c *PageController) Users(criteria SearchCriteria) string {
 	return criteria.Name
 }

@@ -241,7 +241,7 @@ func bindCoreTypeAnnotation(ctx *AnnotationBindingContext, item AnnotationItem) 
 	if _, ok := typeSpec.Type.(*ast.StructType); !ok {
 		return nil
 	}
-	annotations := item.annotations
+	annotations := item.Annotations()
 	model := ensureCoreAnnotationModel(ctx)
 	if hasAnnotation(annotations, "configuration-properties") {
 		properties, err := buildConfigurationProperties(ctx, item)
@@ -289,7 +289,7 @@ func bindCoreMethodAnnotation(ctx *AnnotationBindingContext, item AnnotationItem
 		model.Configurations = append(model.Configurations, configuration)
 		model.configByType[receiver] = configuration
 	}
-	bean, usesValue, err := buildBean(item.FileSet(), item.FuncDecl(), item.annotations)
+	bean, usesValue, err := buildBean(item.FileSet(), item.FuncDecl(), item.Annotations())
 	if err != nil {
 		return err
 	}

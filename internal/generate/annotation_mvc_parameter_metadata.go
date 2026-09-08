@@ -187,7 +187,7 @@ func writeMVCBindRequestEntityEntityGroupsHandler(builder *bytes.Buffer, route m
 	builder.WriteByte(')')
 }
 
-func isMVCRequestEntityAnnotation(name string) bool { return name == "request-entity" }
+func isMVCRequestEntityAnnotation(name string) bool { return name == "goark-web:request-entity" }
 
 func writeMVCEntityParameterBindings(builder *bytes.Buffer, route mvcRoute) {
 	errorReturn := "return goweb.ResponseEntity[" + route.Handler.EntityBody + "]{}, err"
@@ -300,7 +300,7 @@ func hasMVCJSONRequestPartParam(params []mvcHandlerParam) bool {
 
 func mvcTypeBasePaths(annotations []Annotation) []string {
 	for _, annotation := range annotations {
-		if annotation.Name != "request-mapping" {
+		if annotation.Name != "goark-web:request-mapping" {
 			continue
 		}
 		paths, err := requireMVCPathTexts(annotation)
@@ -313,7 +313,7 @@ func mvcTypeBasePaths(annotations []Annotation) []string {
 
 func mvcTypeRequestMethods(annotations []Annotation) ([]string, error) {
 	for _, annotation := range annotations {
-		if annotation.Name == "request-mapping" {
+		if annotation.Name == "goark-web:request-mapping" {
 			return mvcTypeRequestMethodsFromAnnotation(annotation)
 		}
 	}

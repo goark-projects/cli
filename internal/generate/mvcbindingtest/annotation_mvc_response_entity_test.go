@@ -20,11 +20,11 @@ import (
 	goweb "goark.dev/goark/web"
 )
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct{}
 
-//goark:get("/jobs/{id}")
+//goark-web:get("/jobs/{id}")
 func (c *AdminController) Detail(
 	ctx *arkweb.Context,
 ) (goweb.ResponseEntity[map[string]string], error) {
@@ -77,12 +77,12 @@ type Job struct {
 	Name string ` + "`json:\"name\"`" + `
 }
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct{}
 
-//goark:post("/jobs")
-//goark:request-body[input]
+//goark-web:post("/jobs")
+//goark-web:request-body[input]
 func (c *AdminController) Create(
 	ctx *arkweb.Context,
 	input CreateJobRequest,

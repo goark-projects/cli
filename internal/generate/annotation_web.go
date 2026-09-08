@@ -12,8 +12,8 @@ import (
 const webAnnotationModelKey = "goark.web.annotations"
 
 const (
-	webInterceptorAnnotation = "web-interceptor"
-	webFilterAnnotation      = "web-filter"
+	webInterceptorAnnotation = "goark-web:web-interceptor"
+	webFilterAnnotation      = "goark-web:web-filter"
 )
 
 type webAnnotationModel struct {
@@ -184,7 +184,7 @@ func buildWebComponent(
 		return &webComponent{Component: component, Kind: kind}, nil
 	}
 	for _, field := range structType.Fields.List {
-		fieldAnnotations, err := parseAnnotations(field.Doc)
+		fieldAnnotations, err := parseAnnotations(field.Doc, field.Comment)
 		if err != nil {
 			return nil, err
 		}

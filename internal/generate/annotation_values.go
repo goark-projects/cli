@@ -161,14 +161,14 @@ func writeConfigurationPropertiesRegistration(
 	builder.WriteString("(config.Environment())\n}); err != nil {\nreturn err\n}\n")
 }
 
-// Annotation 表示一条 //goark:* 注解。
+// Annotation 表示核心或领域注解，领域名称保留命名空间前缀。
 type Annotation = annotationparse.Annotation
 
 // AnnotationArg 表示注解参数。
 type AnnotationArg = annotationparse.AnnotationArg
 
-func parseAnnotations(group *ast.CommentGroup) ([]Annotation, error) {
-	return annotationparse.ParseComments(group)
+func parseAnnotations(groups ...*ast.CommentGroup) ([]Annotation, error) {
+	return (annotationparse.Namespaces{"goark", "goark-web"}).ParseGroups(groups...)
 }
 
 func mergeAnnotations(left []Annotation, right []Annotation) []Annotation {

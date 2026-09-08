@@ -17,19 +17,19 @@ func TestGenerateAnnotations_whenMVCExtendedParameterTypesExist_shouldGeneratePa
 
 import "time"
 
-//goark:rest-controller("adminController")
+//goark-web:rest-controller("adminController")
 type AdminController struct{}
 
-//goark:get("/items/{ids}")
-//goark:path-variable[ids]
-//goark:request-param[tags](name="tag")
-//goark:request-param[ratio]
-//goark:request-param[at]
-//goark:request-header[roles](name="X-Role")
-//goark:cookie-value[flags](name="flag", required=false)
-//goark:matrix-variable[years](name="year")
-//goark:request-attribute[score]
-//goark:session-attribute[sessionAt]
+//goark-web:get("/items/{ids}")
+//goark-web:path-variable[ids]
+//goark-web:request-param[tags](name="tag")
+//goark-web:request-param[ratio]
+//goark-web:request-param[at]
+//goark-web:request-header[roles](name="X-Role")
+//goark-web:cookie-value[flags](name="flag", required=false)
+//goark-web:matrix-variable[years](name="year")
+//goark-web:request-attribute[score]
+//goark-web:session-attribute[sessionAt]
 func (c *AdminController) Search(
 	ids []int,
 	tags []string,

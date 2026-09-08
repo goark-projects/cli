@@ -59,7 +59,7 @@ func buildComponent(
 		return component, false, nil
 	}
 	for _, field := range structType.Fields.List {
-		fieldAnnotations, err := parseAnnotations(field.Doc)
+		fieldAnnotations, err := parseAnnotations(field.Doc, field.Comment)
 		if err != nil {
 			return annotationComponent{}, false, err
 		}

@@ -2,16 +2,20 @@ package generate
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"go/ast"
 	"go/format"
 	"go/token"
+	"goark.dev/cli/internal/generate/annotationast"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
 	"goark.dev/cli/internal/generate/annotationparse"
+	"goark.dev/cli/internal/generate/annotationpolicy"
 )
 
 func scanInterfaceMethods(
@@ -20,23 +24,23 @@ func scanInterfaceMethods(
 	typeSpec *ast.TypeSpec, interfaceType *ast.InterfaceType,
 ) error {
 	for _, method := range interfaceType.Methods.List {
-		methodAnnotations, err := parseAnnotations(method.Doc)
+		methodAnnotations, err := pipeline.namespaces.ParseGroups(method.Doc, method.Comment)
 		if err != nil {
 			return err
 		}
 		if len(methodAnnotations) == 0 {
 			continue
 		}
-		item := AnnotationItem{
-			target:      AnnotationTargetMethod,
-			packageName: ctx.PackageName(),
-			fset:        fset,
-			file:        file,
-			genDecl:     decl,
-			typeSpec:    typeSpec,
-			field:       method,
-			annotations: methodAnnotations,
-		}
+		item := annotationast.NewItem(annotationast.Info{
+			Target:      AnnotationTargetMethod,
+			PackageName: ctx.PackageName(),
+			FileSet:     fset,
+			File:        file,
+			GenDecl:     decl,
+			TypeSpec:    typeSpec,
+			Field:       method,
+			Annotations: methodAnnotations,
+		})
 		if err := pipeline.dispatch(ctx, item); err != nil {
 			return err
 		}
@@ -45,25 +49,16 @@ func scanInterfaceMethods(
 }
 
 func (p *annotationPipeline) dispatch(ctx *AnnotationBindingContext, item AnnotationItem) error {
-	if err := p.validate(item); err != nil {
-		return err
-	}
-	for _, extension := range p.extensions {
-		if extension.Binder == nil || !itemMatchesDescriptors(item, extension.Descriptors) {
-			continue
-		}
-		if err := extension.Binder.BindAnnotation(ctx, item); err != nil {
-			return err
-		}
-	}
+	p.items = append(p.items, item)
 	return nil
 }
 
 func (p *annotationPipeline) validate(item AnnotationItem) error {
-	for _, annotation := range item.annotations {
+	for _, annotation := range item.Annotations() {
 		descriptor, ok := p.descriptors[annotation.Name]
 		if !ok {
-			return fmt.Errorf("unknown annotation %q", annotation.Name)
+			_, migrated := p.descriptors["goark-web:"+annotation.Name]
+			return annotationparse.UnknownAnnotation(annotation.Name, migrated)
 		}
 		if !descriptorAllowsTarget(descriptor, item.Target()) {
 			return annotationError("does not support %s target", annotation.Name, item.Target())
@@ -80,19 +75,15 @@ func (p *annotationPipeline) validate(item AnnotationItem) error {
 			return err
 		}
 	}
-	return nil
+	return annotationpolicy.ValidateDeclarations(item.Annotations(), p.descriptors)
 }
 
 func descriptorAllowsTarget(descriptor AnnotationDescriptor, target AnnotationTarget) bool {
-	if len(descriptor.Targets) == 0 {
-		return true
-	}
-	for _, item := range descriptor.Targets {
-		if item == target {
-			return true
-		}
-	}
-	return false
+	return len(descriptor.Targets) == 0 || slices.Contains(descriptor.Targets, target)
+}
+
+func methodDesc(name string, validate annotationValidateFunc) AnnotationDescriptor {
+	return newAnnotationDesc(name, validate, AnnotationTargetMethod)
 }
 
 func itemMatchesDescriptors(item AnnotationItem, descriptors []AnnotationDescriptor) bool {
@@ -208,10 +199,19 @@ type AnnotationFile struct {
 
 // GenerateAnnotationFiles 扫描一次源码，并按生成职责输出独立文件。
 func GenerateAnnotationFiles(spec AnnotationScanSpec) ([]AnnotationFile, error) {
-	pkg, values, pipeline, err := buildAnnotationModel(spec)
+	plans, err := PrepareAnnotationPlans([]AnnotationScanSpec{spec})
 	if err != nil {
 		return nil, err
 	}
+	return plans[0].RenderFiles()
+}
+
+// RenderFiles 按扩展注册顺序渲染已经校验完成的生成计划。
+func (p *AnnotationPlan) RenderFiles() ([]AnnotationFile, error) {
+	if p == nil || p.pkg == nil || p.pipeline == nil {
+		return nil, fmt.Errorf("annotation generation plan is not initialized")
+	}
+	pkg, values, pipeline := p.pkg, p.values, p.pipeline
 	files := make([]AnnotationFile, 0, len(pipeline.extensions))
 	for index, extension := range pipeline.extensions {
 		if extension.Generator == nil {
@@ -239,18 +239,12 @@ func GenerateAnnotationFiles(spec AnnotationScanSpec) ([]AnnotationFile, error) 
 func buildAnnotationModel(
 	spec AnnotationScanSpec,
 ) (*annotationPackage, map[string]any, *annotationPipeline, error) {
-	pipeline, err := newAnnotationPipeline(spec)
+	plans, err := PrepareAnnotationPlans([]AnnotationScanSpec{spec})
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	pkg, values, err := scanAnnotations(spec, pipeline)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if err := prepareExternalGeneration(pkg, values); err != nil {
-		return nil, nil, nil, err
-	}
-	return pkg, values, pipeline, nil
+	p := plans[0]
+	return p.pkg, p.values, p.pipeline, nil
 }
 
 func newAnnotationPipeline(spec AnnotationScanSpec) (*annotationPipeline, error) {
@@ -258,20 +252,24 @@ func newAnnotationPipeline(spec AnnotationScanSpec) (*annotationPipeline, error)
 	pipeline := &annotationPipeline{
 		extensions:  all,
 		descriptors: make(map[string]AnnotationDescriptor),
+		namespaces:  []string{"goark", "goark-web"},
 		spec:        spec,
 	}
-	for _, extension := range all {
-		for _, descriptor := range extension.Descriptors {
-			name := strings.TrimSpace(descriptor.Name)
-			if name == "" {
-				return nil, fmt.Errorf("annotation descriptor name is required")
-			}
-			if _, exists := pipeline.descriptors[name]; exists {
-				return nil, fmt.Errorf("duplicate annotation descriptor %q", name)
-			}
-			descriptor.Name = name
-			pipeline.descriptors[name] = descriptor
+	seen := make(map[string]bool)
+	for index := range all {
+		extension := &all[index]
+		name, err := annotationpolicy.ExtensionName(extension.Name, index, seen)
+		if err != nil {
+			return nil, err
 		}
+		extension.Name = name
+		descriptors, err := annotationpolicy.RegisterDescriptors(
+			extension.Descriptors, pipeline.descriptors, &pipeline.namespaces,
+		)
+		if err != nil {
+			return nil, err
+		}
+		extension.Descriptors = descriptors
 	}
 	return pipeline, nil
 }
@@ -280,10 +278,7 @@ func scanAnnotations(
 	spec AnnotationScanSpec,
 	pipeline *annotationPipeline,
 ) (*annotationPackage, map[string]any, error) {
-	dir := strings.TrimSpace(spec.Dir)
-	if dir == "" {
-		dir = "."
-	}
+	dir := cmp.Or(strings.TrimSpace(spec.Dir), ".")
 	fset := token.NewFileSet()
 	packages, err := annotationparse.ParsePackages(fset, dir, spec.Files)
 	if err != nil {
@@ -341,15 +336,6 @@ func scanAnnotations(
 	files := annotationparse.SortedFiles(fset, parsedPackage)
 	for _, file := range files {
 		if err := scanAnnotationFile(ctx, pipeline, fset, file); err != nil {
-			return nil, nil, err
-		}
-	}
-	for _, extension := range pipeline.extensions {
-		finalizer, ok := extension.Binder.(annotationBindingFinalizer)
-		if !ok {
-			continue
-		}
-		if err := finalizer.FinalizeAnnotationBinding(ctx); err != nil {
 			return nil, nil, err
 		}
 	}

@@ -28,11 +28,11 @@ type Job struct {
 	Name string ` + "`json:\"name\"`" + `
 }
 
-//goark:rest-controller("adminController")
+//goark-web:rest-controller("adminController")
 type AdminController struct{}
 
-//goark:post("/jobs", status=202)
-//goark:request-entity[request]
+//goark-web:post("/jobs", status=202)
+//goark-web:request-entity[request]
 func (c *AdminController) Create(
 	ctx *arkweb.Context,
 	request goweb.RequestEntity[CreateJobRequest],
@@ -81,10 +81,10 @@ type Job struct {
 	Name string ` + "`json:\"name\"`" + `
 }
 
-//goark:rest-controller("adminController")
+//goark-web:rest-controller("adminController")
 type AdminController struct{}
 
-//goark:post("/jobs")
+//goark-web:post("/jobs")
 func (c *AdminController) Create(
 	request goweb.RequestEntity[CreateJobRequest],
 ) (goweb.ResponseEntity[Job], error) {
@@ -128,11 +128,11 @@ type CreateJobRequest struct {
 	Code string ` + "`json:\"code\" arkarta:\"required\"`" + `
 }
 
-//goark:rest-controller("adminController")
+//goark-web:rest-controller("adminController")
 type AdminController struct{}
 
-//goark:post("/jobs")
-//goark:validated("create")
+//goark-web:post("/jobs")
+//goark-web:validated("create")
 func (c *AdminController) Create(request goweb.RequestEntity[CreateJobRequest]) map[string]string {
 	body, _ := request.Body()
 	return map[string]string{"name": body.Name}
@@ -172,11 +172,11 @@ func TestGenerateAnnotations_whenMVCRequestEntityTargetsPlainType_shouldReturnEr
 
 type CreateJobRequest struct{}
 
-//goark:rest-controller("adminController")
+//goark-web:rest-controller("adminController")
 type AdminController struct{}
 
-//goark:post("/jobs")
-//goark:request-entity[input]
+//goark-web:post("/jobs")
+//goark-web:request-entity[input]
 func (c *AdminController) Create(input CreateJobRequest) map[string]string {
 	return map[string]string{}
 }

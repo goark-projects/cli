@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"go/ast"
 	"strings"
+
+	"goark.dev/cli/internal/generate/annotationpolicy"
 )
 
 const (
@@ -166,9 +168,7 @@ func newAnnotationDesc(
 	validate annotationValidateFunc,
 	targets ...AnnotationTarget,
 ) AnnotationDescriptor {
-	return AnnotationDescriptor{
-		Name: name, Targets: targets, Validate: validate,
-	}
+	return annotationpolicy.DefaultDescriptor(name, validate, targets...)
 }
 
 func validateCoreStructTypeAnnotation(ctx AnnotationValidationContext) error {
@@ -330,7 +330,7 @@ func validateCorePropertySourcesAnnotation(ctx AnnotationValidationContext) erro
 func validateCoreComponentOrBeanOwner(ctx AnnotationValidationContext) error {
 	switch ctx.Target {
 	case AnnotationTargetType:
-		if componentOptionKind(ctx.Item.annotations) == "" {
+		if componentOptionKind(ctx.Item.Annotations()) == "" {
 			return annotationError("requires component type target", ctx.Annotation.Name)
 		}
 	case AnnotationTargetMethod:
@@ -345,7 +345,7 @@ func validateCoreConfigurationComponentOrBeanOwner(ctx AnnotationValidationConte
 	switch ctx.Target {
 	case AnnotationTargetType:
 		if !ctx.Item.HasAnnotation("configuration") &&
-			componentOptionKind(ctx.Item.annotations) == "" {
+			componentOptionKind(ctx.Item.Annotations()) == "" {
 			return fmt.Errorf(
 				"annotation %q requires configuration or component type target",
 				ctx.Annotation.Name,

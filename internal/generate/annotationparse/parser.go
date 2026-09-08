@@ -4,11 +4,12 @@ package annotationparse
 import (
 	"fmt"
 	"go/ast"
+	"slices"
 	"strconv"
 	"strings"
 )
 
-// Annotation 表示一条 //goark:* 注解。
+// Annotation 表示一条 Goark 注解，领域注解的 Name 保留完整命名空间。
 type Annotation struct {
 	Name     string
 	Selector string
@@ -26,24 +27,57 @@ func (a AnnotationArg) Text() string {
 	return a.text
 }
 
-// ParseComments 从 Go 注释组解析全部 Goark 注解。
-func ParseComments(group *ast.CommentGroup) ([]Annotation, error) {
+// ParseComments 解析指定命名空间的注解；不指定命名空间时解析全部领域。
+func ParseComments(group *ast.CommentGroup, namespaces ...string) ([]Annotation, error) {
 	if group == nil {
 		return nil, nil
 	}
 	annotations := make([]Annotation, 0)
 	for _, comment := range group.List {
-		text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "//"))
-		if !strings.HasPrefix(text, "goark:") {
+		if !strings.HasPrefix(comment.Text, "//") {
 			continue
 		}
-		annotation, err := parseAnnotation(strings.TrimPrefix(text, "goark:"))
+		text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "//"))
+		if !IsAnnotation(text) {
+			continue
+		}
+		namespace, local, _ := strings.Cut(text, ":")
+		if len(namespaces) > 0 && !slices.Contains(namespaces, namespace) {
+			continue
+		}
+		if strings.TrimSpace(local) == "" {
+			return nil, fmt.Errorf("annotation name is required in namespace %q", namespace)
+		}
+		annotation, err := parseAnnotation(local)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("namespace %q: %w", namespace, err)
+		}
+		if strings.Contains(annotation.Name, ":") {
+			return nil, fmt.Errorf("annotation %q contains a nested namespace", annotation.Name)
+		}
+		if namespace != "goark" {
+			annotation.Name = namespace + ":" + annotation.Name
 		}
 		annotations = append(annotations, annotation)
 	}
 	return annotations, nil
+}
+
+// IsAnnotation 判断注释文本是否采用核心或领域注解前缀。
+func IsAnnotation(text string) bool {
+	if strings.HasPrefix(text, "goark:") {
+		return true
+	}
+	prefix, _, ok := strings.Cut(text, ":")
+	if !ok || !strings.HasPrefix(prefix, "goark-") || len(prefix) == len("goark-") {
+		return false
+	}
+	for _, char := range prefix[len("goark-"):] {
+		if char != '-' && (char < 'a' || char > 'z') && (char < '0' || char > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func parseAnnotation(raw string) (Annotation, error) {

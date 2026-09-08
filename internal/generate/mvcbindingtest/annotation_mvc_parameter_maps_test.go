@@ -13,14 +13,14 @@ func TestGenerateAnnotations_whenMVCParameterMapsExist_shouldGenerateMapBindings
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("searchController")
+//goark-web:rest-controller("searchController")
 type SearchController struct{}
 
-//goark:get("/search")
-//goark:request-param[params]
-//goark:request-param[values]
-//goark:request-header[headers]
-//goark:request-header[headerValues]
+//goark-web:get("/search")
+//goark-web:request-param[params]
+//goark-web:request-param[values]
+//goark-web:request-header[headers]
+//goark-web:request-header[headerValues]
 func (c *SearchController) Search(
 	params map[string]string,
 	values map[string][]string,
@@ -63,11 +63,11 @@ func TestGenerateAnnotations_whenMVCParameterMapDeclaresSourceName_shouldReturnE
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("searchController")
+//goark-web:rest-controller("searchController")
 type SearchController struct{}
 
-//goark:get("/search")
-//goark:request-param[params]("tag")
+//goark-web:get("/search")
+//goark-web:request-param[params]("tag")
 func (c *SearchController) Search(params map[string]string) map[string]string {
 	return params
 }

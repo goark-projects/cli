@@ -15,12 +15,12 @@ func TestGenerateAnnotations_whenControllerMappingHasConditions_shouldGenerateOp
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("jobsController")
-` + `//goark:request-mapping("/api", consumes="application/json", ` +
+//goark-web:rest-controller("jobsController")
+` + `//goark-web:request-mapping("/api", consumes="application/json", ` +
 		`produces="application/json", params="tenant=admin", headers="X-Tenant=admin")` + `
 type JobsController struct{}
 
-` + `//goark:post("/jobs", consumes="application/vnd.goark.job+json", ` +
+` + `//goark-web:post("/jobs", consumes="application/vnd.goark.job+json", ` +
 		`produces="application/vnd.goark.job+json", params="mode=fast", ` +
 		`headers="X-Route=enabled")` + `
 func (c *JobsController) Create() map[string]string {

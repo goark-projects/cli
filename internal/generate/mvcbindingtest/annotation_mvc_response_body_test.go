@@ -13,11 +13,11 @@ func TestGenerateAnnotations_whenMVCResponseBodyExists_shouldWriteReturnValueAsB
 	dir := t.TempDir()
 	source := `package app
 
-//goark:controller("adminController")
+//goark-web:controller("adminController")
 type AdminController struct{}
 
-//goark:get("/admin/status")
-//goark:response-body
+//goark-web:get("/admin/status")
+//goark-web:response-body
 func (c *AdminController) Status() string {
 	return "UP"
 }
@@ -46,11 +46,11 @@ func TestGenerateAnnotations_whenMVCRestControllerResponseBodyExists_shouldKeepE
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("apiController")
+//goark-web:rest-controller("apiController")
 type APIController struct{}
 
-//goark:get("/api/status")
-//goark:response-body
+//goark-web:get("/api/status")
+//goark-web:response-body
 func (c *APIController) Status() (map[string]string, error) {
 	return map[string]string{"status": "UP"}, nil
 }
@@ -81,11 +81,11 @@ func TestGenerateAnnotations_whenMVCResponseBodyUsesModel_shouldReturnValidation
 
 import "goark.dev/goark/web/mvc"
 
-//goark:controller("pageController")
+//goark-web:controller("pageController")
 type PageController struct{}
 
-//goark:get("/pages/home")
-//goark:response-body
+//goark-web:get("/pages/home")
+//goark-web:response-body
 func (c *PageController) Home(model *mvc.Model) string {
 	model.Add("title", "Home")
 	return "home"

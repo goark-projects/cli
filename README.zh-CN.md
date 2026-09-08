@@ -47,6 +47,8 @@ goark run
 
 ## 日常工作流
 
+注解按能力领域归属命名：`//goark:service`、`//goark:autowired` 属于核心容器；`//goark-web:rest-controller`、`//goark-web:get`、`//goark-web:web-filter` 属于 Web。ORM 保持独立的 `//goark-orm:` 命名空间和生成器。旧 Web 注解的 `//goark:` 前缀不再接受，迁移时保留名称、参数和选择器，只更换前缀。扩展描述符使用 `goark-example:service` 等完整领域名称，避免跨领域同名冲突。
+
 ```bash
 # 只读查看项目和最终执行计划。
 goark info

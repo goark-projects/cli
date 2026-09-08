@@ -17,10 +17,10 @@ func TestGenerateAnnotations_whenMVCModelAndViewReturnExists_shouldGenerateRetur
 
 import mvc "goark.dev/goark/web/mvc"
 
-//goark:controller("pageController")
+//goark-web:controller("pageController")
 type PageController struct{}
 
-//goark:get("/pages/home")
+//goark-web:get("/pages/home")
 func (c *PageController) Home() (mvc.ModelAndView, error) {
 	model := mvc.NewModel().AddAttribute("Title", "Home")
 	return mvc.NewModelAndView("pages/home", model), nil
@@ -49,10 +49,10 @@ func TestGenerateAnnotations_whenMVCModelParameterAndViewNameReturnExist_shouldR
 
 import mvc "goark.dev/goark/web/mvc"
 
-//goark:controller("pageController")
+//goark-web:controller("pageController")
 type PageController struct{}
 
-//goark:get("/pages/home")
+//goark-web:get("/pages/home")
 func (c *PageController) Home(model *mvc.Model) string {
 	model.AddAttribute("Title", "Home")
 	return "pages/home"
@@ -88,10 +88,10 @@ func TestGenerateAnnotations_whenMVCModelParameterAndNoReturnExist_shouldInferVi
 
 import mvc "goark.dev/goark/web/mvc"
 
-//goark:controller("pageController")
+//goark-web:controller("pageController")
 type PageController struct{}
 
-//goark:get("/pages/home")
+//goark-web:get("/pages/home")
 func (c *PageController) Home(model *mvc.Model) {
 	model.AddAttribute("Title", "Home")
 }

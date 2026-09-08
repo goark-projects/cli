@@ -13,14 +13,14 @@ func TestGenerateAnnotations_whenMVCCrossOriginExists_shouldGenerateCORSOptions(
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("apiController")
-//goark:request-mapping("/api")
-` + `//goark:cross-origin(origins="https://admin.example.com", ` +
+//goark-web:rest-controller("apiController")
+//goark-web:request-mapping("/api")
+` + `//goark-web:cross-origin(origins="https://admin.example.com", ` +
 		`allowedHeaders="X-Request-ID,Content-Type", allowCredentials=true, maxAge="30m")` + `
 type APIController struct{}
 
-//goark:get("/status")
-` + `//goark:cross-origin(origins="https://route.example.com", methods="GET", ` +
+//goark-web:get("/status")
+` + `//goark-web:cross-origin(origins="https://route.example.com", methods="GET", ` +
 		`exposedHeaders="X-Trace-ID")` + `
 func (c *APIController) Status() string {
 	return "UP"
@@ -63,11 +63,11 @@ func TestGenerateAnnotations_whenEmptyMVCCrossOriginExists_shouldGenerateDefault
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("apiController")
+//goark-web:rest-controller("apiController")
 type APIController struct{}
 
-//goark:get("/status")
-//goark:cross-origin
+//goark-web:get("/status")
+//goark-web:cross-origin
 func (c *APIController) Status() string {
 	return "UP"
 }
@@ -93,10 +93,10 @@ func TestGenerateAnnotations_whenMVCCrossOriginMethodHasNoRoute_shouldReturnVali
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("apiController")
+//goark-web:rest-controller("apiController")
 type APIController struct{}
 
-//goark:cross-origin(origins="https://admin.example.com")
+//goark-web:cross-origin(origins="https://admin.example.com")
 func (c *APIController) Status() string {
 	return "UP"
 }
@@ -109,7 +109,7 @@ func (c *APIController) Status() string {
 	if err == nil ||
 		!strings.Contains(
 			err.Error(),
-			`annotation "cross-origin" requires mvc route method target`,
+			`annotation "goark-web:cross-origin" requires mvc route method target`,
 		) {
 		t.Fatalf("expected mvc cross-origin route validation error, got %v", err)
 	}

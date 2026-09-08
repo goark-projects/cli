@@ -76,7 +76,7 @@ func mvcRouteConditionsFromAnnotation(annotation Annotation) mvcRouteConditions 
 
 func mvcTypeRouteConditions(annotations []Annotation) mvcRouteConditions {
 	for _, annotation := range annotations {
-		if annotation.Name == "request-mapping" {
+		if annotation.Name == "goark-web:request-mapping" {
 			return mvcRouteConditionsFromAnnotation(annotation)
 		}
 	}

@@ -4,7 +4,12 @@ import (
 	"bytes"
 	"go/ast"
 	"go/token"
+	"goark.dev/cli/internal/generate/annotationast"
+	"goark.dev/cli/internal/genpipeline"
 	"strings"
+
+	"goark.dev/cli/internal/generate/annotationparse"
+	"goark.dev/cli/internal/generate/annotationpolicy"
 )
 
 // AnnotationScanSpec 描述注解扫描生成输入。
@@ -20,7 +25,7 @@ type AnnotationScanSpec struct {
 }
 
 // AnnotationTarget 表示注解所在的 Go 语法目标。
-type AnnotationTarget string
+type AnnotationTarget = annotationast.Target
 
 const (
 	// AnnotationTargetType 表示类型声明注解。
@@ -31,12 +36,10 @@ const (
 	AnnotationTargetMethod AnnotationTarget = "method"
 )
 
-// AnnotationDescriptor 描述一个可识别注解的名称、目标和验证逻辑。
-type AnnotationDescriptor struct {
-	Name     string
-	Targets  []AnnotationTarget
-	Validate func(AnnotationValidationContext) error
-}
+// AnnotationDescriptor 描述注解契约，领域名称包含 goark-web: 等前缀。
+type AnnotationDescriptor = annotationpolicy.Descriptor[
+	AnnotationTarget, AnnotationValidationContext,
+]
 
 // AnnotationValidationContext 提供注解验证所需的上下文。
 type AnnotationValidationContext struct {
@@ -49,10 +52,6 @@ type annotationValidateFunc func(AnnotationValidationContext) error
 
 func typeDesc(name string, validate annotationValidateFunc) AnnotationDescriptor {
 	return newAnnotationDesc(name, validate, AnnotationTargetType)
-}
-
-func methodDesc(name string, validate annotationValidateFunc) AnnotationDescriptor {
-	return newAnnotationDesc(name, validate, AnnotationTargetMethod)
 }
 
 // AnnotationBinder 将 AST 注解绑定到生成模型。
@@ -78,106 +77,15 @@ type annotationBindingFinalizer interface {
 }
 
 type annotationPipeline struct {
+	items       []AnnotationItem
 	extensions  []AnnotationExtension
 	descriptors map[string]AnnotationDescriptor
+	namespaces  annotationparse.Namespaces
 	spec        AnnotationScanSpec
 }
 
-// AnnotationItem 表示扫描器发现的一处带 goark 注解的语法节点。
-type AnnotationItem struct {
-	target      AnnotationTarget
-	packageName string
-	fset        *token.FileSet
-	file        *ast.File
-	genDecl     *ast.GenDecl
-	typeSpec    *ast.TypeSpec
-	field       *ast.Field
-	funcDecl    *ast.FuncDecl
-	annotations []Annotation
-}
-
-// Target 返回当前注解所在语法目标。
-func (i AnnotationItem) Target() AnnotationTarget { return i.target }
-
-// PackageName 返回当前扫描包名。
-func (i AnnotationItem) PackageName() string { return i.packageName }
-
-// FileSet 返回当前扫描文件集。
-func (i AnnotationItem) FileSet() *token.FileSet { return i.fset }
-
-// File 返回当前 AST 文件。
-func (i AnnotationItem) File() *ast.File { return i.file }
-
-// GenDecl 返回当前通用声明，仅类型目标有效。
-func (i AnnotationItem) GenDecl() *ast.GenDecl { return i.genDecl }
-
-// TypeSpec 返回当前类型声明，仅类型或字段目标有效。
-func (i AnnotationItem) TypeSpec() *ast.TypeSpec { return i.typeSpec }
-
-// Field 返回当前字段声明，仅字段目标有效。
-func (i AnnotationItem) Field() *ast.Field { return i.field }
-
-// FuncDecl 返回当前函数声明，仅方法目标有效。
-func (i AnnotationItem) FuncDecl() *ast.FuncDecl { return i.funcDecl }
-
-// TypeName 返回当前类型名。
-func (i AnnotationItem) TypeName() string {
-	if i.typeSpec == nil {
-		return ""
-	}
-	return i.typeSpec.Name.Name
-}
-
-// FuncName 返回当前函数名。
-func (i AnnotationItem) FuncName() string {
-	if i.funcDecl == nil {
-		return ""
-	}
-	return i.funcDecl.Name.Name
-}
-
-// ReceiverTypeName 返回方法接收者类型名。
-func (i AnnotationItem) ReceiverTypeName() string {
-	if i.funcDecl == nil {
-		return ""
-	}
-	return receiverTypeName(i.funcDecl.Recv)
-}
-
-// FieldNames 返回当前字段名列表。
-func (i AnnotationItem) FieldNames() []string {
-	if i.Target() != AnnotationTargetField {
-		return nil
-	}
-	return i.Names()
-}
-
-// Names 返回当前语法目标声明的名称列表。
-func (i AnnotationItem) Names() []string {
-	if i.funcDecl != nil {
-		return []string{i.funcDecl.Name.Name}
-	}
-	if i.field == nil {
-		return nil
-	}
-	names := make([]string, 0, len(i.field.Names))
-	for _, name := range i.field.Names {
-		names = append(names, name.Name)
-	}
-	return names
-}
-
-// Annotations 返回当前节点上的 goark 注解副本。
-func (i AnnotationItem) Annotations() []Annotation {
-	out := make([]Annotation, len(i.annotations))
-	copy(out, i.annotations)
-	return out
-}
-
-// HasAnnotation 判断当前节点是否存在指定注解。
-func (i AnnotationItem) HasAnnotation(name string) bool {
-	return hasAnnotation(i.annotations, name)
-}
+// AnnotationItem 表示扫描得到的注解节点。
+type AnnotationItem = annotationast.Item
 
 // AnnotationBindingContext 持有扫描绑定阶段的共享状态。
 type AnnotationBindingContext struct {
@@ -246,6 +154,9 @@ func scanAnnotationFile(
 	ctx *AnnotationBindingContext, pipeline *annotationPipeline,
 	fset *token.FileSet, file *ast.File,
 ) error {
+	if err := pipeline.namespaces.ValidatePlacement(file, fset); err != nil {
+		return err
+	}
 	for _, decl := range file.Decls {
 		switch item := decl.(type) {
 		case *ast.GenDecl:
@@ -255,21 +166,21 @@ func scanAnnotationFile(
 				}
 			}
 		case *ast.FuncDecl:
-			annotations, err := parseAnnotations(item.Doc)
+			annotations, err := pipeline.namespaces.ParseComments(item.Doc)
 			if err != nil {
 				return err
 			}
 			if len(annotations) == 0 {
 				continue
 			}
-			annotationItem := AnnotationItem{
-				target:      AnnotationTargetMethod,
-				packageName: ctx.PackageName(),
-				fset:        fset,
-				file:        file,
-				funcDecl:    item,
-				annotations: annotations,
-			}
+			annotationItem := annotationast.NewItem(annotationast.Info{
+				Target:      AnnotationTargetMethod,
+				PackageName: ctx.PackageName(),
+				FileSet:     fset,
+				File:        file,
+				FuncDecl:    item,
+				Annotations: annotations,
+			})
 			if err := pipeline.dispatch(ctx, annotationItem); err != nil {
 				return err
 			}
@@ -282,7 +193,7 @@ func scanTypeDeclaration(
 	ctx *AnnotationBindingContext, pipeline *annotationPipeline,
 	fset *token.FileSet, file *ast.File, decl *ast.GenDecl,
 ) error {
-	typeAnnotations, err := parseAnnotations(decl.Doc)
+	typeAnnotations, err := pipeline.namespaces.ParseComments(decl.Doc)
 	if err != nil {
 		return err
 	}
@@ -291,21 +202,21 @@ func scanTypeDeclaration(
 		if !ok {
 			continue
 		}
-		specAnnotations, err := parseAnnotations(typeSpec.Doc)
+		specAnnotations, err := pipeline.namespaces.ParseGroups(typeSpec.Doc, typeSpec.Comment)
 		if err != nil {
 			return err
 		}
 		annotations := mergeAnnotations(typeAnnotations, specAnnotations)
 		if len(annotations) > 0 {
-			item := AnnotationItem{
-				target:      AnnotationTargetType,
-				packageName: ctx.PackageName(),
-				fset:        fset,
-				file:        file,
-				genDecl:     decl,
-				typeSpec:    typeSpec,
-				annotations: annotations,
-			}
+			item := annotationast.NewItem(annotationast.Info{
+				Target:      AnnotationTargetType,
+				PackageName: ctx.PackageName(),
+				FileSet:     fset,
+				File:        file,
+				GenDecl:     decl,
+				TypeSpec:    typeSpec,
+				Annotations: annotations,
+			})
 			if err := pipeline.dispatch(ctx, item); err != nil {
 				return err
 			}
@@ -334,25 +245,100 @@ func scanStructFields(
 	typeSpec *ast.TypeSpec, structType *ast.StructType,
 ) error {
 	for _, field := range structType.Fields.List {
-		fieldAnnotations, err := parseAnnotations(field.Doc)
+		fieldAnnotations, err := pipeline.namespaces.ParseGroups(field.Doc, field.Comment)
 		if err != nil {
+			return err
+		}
+		if err := annotationpolicy.ValidateFieldOwner(fieldAnnotations, decl, typeSpec); err != nil {
 			return err
 		}
 		if len(fieldAnnotations) == 0 {
 			continue
 		}
-		item := AnnotationItem{
-			target:      AnnotationTargetField,
-			packageName: ctx.PackageName(),
-			fset:        fset,
-			file:        file,
-			genDecl:     decl,
-			typeSpec:    typeSpec,
-			field:       field,
-			annotations: fieldAnnotations,
-		}
+		item := annotationast.NewItem(annotationast.Info{
+			Target:      AnnotationTargetField,
+			PackageName: ctx.PackageName(),
+			FileSet:     fset,
+			File:        file,
+			GenDecl:     decl,
+			TypeSpec:    typeSpec,
+			Field:       field,
+			Annotations: fieldAnnotations,
+		})
 		if err := pipeline.dispatch(ctx, item); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// AnnotationPlan 保存完成语义绑定的包模型，渲染前不产生文件。
+type AnnotationPlan struct {
+	pkg      *annotationPackage
+	values   map[string]any
+	pipeline *annotationPipeline
+}
+
+// PrepareAnnotationPlans 完整扫描所有包后，依次校验、绑定并规划生成。
+func PrepareAnnotationPlans(specs []AnnotationScanSpec) ([]*AnnotationPlan, error) {
+	plans := make([]*AnnotationPlan, 0, len(specs))
+	err := genpipeline.Execute(genpipeline.Step{Name: "scan", Run: func() error {
+		for _, spec := range specs {
+			pipeline, err := newAnnotationPipeline(spec)
+			if err != nil {
+				return err
+			}
+			pkg, values, err := scanAnnotations(spec, pipeline)
+			if err != nil {
+				return err
+			}
+			plans = append(plans, &AnnotationPlan{pkg, values, pipeline})
+		}
+		return nil
+	}}, genpipeline.Step{Name: "validate", Run: func() error {
+		for _, plan := range plans {
+			p := plan.pipeline
+			for _, item := range p.items {
+				if err := p.validate(item); err != nil {
+					return annotationparse.TargetError(item.FileSet(), item.TypeSpec(), item.Field(),
+						item.FuncDecl(), item.ReceiverTypeName(), err)
+				}
+			}
+		}
+		return nil
+	}}, genpipeline.Step{Name: "bind-and-plan", Run: func() error {
+		for _, plan := range plans {
+			ctx := &AnnotationBindingContext{spec: plan.pipeline.spec, pkg: plan.pkg, values: plan.values}
+			if err := plan.pipeline.bind(ctx); err != nil {
+				return err
+			}
+			if err := prepareExternalGeneration(plan.pkg, plan.values); err != nil {
+				return err
+			}
+		}
+		return nil
+	}})
+	if err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
+func (p *annotationPipeline) bind(ctx *AnnotationBindingContext) error {
+	for _, item := range p.items {
+		for _, extension := range p.extensions {
+			if extension.Binder == nil || !itemMatchesDescriptors(item, extension.Descriptors) {
+				continue
+			}
+			if err := extension.Binder.BindAnnotation(ctx, item); err != nil {
+				return err
+			}
+		}
+	}
+	for _, extension := range p.extensions {
+		if finalizer, ok := extension.Binder.(annotationBindingFinalizer); ok {
+			if err := finalizer.FinalizeAnnotationBinding(ctx); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

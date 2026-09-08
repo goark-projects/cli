@@ -20,18 +20,18 @@ import (
 	arkweb "goark.dev/arkarta/web"
 )
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct{}
 
-` + `//goark:post("/assets/{id}", consumes="multipart/form-data", ` +
+` + `//goark-web:post("/assets/{id}", consumes="multipart/form-data", ` +
 		`produces="application/json", params="mode=fast,!debug", ` +
 		`headers="X-Tenant=admin")` + `
-//goark:path-variable[id]("id")
-//goark:matrix-variable[color]("color", required=false)
-//goark:request-attribute[traceID]("traceID")
-//goark:session-attribute[principal]("principal")
-//goark:request-part[file]("file")
+//goark-web:path-variable[id]("id")
+//goark-web:matrix-variable[color]("color", required=false)
+//goark-web:request-attribute[traceID]("traceID")
+//goark-web:session-attribute[principal]("principal")
+//goark-web:request-part[file]("file")
 func (c *AdminController) Upload(
 	ctx *arkweb.Context,
 	id int64,
@@ -96,13 +96,13 @@ type User struct {
 	Username string ` + "`json:\"username\"`" + `
 }
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct{}
 
-//goark:put("/users/{id}")
-//goark:path-variable[id]("id")
-//goark:request-body[input]
+//goark-web:put("/users/{id}")
+//goark-web:path-variable[id]("id")
+//goark-web:request-body[input]
 func (c *AdminController) Update(
 	ctx *arkweb.Context,
 	id int64,
@@ -146,12 +146,12 @@ type UserSearchCriteria struct {
 	Page int ` + "`form:\"page\" json:\"page\"`" + `
 }
 
-//goark:controller("adminController")
-//goark:request-mapping("/admin")
+//goark-web:controller("adminController")
+//goark-web:request-mapping("/admin")
 type AdminController struct{}
 
-//goark:get("/users/search")
-//goark:model-attribute[criteria]
+//goark-web:get("/users/search")
+//goark-web:model-attribute[criteria]
 func (c *AdminController) Search(
 	ctx *arkweb.Context,
 	criteria UserSearchCriteria,

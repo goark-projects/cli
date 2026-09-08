@@ -29,6 +29,37 @@ The current annotation generator also supports `//goark:application`. It generat
 lifecycle while configurations, services, injection points, and MVC routes remain declared in
 ordinary application source.
 
+## Annotation Namespaces
+
+### Duplicate And Conflict Validation
+
+Annotations are singletons per target by default. Parameter annotations use normalized
+parameter names as instance keys: different parameters may share an annotation kind,
+but the same parameter cannot declare it twice. `property-source`, `depends-on`, and
+`profile` retain their existing repeat-and-merge behavior. Extensions declare their
+rules through `AnnotationDescriptor.Repeatable` and `InstanceKey`.
+
+A type cannot declare multiple component roles. An injection point cannot combine
+incompatible value, resource, and type-based injection modes or overriding qualifiers.
+Field injection requires a component whose assembly is generated and accepts no method
+parameter selector. Leading and trailing annotations on types, fields, and interface
+methods are validated together. Misplaced and unattached annotations fail.
+
+The built-in project annotation generator validates and renders all selected packages
+before writing or removing generated files. Annotation failures preserve prior output.
+This is not cross-file rollback for filesystem failures and does not cover independent
+external tasks.
+
+| Namespace | Ownership | Examples |
+| --- | --- | --- |
+| `goark` | Core container, injection, configuration, application assembly | `//goark:service`, `//goark:autowired` |
+| `goark-web` | Controllers, routes, binding, advice, filters and interceptors | `//goark-web:rest-controller`, `//goark-web:get("/users")` |
+| `goark-orm` | Independent ORM entity and Mapper generation | `//goark-orm:tableName(value="users")` |
+
+Migrate every existing Web annotation from `//goark:` to `//goark-web:` while retaining its name, arguments, and parameter selector. This includes `web-filter` and `web-interceptor`; core injection annotations on the same types keep `//goark:`. Old Web spellings produce an error with the replacement spelling.
+
+`AnnotationDescriptor.Name` identifies domain annotations by their full name, such as `goark-web:get`. Core descriptors retain short names, such as `service`. Matching, duplicate detection, and binding use the full identity, so separate namespaces can use the same local name. A registered descriptor enables its namespace; unknown annotations within an enabled namespace are errors. Unregistered namespaces remain owned by their separate generators, including ORM. A package containing only Web annotations is discovered normally.
+
 ## Output Ownership
 
 Project outputs use:
@@ -140,3 +171,5 @@ goark codegen registry \
 - Use `goark generate` in development, CI, `run`, `build`, and `test` lifecycles.
 - Use low-level `codegen` for generator development, explicit build tooling, or inspecting output on standard output.
 - Use `goark go generate` only when the project intentionally executes standard Go generation directives and accepts their independent tools and side effects.
+
+[Staged generation and extension contracts](generation-pipeline.md)

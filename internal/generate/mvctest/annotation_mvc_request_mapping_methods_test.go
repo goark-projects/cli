@@ -15,10 +15,10 @@ func TestGenerateAnnotations_whenRequestMappingHasNoMethod_shouldGenerateDefault
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("systemController")
+//goark-web:rest-controller("systemController")
 type SystemController struct{}
 
-//goark:request-mapping("/probe")
+//goark-web:request-mapping("/probe")
 func (c *SystemController) Probe() string {
 	return "ok"
 }
@@ -60,11 +60,11 @@ func TestGenerateAnnotations_whenRequestMappingHasMultipleMethods_shouldGenerate
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("jobsController")
-//goark:request-mapping("/api")
+//goark-web:rest-controller("jobsController")
+//goark-web:request-mapping("/api")
 type JobsController struct{}
 
-//goark:request-mapping("/jobs", method="GET,POST")
+//goark-web:request-mapping("/jobs", method="GET,POST")
 func (c *JobsController) Jobs() []string {
 	return []string{"sync"}
 }
@@ -96,10 +96,10 @@ func TestGenerateAnnotations_whenTraceMappingExists_shouldGenerateTraceRoute(t *
 	dir := t.TempDir()
 	source := `package app
 
-//goark:rest-controller("diagnosticController")
+//goark-web:rest-controller("diagnosticController")
 type DiagnosticController struct{}
 
-//goark:trace("/diagnostics")
+//goark-web:trace("/diagnostics")
 func (c *DiagnosticController) Diagnostics() string {
 	return "ok"
 }
