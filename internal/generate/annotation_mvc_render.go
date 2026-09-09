@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"goark.dev/cli/internal/generate/mvcrouting"
+	"goark.dev/goark/web/mvc/routing"
 )
 
 func mvcParameterKind(name string) (mvcHandlerParamKind, bool) {

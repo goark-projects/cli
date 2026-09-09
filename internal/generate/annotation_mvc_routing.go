@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"goark.dev/cli/internal/generate/annotationmeta"
-	"goark.dev/cli/internal/generate/mvcrouting"
+	"goark.dev/goark/web/mvc/routing"
 )
 
 func mvcResponseEntityBodyType(

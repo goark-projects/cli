@@ -12,4 +12,7 @@ require (
 	golang.org/x/sys v0.47.0
 )
 
-require golang.org/x/mod v0.40.0
+require (
+	goark.dev/goark v0.0.2-0.20260909001741-e6eac5ddfb8f
+	golang.org/x/mod v0.40.0
+)

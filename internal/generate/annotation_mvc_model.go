@@ -6,7 +6,7 @@ import (
 	"go/token"
 	"strings"
 
-	"goark.dev/cli/internal/generate/mvcrouting"
+	"goark.dev/goark/web/mvc/routing"
 )
 
 func mvcMultipartBodySelectorSet(annotations []Annotation) map[string]struct{} {
